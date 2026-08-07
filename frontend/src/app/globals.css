@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+/* 트립메이트 디자인 토큰 — Toss/Triple 톤 (파란 포인트, 둥근 카드, 넉넉한 여백) */
+:root {
+  --color-primary: #3182f6;
+  --color-primary-dark: #1b64da;
+  --color-primary-soft: #eaf2ff;
+  --color-ink: #191f28;
+  --color-gray-700: #4e5968;
+  --color-gray-500: #8b95a1;
+  --color-gray-300: #d1d6db;
+  --color-gray-200: #e5e8eb;
+  --color-gray-100: #f2f4f6;
+  --color-white: #ffffff;
+  --color-red: #f04452;
+  --color-red-soft: #fdecee;
+  --color-orange: #ff9f1c;
+  --color-orange-soft: #fff4e5;
+  --color-green: #00c896;
+  --color-green-soft: #e6faf5;
+  --color-kakao: #fee500;
+  --color-kakao-ink: #191600;
+  --shadow-card: 0 1px 2px rgba(25, 31, 40, 0.04), 0 8px 24px -12px rgba(25, 31, 40, 0.18);
+}
+
+@theme inline {
+  --color-primary: var(--color-primary);
+  --color-primary-dark: var(--color-primary-dark);
+  --color-primary-soft: var(--color-primary-soft);
+  --color-ink: var(--color-ink);
+  --color-gray-700: var(--color-gray-700);
+  --color-gray-500: var(--color-gray-500);
+  --color-gray-300: var(--color-gray-300);
+  --color-gray-200: var(--color-gray-200);
+  --color-gray-100: var(--color-gray-100);
+  --color-red: var(--color-red);
+  --color-red-soft: var(--color-red-soft);
+  --color-orange: var(--color-orange);
+  --color-orange-soft: var(--color-orange-soft);
+  --color-green: var(--color-green);
+  --color-green-soft: var(--color-green-soft);
+  --color-kakao: var(--color-kakao);
+  --color-kakao-ink: var(--color-kakao-ink);
+  --font-sans: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, -apple-system, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background: var(--color-gray-100);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--color-primary);
+}
+
+button {
+  font-family: inherit;
+}
+
+/* 모바일 웹 우선 — 앱처럼 보이도록 중앙 정렬된 컬럼 */
+.app-shell {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  background: var(--color-white);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+@media (min-width: 480px) {
+  .app-shell {
+    min-height: 100dvh;
+    box-shadow: var(--shadow-card);
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-gray-300);
+  border-radius: 999px;
+}
