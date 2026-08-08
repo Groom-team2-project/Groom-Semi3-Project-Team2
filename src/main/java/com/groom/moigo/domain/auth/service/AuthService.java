@@ -2,15 +2,17 @@ package com.groom.moigo.domain.auth.service;
 
 import com.groom.moigo.domain.auth.client.KakaoOAuthClient;
 import com.groom.moigo.domain.auth.config.KakaoOAuthProperties;
-import com.groom.moigo.auth.dto.*;
-import com.groom.moigo.domain.auth.dto.*;
+import com.groom.moigo.domain.auth.dto.KakaoAuthorizeResult;
+import com.groom.moigo.domain.auth.dto.KakaoUserInfo;
+import com.groom.moigo.domain.auth.dto.LoginResponse;
+import com.groom.moigo.domain.auth.dto.OAuthState;
+import com.groom.moigo.domain.auth.dto.TokenReissueResponse;
 import com.groom.moigo.domain.user.entity.UserEntity;
 import com.groom.moigo.domain.user.repository.UserRepository;
 import com.groom.moigo.global.error.BusinessException;
 import com.groom.moigo.global.error.ErrorCode;
-import org.springframework.stereotype.Service;
-
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
@@ -25,42 +27,46 @@ public class AuthService {
     private final RefreshTokenService refreshTokenService;
     private final UserRepository userRepository;
 
-    public LoginResponse loginWithKakao(String code, String redirectUri, String state, String nonce) {
+    public LoginResult loginWithKakao(String code, String state, String nonce) {
         oAuthStateService.validateAndConsume(state, nonce);
 
-        KakaoUserInfo userInfo = kakaoOAuthClient.getUserInfo(code, redirectUri);
-
+        KakaoUserInfo userInfo = kakaoOAuthClient.getUserInfo(code);
         AuthMemberService.UserLookupResult lookupResult = authMemberService.findOrCreateUser(userInfo);
         String accessToken = jwtTokenProvider.createAccessToken(lookupResult.user());
         String refreshToken = refreshTokenService.issue(lookupResult.user().getUserId());
 
-        return new LoginResponse(
+        LoginResponse response = new LoginResponse(
                 "Bearer",
                 accessToken,
                 jwtTokenProvider.getAccessTokenExpirationSeconds(),
-                refreshToken,
                 refreshTokenService.getRefreshTokenExpirationSeconds(),
                 lookupResult.user().getUserId(),
                 lookupResult.newUser()
         );
+
+        return new LoginResult(response, refreshToken);
     }
 
-    public TokenReissueResponse reissue(String refreshToken) {
+    public ReissueResult reissue(String refreshToken) {
         Long userId = refreshTokenService.validateAndGetUserId(refreshToken);
 
         UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED, "회원을 찾을 수 없습니다."));
+                .orElseThrow(() -> new BusinessException(
+                        ErrorCode.UNAUTHORIZED,
+                        "회원을 찾을 수 없습니다."
+                ));
 
         String newAccessToken = jwtTokenProvider.createAccessToken(user);
         String newRefreshToken = refreshTokenService.rotate(refreshToken, user.getUserId());
 
-        return new TokenReissueResponse(
+        TokenReissueResponse response = new TokenReissueResponse(
                 "Bearer",
                 newAccessToken,
                 jwtTokenProvider.getAccessTokenExpirationSeconds(),
-                newRefreshToken,
                 refreshTokenService.getRefreshTokenExpirationSeconds()
         );
+
+        return new ReissueResult(response, newRefreshToken);
     }
 
     public void logout(String refreshToken) {
@@ -80,5 +86,11 @@ public class AuthService {
                 .toUriString();
 
         return new KakaoAuthorizeResult(url, oAuthState.state(), oAuthState.nonce());
+    }
+
+    public record LoginResult(LoginResponse response, String refreshToken) {
+    }
+
+    public record ReissueResult(TokenReissueResponse response, String refreshToken) {
     }
 }

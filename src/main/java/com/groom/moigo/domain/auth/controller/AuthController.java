@@ -1,13 +1,15 @@
 package com.groom.moigo.domain.auth.controller;
 
-import java.time.Duration;
-
-import com.groom.moigo.domain.auth.config.KakaoOAuthProperties;
 import com.groom.moigo.domain.auth.config.OAuthCookieProperties;
-import com.groom.moigo.auth.dto.*;
-import com.groom.moigo.domain.auth.dto.*;
+import com.groom.moigo.domain.auth.dto.KakaoAuthorizeResult;
+import com.groom.moigo.domain.auth.dto.KakaoAuthorizeUrlResponse;
+import com.groom.moigo.domain.auth.dto.KakaoLoginRequest;
+import com.groom.moigo.domain.auth.dto.LoginResponse;
+import com.groom.moigo.domain.auth.dto.TokenReissueResponse;
 import com.groom.moigo.domain.auth.service.AuthService;
 import com.groom.moigo.global.response.CommonResponse;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -19,100 +21,111 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import java.time.Duration;
 
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
+    private static final String OAUTH_NONCE_COOKIE = "oauth_nonce";
+    private static final String REFRESH_TOKEN_COOKIE = "refresh_token";
+
     private final AuthService authService;
-    private final KakaoOAuthProperties kakaoOAuthProperties;
     private final OAuthCookieProperties oAuthCookieProperties;
 
     @PostMapping("/kakao/login")
     public ResponseEntity<CommonResponse<LoginResponse>> loginWithKakao(
             @Valid @RequestBody KakaoLoginRequest request,
-            @CookieValue(name = "oauth_nonce", required = false) String nonce
+            @CookieValue(name = OAUTH_NONCE_COOKIE, required = false) String nonce
     ) {
-        LoginResponse response = authService.loginWithKakao(
+        AuthService.LoginResult result = authService.loginWithKakao(
                 request.code(),
-                request.redirectUri(),
                 request.state(),
                 nonce
         );
-        ResponseCookie expiredCookie = createOAuthNonceCookie("", Duration.ZERO);
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, expiredCookie.toString())
-                .body(CommonResponse.success(response, "카카오 로그인 성공"));
+                .header(HttpHeaders.SET_COOKIE, createOAuthNonceCookie("", Duration.ZERO).toString())
+                .header(HttpHeaders.SET_COOKIE, createRefreshTokenCookie(
+                        result.refreshToken(),
+                        result.response().refreshTokenExpiresIn()
+                ).toString())
+                .body(CommonResponse.success(result.response(), "카카오 로그인 성공"));
     }
 
     @GetMapping("/kakao/authorize-url")
     public ResponseEntity<CommonResponse<KakaoAuthorizeUrlResponse>> authorizeUrl() {
         KakaoAuthorizeResult result = authService.getKakaoAuthorizeUrl();
         KakaoAuthorizeUrlResponse response = new KakaoAuthorizeUrlResponse(result.url(), result.state());
-        ResponseCookie cookie = createOAuthNonceCookie(result.nonce(), Duration.ofMinutes(5));
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .header(HttpHeaders.SET_COOKIE, createOAuthNonceCookie(
+                        result.nonce(),
+                        Duration.ofMinutes(5)
+                ).toString())
                 .body(CommonResponse.success(response, "카카오 로그인 URL 조회 성공"));
     }
 
-    /*
-     * 프론트엔드 구현시 아래 Callback API는 사용하지 않아도 될 듯 합니다.
-     * 구현시 카카오 로그인 설정에서 callback url을 프론트엔드 쪽으로 변경하고, 해당 메서드는 삭제해도 될 것 같습니다.
-     */
     @GetMapping("/kakao/callback")
     public ResponseEntity<CommonResponse<LoginResponse>> kakaoCallback(
             @RequestParam String code,
             @RequestParam String state,
-            @CookieValue(name = "oauth_nonce", required = false) String nonce
+            @CookieValue(name = OAUTH_NONCE_COOKIE, required = false) String nonce
     ) {
-        LoginResponse response = authService.loginWithKakao(
-                code,
-                kakaoOAuthProperties.redirectUri(),
-                state,
-                nonce
-        );
-        ResponseCookie expiredCookie = createOAuthNonceCookie("", Duration.ZERO);
+        AuthService.LoginResult result = authService.loginWithKakao(code, state, nonce);
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, expiredCookie.toString())
-                .body(CommonResponse.success(response, "Kakao login succeeded"));
+                .header(HttpHeaders.SET_COOKIE, createOAuthNonceCookie("", Duration.ZERO).toString())
+                .header(HttpHeaders.SET_COOKIE, createRefreshTokenCookie(
+                        result.refreshToken(),
+                        result.response().refreshTokenExpiresIn()
+                ).toString())
+                .body(CommonResponse.success(result.response(), "카카오 로그인 성공"));
     }
 
     @PostMapping("/reissue")
     public ResponseEntity<CommonResponse<TokenReissueResponse>> reissue(
-            @Valid @RequestBody TokenReissueRequest request
+            @CookieValue(name = REFRESH_TOKEN_COOKIE, required = false) String refreshToken
     ) {
-        TokenReissueResponse response = authService.reissue(request.refreshToken());
+        AuthService.ReissueResult result = authService.reissue(refreshToken);
 
-        return ResponseEntity.ok(
-                CommonResponse.success(response, "토큰 재발급 성공")
-        );
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, createRefreshTokenCookie(
+                        result.refreshToken(),
+                        result.response().refreshTokenExpiresIn()
+                ).toString())
+                .body(CommonResponse.success(result.response(), "토큰 재발급 성공"));
     }
 
     @PostMapping("/logout")
     public ResponseEntity<CommonResponse<Void>> logout(
-            @Valid @RequestBody LogoutRequest request
+            @CookieValue(name = REFRESH_TOKEN_COOKIE, required = false) String refreshToken
     ) {
-        authService.logout(request.refreshToken());
+        authService.logout(refreshToken);
 
-        return ResponseEntity.ok(
-                CommonResponse.success(null, "로그아웃 성공")
-        );
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, createRefreshTokenCookie("", 0).toString())
+                .body(CommonResponse.success(null, "로그아웃 성공"));
     }
 
-
     private ResponseCookie createOAuthNonceCookie(String value, Duration maxAge) {
-        return ResponseCookie.from("oauth_nonce", value)
+        return ResponseCookie.from(OAUTH_NONCE_COOKIE, value)
                 .httpOnly(true)
                 .secure(oAuthCookieProperties.cookieSecure())
                 .sameSite("Lax")
-                .path("/")
+                .path("/api/v1/auth")
                 .maxAge(maxAge)
+                .build();
+    }
+
+    private ResponseCookie createRefreshTokenCookie(String value, long maxAgeSeconds) {
+        return ResponseCookie.from(REFRESH_TOKEN_COOKIE, value)
+                .httpOnly(true)
+                .secure(oAuthCookieProperties.cookieSecure())
+                .sameSite("Lax")
+                .path("/api/v1/auth")
+                .maxAge(Duration.ofSeconds(maxAgeSeconds))
                 .build();
     }
 }

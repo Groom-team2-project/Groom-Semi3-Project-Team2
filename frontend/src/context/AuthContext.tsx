@@ -1,7 +1,12 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { loginWithKakao, logout as apiLogout } from "@/lib/api";
+import {
+  completeKakaoLogin as completeKakaoLoginRequest,
+  loginWithKakao,
+  logout as apiLogout,
+  restoreAccessToken,
+} from "@/lib/api";
 import type { User } from "@/lib/api";
 
 const STORAGE_KEY = "tripmate_auth";
@@ -10,6 +15,7 @@ interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   loginWithKakao: () => Promise<void>;
+  completeKakaoLogin: (code: string, state: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -21,32 +27,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 최초 마운트 시에만 localStorage 확인 (SSR/CSR mismatch 방지를 위해 렌더 이후 useEffect에서 처리)
   useEffect(() => {
-    try {
+    let active = true;
+
+    async function initializeAuth() {
       const saved = window.localStorage.getItem(STORAGE_KEY);
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage는 서버에 없어 마운트 후에만 읽을 수 있음
-      if (saved) setUser(JSON.parse(saved) as User);
-    } catch {
-      // ignore
-    } finally {
-      setIsLoading(false);
+      if (!saved) return;
+
+      try {
+        const savedUser = JSON.parse(saved) as User;
+        await restoreAccessToken();
+        if (active) setUser(savedUser);
+      } catch {
+        window.localStorage.removeItem(STORAGE_KEY);
+      }
     }
+
+    void initializeAuth().finally(() => {
+      if (active) setIsLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const login = useCallback(async () => {
-    const me = await loginWithKakao();
+    await loginWithKakao();
+  }, []);
+
+  const completeLogin = useCallback(async (code: string, state: string) => {
+    const me = await completeKakaoLoginRequest(code, state);
     setUser(me);
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(me));
   }, []);
 
   const logout = useCallback(async () => {
-    await apiLogout();
-    setUser(null);
-    window.localStorage.removeItem(STORAGE_KEY);
+    try {
+      await apiLogout();
+    } finally {
+      setUser(null);
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
   }, []);
 
   const value = useMemo(
-    () => ({ user, isLoading, loginWithKakao: login, logout }),
-    [user, isLoading, login, logout],
+    () => ({ user, isLoading, loginWithKakao: login, completeKakaoLogin: completeLogin, logout }),
+    [user, isLoading, login, completeLogin, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
