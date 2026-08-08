@@ -12,25 +12,23 @@ import com.groom.moigo.vote.dto.request.VoteOptionUpdateRequest;
 import com.groom.moigo.vote.dto.request.VoteUpdateRequest;
 import com.groom.moigo.vote.dto.response.VoteOptionResponse;
 import com.groom.moigo.vote.dto.response.VoteResponse;
-import com.groom.moigo.vote.dto.response.VoteSummaryResponse;
 import com.groom.moigo.vote.entity.Vote;
 import com.groom.moigo.vote.entity.VoteOption;
 import com.groom.moigo.vote.exception.VoteErrorCode;
 import com.groom.moigo.vote.exception.VoteException;
 import com.groom.moigo.vote.repository.VoteOptionRepository;
 import com.groom.moigo.vote.repository.VoteParticipationRepository;
-import com.groom.moigo.vote.repository.VoteParticipationRepository.VoteParticipantCount;
 import com.groom.moigo.vote.repository.VoteRepository;
-import java.time.LocalDateTime;
-import java.util.HashMap;
+import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 투표와 투표 선택지를 관리한다.
+ *
+ * <p>모든 조회·변경은 계획(Plan) 하위에서 이뤄지므로 투표가 해당 계획에 속하는지 먼저 검증한다.
  *
  * <p>TODO 계획 멤버 권한(Plan_Member.권한) 검증은 계획·멤버 도메인이 머지되면 추가한다. 현재는 투표 생성자 본인 여부만 검증한다.
  */
@@ -54,7 +52,7 @@ public class VoteService {
 						.findById(planId)
 						.orElseThrow(() -> new VoteException(VoteErrorCode.PLAN_NOT_FOUND));
 		Member creator = findMember(memberId);
-		validateClosesAt(request.closesAt());
+		validateDeadline(request.deadline());
 
 		Vote vote =
 				Vote.builder()
@@ -62,14 +60,16 @@ public class VoteService {
 						.creator(creator)
 						.title(request.title())
 						.description(request.description())
-						.type(request.type())
-						.closesAt(request.closesAt())
+						.type(request.typeOrDefault())
+						.closesAt(request.deadline())
 						.build();
 
 		for (VoteOptionCreateRequest optionRequest : request.options()) {
 			vote.addOption(
 					VoteOption.builder()
-							.content(optionRequest.content())
+							.content(optionRequest.placeName())
+							.placeAddress(optionRequest.placeAddress())
+							.emoji(optionRequest.emoji())
 							.place(findPlaceOrNull(optionRequest.placeId()))
 							.build());
 		}
@@ -78,54 +78,41 @@ public class VoteService {
 		return assembler.toVoteResponse(saved, memberId);
 	}
 
+	/** 계획에 등록된 투표를 최신순으로 모두 조회한다. 선택지와 득표 수까지 함께 내려간다. */
 	@Transactional
-	public List<VoteSummaryResponse> findAllByPlan(Long planId) {
+	public List<VoteResponse> findAllByPlan(Long planId, Long memberId) {
 		if (!planRepository.existsById(planId)) {
 			throw new VoteException(VoteErrorCode.PLAN_NOT_FOUND);
 		}
 
 		List<Vote> votes = voteRepository.findByPlanIdOrderByCreatedAtDesc(planId);
-		if (votes.isEmpty()) {
-			return List.of();
-		}
-
-		LocalDateTime now = LocalDateTime.now();
+		Instant now = Instant.now();
 		votes.forEach(vote -> vote.syncStatus(now));
 
-		List<Long> voteIds = votes.stream().map(Vote::getId).toList();
-		Map<Long, Long> participantCounts = participantCountsByVote(voteIds);
-
-		return votes.stream()
-				.map(
-						vote ->
-								VoteSummaryResponse.of(
-										vote,
-										(int) voteOptionRepository.countByVoteId(vote.getId()),
-										participantCounts.getOrDefault(vote.getId(), 0L)))
-				.toList();
+		return assembler.toVoteResponses(votes, memberId);
 	}
 
 	@Transactional
-	public VoteResponse findById(Long voteId, Long memberId) {
-		Vote vote = findVote(voteId);
-		vote.syncStatus(LocalDateTime.now());
+	public VoteResponse findById(Long planId, Long voteId, Long memberId) {
+		Vote vote = findVoteOfPlan(planId, voteId);
+		vote.syncStatus(Instant.now());
 		return assembler.toVoteResponse(vote, memberId);
 	}
 
 	@Transactional
-	public VoteResponse update(Long voteId, Long memberId, VoteUpdateRequest request) {
-		Vote vote = findVote(voteId);
+	public VoteResponse update(Long planId, Long voteId, Long memberId, VoteUpdateRequest request) {
+		Vote vote = findVoteOfPlan(planId, voteId);
 		validateCreator(vote, memberId);
 		validateOpen(vote);
-		validateClosesAt(request.closesAt());
+		validateDeadline(request.deadline());
 
-		vote.update(request.title(), request.description(), request.closesAt());
+		vote.update(request.title(), request.description(), request.deadline());
 		return assembler.toVoteResponse(vote, memberId);
 	}
 
 	@Transactional
-	public void delete(Long voteId, Long memberId) {
-		Vote vote = findVote(voteId);
+	public void delete(Long planId, Long voteId, Long memberId) {
+		Vote vote = findVoteOfPlan(planId, voteId);
 		validateCreator(vote, memberId);
 
 		voteParticipationRepository.deleteByVoteId(voteId);
@@ -133,8 +120,8 @@ public class VoteService {
 	}
 
 	@Transactional
-	public VoteResponse close(Long voteId, Long memberId) {
-		Vote vote = findVote(voteId);
+	public VoteResponse close(Long planId, Long voteId, Long memberId) {
+		Vote vote = findVoteOfPlan(planId, voteId);
 		validateCreator(vote, memberId);
 		validateOpen(vote);
 
@@ -144,14 +131,16 @@ public class VoteService {
 
 	@Transactional
 	public VoteOptionResponse addOption(
-			Long voteId, Long memberId, VoteOptionCreateRequest request) {
-		Vote vote = findVote(voteId);
+			Long planId, Long voteId, Long memberId, VoteOptionCreateRequest request) {
+		Vote vote = findVoteOfPlan(planId, voteId);
 		validateCreator(vote, memberId);
 		validateOpen(vote);
 
 		VoteOption option =
 				VoteOption.builder()
-						.content(request.content())
+						.content(request.placeName())
+						.placeAddress(request.placeAddress())
+						.emoji(request.emoji())
 						.place(findPlaceOrNull(request.placeId()))
 						.build();
 		vote.addOption(option);
@@ -162,20 +151,24 @@ public class VoteService {
 
 	@Transactional
 	public VoteOptionResponse updateOption(
-			Long voteId, Long optionId, Long memberId, VoteOptionUpdateRequest request) {
-		Vote vote = findVote(voteId);
+			Long planId, Long voteId, Long optionId, Long memberId, VoteOptionUpdateRequest request) {
+		Vote vote = findVoteOfPlan(planId, voteId);
 		validateCreator(vote, memberId);
 		validateOpen(vote);
 
 		VoteOption option = findOptionOf(vote, optionId);
-		option.update(request.content(), findPlaceOrNull(request.placeId()));
+		option.update(
+				request.placeName(),
+				request.placeAddress(),
+				request.emoji(),
+				findPlaceOrNull(request.placeId()));
 
 		return assembler.toOptionResponse(option, memberId);
 	}
 
 	@Transactional
-	public void deleteOption(Long voteId, Long optionId, Long memberId) {
-		Vote vote = findVote(voteId);
+	public void deleteOption(Long planId, Long voteId, Long optionId, Long memberId) {
+		Vote vote = findVoteOfPlan(planId, voteId);
 		validateCreator(vote, memberId);
 		validateOpen(vote);
 
@@ -191,10 +184,15 @@ public class VoteService {
 		voteOptionRepository.deleteById(targetId);
 	}
 
-	private Vote findVote(Long voteId) {
-		return voteRepository
-				.findById(voteId)
-				.orElseThrow(() -> new VoteException(VoteErrorCode.VOTE_NOT_FOUND));
+	private Vote findVoteOfPlan(Long planId, Long voteId) {
+		Vote vote =
+				voteRepository
+						.findById(voteId)
+						.orElseThrow(() -> new VoteException(VoteErrorCode.VOTE_NOT_FOUND));
+		if (!vote.belongsToPlan(planId)) {
+			throw new VoteException(VoteErrorCode.VOTE_NOT_IN_PLAN);
+		}
+		return vote;
 	}
 
 	private Member findMember(Long memberId) {
@@ -230,23 +228,14 @@ public class VoteService {
 	}
 
 	private void validateOpen(Vote vote) {
-		if (vote.isClosed(LocalDateTime.now())) {
+		if (vote.isClosed(Instant.now())) {
 			throw new VoteException(VoteErrorCode.VOTE_ALREADY_CLOSED);
 		}
 	}
 
-	private void validateClosesAt(LocalDateTime closesAt) {
-		if (closesAt != null && !closesAt.isAfter(LocalDateTime.now())) {
-			throw new VoteException(VoteErrorCode.INVALID_CLOSES_AT);
+	private void validateDeadline(Instant deadline) {
+		if (deadline != null && !deadline.isAfter(Instant.now())) {
+			throw new VoteException(VoteErrorCode.INVALID_DEADLINE);
 		}
-	}
-
-	private Map<Long, Long> participantCountsByVote(List<Long> voteIds) {
-		Map<Long, Long> counts = new HashMap<>();
-		for (VoteParticipantCount row :
-				voteParticipationRepository.countParticipantsByVoteIds(voteIds)) {
-			counts.put(row.getVoteId(), row.getParticipantCount());
-		}
-		return counts;
 	}
 }

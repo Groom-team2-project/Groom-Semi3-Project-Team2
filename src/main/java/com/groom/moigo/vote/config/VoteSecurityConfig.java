@@ -21,7 +21,7 @@ public class VoteSecurityConfig {
 	@Bean
 	@Order(1)
 	SecurityFilterChain voteSecurityFilterChain(HttpSecurity http) throws Exception {
-		return http.securityMatcher("/api/plans/*/votes/**", "/api/votes/**")
+		return http.securityMatcher("/api/v1/plans/*/votes", "/api/v1/plans/*/votes/**")
 				.csrf(csrf -> csrf.disable())
 				.sessionManagement(
 						session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

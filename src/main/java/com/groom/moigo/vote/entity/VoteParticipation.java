@@ -13,7 +13,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -59,7 +59,7 @@ public class VoteParticipation {
 	private Member member;
 
 	@Column(name = "participated_at", nullable = false, updatable = false)
-	private LocalDateTime participatedAt;
+	private Instant participatedAt;
 
 	@Builder
 	private VoteParticipation(Vote vote, VoteOption option, Member member) {
@@ -71,7 +71,7 @@ public class VoteParticipation {
 	@PrePersist
 	void prePersist() {
 		if (participatedAt == null) {
-			participatedAt = LocalDateTime.now();
+			participatedAt = Instant.now();
 		}
 	}
 }

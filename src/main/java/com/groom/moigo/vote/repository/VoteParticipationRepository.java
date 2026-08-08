@@ -39,6 +39,16 @@ public interface VoteParticipationRepository extends JpaRepository<VoteParticipa
 			""")
 	List<OptionVoteCount> countGroupedByOption(@Param("voteId") Long voteId);
 
+	/** 투표 목록 응답용. 여러 투표의 선택지별 득표 수를 한 번에 집계한다. */
+	@Query(
+			"""
+			select p.option.id as optionId, count(p.id) as voteCount
+			from VoteParticipation p
+			where p.vote.id in :voteIds
+			group by p.option.id
+			""")
+	List<OptionVoteCount> countGroupedByOptionIn(@Param("voteIds") List<Long> voteIds);
+
 	@Query(
 			"""
 			select p.vote.id as voteId, count(distinct p.member.id) as participantCount
@@ -47,6 +57,17 @@ public interface VoteParticipationRepository extends JpaRepository<VoteParticipa
 			group by p.vote.id
 			""")
 	List<VoteParticipantCount> countParticipantsByVoteIds(@Param("voteIds") List<Long> voteIds);
+
+	/** 투표 목록 응답용. 여러 투표에 걸친 내 선택지 ID를 한 번에 가져온다. */
+	@Query(
+			"""
+			select p.option.id
+			from VoteParticipation p
+			where p.vote.id in :voteIds and p.member.id = :memberId
+			order by p.id asc
+			""")
+	List<Long> findSelectedOptionIds(
+			@Param("voteIds") List<Long> voteIds, @Param("memberId") Long memberId);
 
 	/** 선택지별 득표 수 집계 결과. */
 	interface OptionVoteCount {

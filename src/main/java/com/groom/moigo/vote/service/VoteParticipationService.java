@@ -14,7 +14,7 @@ import com.groom.moigo.vote.exception.VoteException;
 import com.groom.moigo.vote.repository.VoteOptionRepository;
 import com.groom.moigo.vote.repository.VoteParticipationRepository;
 import com.groom.moigo.vote.repository.VoteRepository;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -25,7 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 투표 참여를 관리한다.
  *
- * <p>이미 참여한 회원이 다시 투표하면 기존 선택을 모두 지우고 새 선택으로 교체한다.
+ * <p>이미 참여한 회원이 다시 투표하면 기존 선택을 모두 지우고 새 선택으로 교체한다. 프론트엔드 투표 상세 화면의 "표를 바꿀 수 있어요" 동작이 이 규칙을 따른다.
  *
  * <p>TODO 계획 멤버만 투표할 수 있도록 하는 검증은 계획·멤버 도메인이 머지되면 추가한다.
  */
@@ -41,12 +41,13 @@ public class VoteParticipationService {
 	private final VoteResponseAssembler assembler;
 
 	@Transactional
-	public VoteResponse participate(Long voteId, Long memberId, VoteParticipationRequest request) {
-		Vote vote = findVote(voteId);
+	public VoteResponse participate(
+			Long planId, Long voteId, Long memberId, VoteParticipationRequest request) {
+		Vote vote = findVoteOfPlan(planId, voteId);
 		validateOpen(vote);
 
 		Member member = findMember(memberId);
-		List<Long> optionIds = validateSelection(vote, request.optionIds());
+		List<Long> optionIds = validateSelection(vote, request.selectedOptionIds());
 		List<VoteOption> options = voteOptionRepository.findByVoteIdAndIdIn(voteId, optionIds);
 		if (options.size() != optionIds.size()) {
 			throw new VoteException(VoteErrorCode.OPTION_NOT_IN_VOTE);
@@ -67,8 +68,8 @@ public class VoteParticipationService {
 	}
 
 	@Transactional
-	public void cancel(Long voteId, Long memberId) {
-		Vote vote = findVote(voteId);
+	public void cancel(Long planId, Long voteId, Long memberId) {
+		Vote vote = findVoteOfPlan(planId, voteId);
 		validateOpen(vote);
 
 		int deleted = voteParticipationRepository.deleteByVoteIdAndMemberId(voteId, memberId);
@@ -77,10 +78,8 @@ public class VoteParticipationService {
 		}
 	}
 
-	public MyVoteResponse findMyParticipation(Long voteId, Long memberId) {
-		if (!voteRepository.existsById(voteId)) {
-			throw new VoteException(VoteErrorCode.VOTE_NOT_FOUND);
-		}
+	public MyVoteResponse findMyParticipation(Long planId, Long voteId, Long memberId) {
+		findVoteOfPlan(planId, voteId);
 
 		List<VoteParticipation> participations =
 				voteParticipationRepository.findByVoteIdAndMemberIdOrderByIdAsc(voteId, memberId);
@@ -88,26 +87,31 @@ public class VoteParticipationService {
 			throw new VoteException(VoteErrorCode.VOTE_PARTICIPATION_NOT_FOUND);
 		}
 
-		List<Long> selectedOptionIds =
-				participations.stream().map(participation -> participation.getOption().getId()).toList();
-		return new MyVoteResponse(
+		List<String> selectedOptionIds =
+				participations.stream()
+						.map(participation -> String.valueOf(participation.getOption().getId()))
+						.toList();
+		return MyVoteResponse.of(
 				voteId, memberId, selectedOptionIds, participations.get(0).getParticipatedAt());
 	}
 
 	@Transactional
-	public VoteResultResponse findResult(Long voteId) {
-		Vote vote = findVote(voteId);
-		vote.syncStatus(LocalDateTime.now());
+	public VoteResultResponse findResult(Long planId, Long voteId) {
+		Vote vote = findVoteOfPlan(planId, voteId);
+		vote.syncStatus(Instant.now());
 		return assembler.toResultResponse(vote);
 	}
 
 	private void validateOpen(Vote vote) {
-		if (vote.isClosed(LocalDateTime.now())) {
+		if (vote.isClosed(Instant.now())) {
 			throw new VoteException(VoteErrorCode.VOTE_ALREADY_CLOSED);
 		}
 	}
 
 	private List<Long> validateSelection(Vote vote, List<Long> optionIds) {
+		if (optionIds.isEmpty()) {
+			throw new VoteException(VoteErrorCode.OPTION_NOT_SELECTED);
+		}
 		Set<Long> distinct = new HashSet<>(optionIds);
 		if (distinct.size() != optionIds.size()) {
 			throw new VoteException(VoteErrorCode.DUPLICATED_OPTION_SELECTED);
@@ -118,10 +122,15 @@ public class VoteParticipationService {
 		return optionIds;
 	}
 
-	private Vote findVote(Long voteId) {
-		return voteRepository
-				.findById(voteId)
-				.orElseThrow(() -> new VoteException(VoteErrorCode.VOTE_NOT_FOUND));
+	private Vote findVoteOfPlan(Long planId, Long voteId) {
+		Vote vote =
+				voteRepository
+						.findById(voteId)
+						.orElseThrow(() -> new VoteException(VoteErrorCode.VOTE_NOT_FOUND));
+		if (!vote.belongsToPlan(planId)) {
+			throw new VoteException(VoteErrorCode.VOTE_NOT_IN_PLAN);
+		}
+		return vote;
 	}
 
 	private Member findMember(Long memberId) {

@@ -6,7 +6,6 @@ import com.groom.moigo.vote.dto.request.VoteOptionUpdateRequest;
 import com.groom.moigo.vote.dto.request.VoteUpdateRequest;
 import com.groom.moigo.vote.dto.response.VoteOptionResponse;
 import com.groom.moigo.vote.dto.response.VoteResponse;
-import com.groom.moigo.vote.dto.response.VoteSummaryResponse;
 import com.groom.moigo.vote.service.VoteService;
 import jakarta.validation.Valid;
 import java.net.URI;
@@ -26,11 +25,13 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 투표·투표 선택지 API.
  *
+ * <p>경로는 프론트엔드 {@code lib/api/votes.ts}가 기대하는 계획 하위 경로를 따른다.
+ *
  * <p>TODO 회원 식별은 인증 도메인이 머지되면 {@code @AuthenticationPrincipal}로 교체한다. 그전까지는 {@code X-Member-Id} 헤더로
  * 요청 회원을 전달받는다.
  */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/v1/plans/{planId}/votes")
 @RequiredArgsConstructor
 public class VoteController {
 
@@ -39,82 +40,97 @@ public class VoteController {
 	private final VoteService voteService;
 
 	/** 계획에 투표를 생성한다. */
-	@PostMapping("/plans/{planId}/votes")
+	@PostMapping
 	public ResponseEntity<VoteResponse> create(
 			@PathVariable Long planId,
 			@RequestHeader(MEMBER_ID_HEADER) Long memberId,
 			@Valid @RequestBody VoteCreateRequest request) {
 		VoteResponse response = voteService.create(planId, memberId, request);
-		return ResponseEntity.created(URI.create("/api/votes/" + response.voteId())).body(response);
+		return ResponseEntity.created(
+						URI.create("/api/v1/plans/" + planId + "/votes/" + response.id()))
+				.body(response);
 	}
 
-	/** 계획에 등록된 투표 목록을 조회한다. */
-	@GetMapping("/plans/{planId}/votes")
-	public ResponseEntity<List<VoteSummaryResponse>> findAllByPlan(@PathVariable Long planId) {
-		return ResponseEntity.ok(voteService.findAllByPlan(planId));
+	/** 계획에 등록된 투표 목록을 조회한다. 선택지별 득표 수와 내가 고른 선택지가 함께 내려온다. */
+	@GetMapping
+	public ResponseEntity<List<VoteResponse>> findAllByPlan(
+			@PathVariable Long planId,
+			@RequestHeader(value = MEMBER_ID_HEADER, required = false) Long memberId) {
+		return ResponseEntity.ok(voteService.findAllByPlan(planId, memberId));
 	}
 
-	/** 투표 상세를 조회한다. 선택지별 득표 수와 내가 고른 선택지가 함께 내려온다. */
-	@GetMapping("/votes/{voteId}")
+	/** 투표 상세를 조회한다. */
+	@GetMapping("/{voteId}")
 	public ResponseEntity<VoteResponse> findById(
+			@PathVariable Long planId,
 			@PathVariable Long voteId,
 			@RequestHeader(value = MEMBER_ID_HEADER, required = false) Long memberId) {
-		return ResponseEntity.ok(voteService.findById(voteId, memberId));
+		return ResponseEntity.ok(voteService.findById(planId, voteId, memberId));
 	}
 
-	/** 투표 제목·설명·종료 일시를 수정한다. 생성자만 가능하다. */
-	@PatchMapping("/votes/{voteId}")
+	/** 투표 제목·설명·마감 일시를 수정한다. 생성자만 가능하다. */
+	@PatchMapping("/{voteId}")
 	public ResponseEntity<VoteResponse> update(
+			@PathVariable Long planId,
 			@PathVariable Long voteId,
 			@RequestHeader(MEMBER_ID_HEADER) Long memberId,
 			@Valid @RequestBody VoteUpdateRequest request) {
-		return ResponseEntity.ok(voteService.update(voteId, memberId, request));
+		return ResponseEntity.ok(voteService.update(planId, voteId, memberId, request));
 	}
 
 	/** 투표를 삭제한다. 생성자만 가능하며 선택지와 참여 기록도 함께 삭제된다. */
-	@DeleteMapping("/votes/{voteId}")
+	@DeleteMapping("/{voteId}")
 	public ResponseEntity<Void> delete(
-			@PathVariable Long voteId, @RequestHeader(MEMBER_ID_HEADER) Long memberId) {
-		voteService.delete(voteId, memberId);
+			@PathVariable Long planId,
+			@PathVariable Long voteId,
+			@RequestHeader(MEMBER_ID_HEADER) Long memberId) {
+		voteService.delete(planId, voteId, memberId);
 		return ResponseEntity.noContent().build();
 	}
 
-	/** 진행 중인 투표를 즉시 종료한다. 생성자만 가능하다. */
-	@PostMapping("/votes/{voteId}/close")
+	/** 진행 중인 투표를 즉시 마감한다. 생성자만 가능하다. */
+	@PostMapping("/{voteId}/close")
 	public ResponseEntity<VoteResponse> close(
-			@PathVariable Long voteId, @RequestHeader(MEMBER_ID_HEADER) Long memberId) {
-		return ResponseEntity.ok(voteService.close(voteId, memberId));
+			@PathVariable Long planId,
+			@PathVariable Long voteId,
+			@RequestHeader(MEMBER_ID_HEADER) Long memberId) {
+		return ResponseEntity.ok(voteService.close(planId, voteId, memberId));
 	}
 
 	/** 선택지를 추가한다. 생성자만 가능하다. */
-	@PostMapping("/votes/{voteId}/options")
+	@PostMapping("/{voteId}/options")
 	public ResponseEntity<VoteOptionResponse> addOption(
+			@PathVariable Long planId,
 			@PathVariable Long voteId,
 			@RequestHeader(MEMBER_ID_HEADER) Long memberId,
 			@Valid @RequestBody VoteOptionCreateRequest request) {
-		VoteOptionResponse response = voteService.addOption(voteId, memberId, request);
+		VoteOptionResponse response = voteService.addOption(planId, voteId, memberId, request);
 		return ResponseEntity.created(
-						URI.create("/api/votes/" + voteId + "/options/" + response.optionId()))
+						URI.create(
+								"/api/v1/plans/" + planId + "/votes/" + voteId + "/options/" + response.id()))
 				.body(response);
 	}
 
 	/** 선택지를 수정한다. 생성자만 가능하다. */
-	@PatchMapping("/votes/{voteId}/options/{optionId}")
+	@PatchMapping("/{voteId}/options/{optionId}")
 	public ResponseEntity<VoteOptionResponse> updateOption(
+			@PathVariable Long planId,
 			@PathVariable Long voteId,
 			@PathVariable Long optionId,
 			@RequestHeader(MEMBER_ID_HEADER) Long memberId,
 			@Valid @RequestBody VoteOptionUpdateRequest request) {
-		return ResponseEntity.ok(voteService.updateOption(voteId, optionId, memberId, request));
+		return ResponseEntity.ok(
+				voteService.updateOption(planId, voteId, optionId, memberId, request));
 	}
 
 	/** 선택지를 삭제한다. 생성자만 가능하며 선택지가 2개 이하로 줄어들면 삭제할 수 없다. */
-	@DeleteMapping("/votes/{voteId}/options/{optionId}")
+	@DeleteMapping("/{voteId}/options/{optionId}")
 	public ResponseEntity<Void> deleteOption(
+			@PathVariable Long planId,
 			@PathVariable Long voteId,
 			@PathVariable Long optionId,
 			@RequestHeader(MEMBER_ID_HEADER) Long memberId) {
-		voteService.deleteOption(voteId, optionId, memberId);
+		voteService.deleteOption(planId, voteId, optionId, memberId);
 		return ResponseEntity.noContent().build();
 	}
 }

@@ -16,13 +16,13 @@ import com.groom.moigo.vote.dto.request.VoteParticipationRequest;
 import com.groom.moigo.vote.dto.request.VoteUpdateRequest;
 import com.groom.moigo.vote.dto.response.VoteOptionResponse;
 import com.groom.moigo.vote.dto.response.VoteResponse;
-import com.groom.moigo.vote.dto.response.VoteSummaryResponse;
 import com.groom.moigo.vote.entity.VoteStatus;
 import com.groom.moigo.vote.entity.VoteType;
 import com.groom.moigo.vote.exception.VoteErrorCode;
 import com.groom.moigo.vote.exception.VoteException;
 import com.groom.moigo.vote.repository.VoteRepository;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -60,14 +60,65 @@ class VoteServiceTest {
 	void createVote() {
 		VoteResponse response = voteService.create(plan.getId(), creator.getId(), createRequest());
 
-		assertThat(response.voteId()).isNotNull();
-		assertThat(response.planId()).isEqualTo(plan.getId());
-		assertThat(response.creatorId()).isEqualTo(creator.getId());
+		assertThat(response.id()).isNotNull();
+		assertThat(response.planId()).isEqualTo(String.valueOf(plan.getId()));
+		assertThat(response.creatorId()).isEqualTo(String.valueOf(creator.getId()));
 		assertThat(response.status()).isEqualTo(VoteStatus.OPEN);
 		assertThat(response.options()).hasSize(2);
-		assertThat(response.options().get(0).placeId()).isEqualTo(place.getId());
+		assertThat(response.options().get(0).placeId()).isEqualTo(String.valueOf(place.getId()));
 		assertThat(response.options().get(1).placeId()).isNull();
 		assertThat(response.participantCount()).isZero();
+		assertThat(response.myOptionId()).isNull();
+		assertThat(response.resultSummary()).isNull();
+	}
+
+	@Test
+	@DisplayName("선택지에 장소 이름·주소·이모지가 그대로 저장된다")
+	void createVoteKeepsPlaceSnapshot() {
+		VoteResponse response = voteService.create(plan.getId(), creator.getId(), createRequest());
+
+		VoteOptionResponse first = response.options().get(0);
+		assertThat(first.placeName()).isEqualTo("성산일출봉");
+		assertThat(first.placeAddress()).isEqualTo("제주 서귀포시 성산읍");
+		assertThat(first.emoji()).isEqualTo("🌅");
+		assertThat(first.voteId()).isEqualTo(response.id());
+	}
+
+	@Test
+	@DisplayName("이모지를 보내지 않으면 기본 핀 이모지가 채워진다")
+	void createVoteFillsDefaultEmoji() {
+		VoteCreateRequest request =
+				new VoteCreateRequest(
+						"어디로 갈까요",
+						null,
+						Instant.now().plus(1, ChronoUnit.DAYS),
+						null,
+						List.of(
+								new VoteOptionCreateRequest("성산일출봉", null, null, null),
+								new VoteOptionCreateRequest("협재해수욕장", null, "  ", null)));
+
+		VoteResponse response = voteService.create(plan.getId(), creator.getId(), request);
+
+		assertThat(response.options()).extracting(VoteOptionResponse::emoji).containsOnly("📍");
+	}
+
+	@Test
+	@DisplayName("투표 방식을 생략하면 단일 선택으로 만들어진다")
+	void createVoteDefaultsToSingleChoice() {
+		VoteResponse response =
+				voteService.create(
+						plan.getId(),
+						creator.getId(),
+						new VoteCreateRequest(
+								"어디로 갈까요",
+								null,
+								Instant.now().plus(1, ChronoUnit.DAYS),
+								null,
+								List.of(
+										new VoteOptionCreateRequest("성산일출봉", null, null, null),
+										new VoteOptionCreateRequest("협재해수욕장", null, null, null))));
+
+		assertThat(response.type()).isEqualTo(VoteType.SINGLE);
 	}
 
 	@Test
@@ -80,38 +131,68 @@ class VoteServiceTest {
 	}
 
 	@Test
-	@DisplayName("종료 일시가 과거면 투표를 만들 수 없다")
-	void createVoteWithPastClosesAt() {
+	@DisplayName("마감 일시가 과거면 투표를 만들 수 없다")
+	void createVoteWithPastDeadline() {
 		VoteCreateRequest request =
 				new VoteCreateRequest(
 						"어디로 갈까요",
 						null,
+						Instant.now().minus(1, ChronoUnit.MINUTES),
 						VoteType.SINGLE,
-						LocalDateTime.now().minusMinutes(1),
 						List.of(
-								new VoteOptionCreateRequest("성산일출봉", null),
-								new VoteOptionCreateRequest("협재해수욕장", null)));
+								new VoteOptionCreateRequest("성산일출봉", null, null, null),
+								new VoteOptionCreateRequest("협재해수욕장", null, null, null)));
 
 		assertThatThrownBy(() -> voteService.create(plan.getId(), creator.getId(), request))
 				.isInstanceOf(VoteException.class)
 				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.INVALID_CLOSES_AT);
+				.isEqualTo(VoteErrorCode.INVALID_DEADLINE);
 	}
 
 	@Test
-	@DisplayName("계획의 투표 목록에 선택지 수와 참여 인원이 담긴다")
+	@DisplayName("계획의 투표 목록에 선택지와 득표 수, 내 선택이 함께 담긴다")
 	void findAllByPlan() {
 		VoteResponse vote = voteService.create(plan.getId(), creator.getId(), createRequest());
+		String optionId = vote.options().get(0).id();
 		voteParticipationService.participate(
-				vote.voteId(),
+				plan.getId(),
+				id(vote.id()),
 				participant.getId(),
-				new VoteParticipationRequest(List.of(vote.options().get(0).optionId())));
+				new VoteParticipationRequest(id(optionId), null));
 
-		List<VoteSummaryResponse> summaries = voteService.findAllByPlan(plan.getId());
+		List<VoteResponse> votes = voteService.findAllByPlan(plan.getId(), participant.getId());
 
-		assertThat(summaries).hasSize(1);
-		assertThat(summaries.get(0).optionCount()).isEqualTo(2);
-		assertThat(summaries.get(0).participantCount()).isEqualTo(1);
+		assertThat(votes).hasSize(1);
+		VoteResponse found = votes.get(0);
+		assertThat(found.options()).hasSize(2);
+		assertThat(found.participantCount()).isEqualTo(1);
+		assertThat(found.myOptionId()).isEqualTo(optionId);
+		assertThat(found.options().get(0).voteCount()).isEqualTo(1);
+		assertThat(found.options().get(0).selectedByMe()).isTrue();
+	}
+
+	@Test
+	@DisplayName("회원을 알 수 없는 목록 조회에서는 내 선택이 비어 있다")
+	void findAllByPlanWithoutMember() {
+		voteService.create(plan.getId(), creator.getId(), createRequest());
+
+		List<VoteResponse> votes = voteService.findAllByPlan(plan.getId(), null);
+
+		assertThat(votes).hasSize(1);
+		assertThat(votes.get(0).myOptionId()).isNull();
+		assertThat(votes.get(0).myOptionIds()).isEmpty();
+	}
+
+	@Test
+	@DisplayName("다른 계획의 투표는 조회할 수 없다")
+	void findByIdOfAnotherPlan() {
+		VoteResponse vote = voteService.create(plan.getId(), creator.getId(), createRequest());
+		Plan other = planRepository.save(new Plan("부산 당일치기"));
+
+		assertThatThrownBy(() -> voteService.findById(other.getId(), id(vote.id()), creator.getId()))
+				.isInstanceOf(VoteException.class)
+				.extracting(exception -> ((VoteException) exception).getErrorCode())
+				.isEqualTo(VoteErrorCode.VOTE_NOT_IN_PLAN);
 	}
 
 	@Test
@@ -120,49 +201,77 @@ class VoteServiceTest {
 		VoteResponse vote = voteService.create(plan.getId(), creator.getId(), createRequest());
 		VoteUpdateRequest request = new VoteUpdateRequest("변경", null, null);
 
-		assertThatThrownBy(() -> voteService.update(vote.voteId(), participant.getId(), request))
+		assertThatThrownBy(
+						() -> voteService.update(plan.getId(), id(vote.id()), participant.getId(), request))
 				.isInstanceOf(VoteException.class)
 				.extracting(exception -> ((VoteException) exception).getErrorCode())
 				.isEqualTo(VoteErrorCode.NOT_VOTE_CREATOR);
 	}
 
 	@Test
-	@DisplayName("투표를 즉시 종료하면 상태가 종료로 바뀌고 더 이상 수정할 수 없다")
+	@DisplayName("투표를 즉시 마감하면 결과 요약이 채워지고 더 이상 수정할 수 없다")
 	void closeVote() {
 		VoteResponse vote = voteService.create(plan.getId(), creator.getId(), createRequest());
+		voteParticipationService.participate(
+				plan.getId(),
+				id(vote.id()),
+				participant.getId(),
+				new VoteParticipationRequest(id(vote.options().get(0).id()), null));
 
-		VoteResponse closed = voteService.close(vote.voteId(), creator.getId());
+		VoteResponse closed = voteService.close(plan.getId(), id(vote.id()), creator.getId());
+
 		assertThat(closed.status()).isEqualTo(VoteStatus.CLOSED);
+		assertThat(closed.resultSummary()).isEqualTo("성산일출봉 1표 · 확정");
 
 		VoteUpdateRequest request = new VoteUpdateRequest("변경", null, null);
-		assertThatThrownBy(() -> voteService.update(vote.voteId(), creator.getId(), request))
+		assertThatThrownBy(
+						() -> voteService.update(plan.getId(), id(vote.id()), creator.getId(), request))
 				.isInstanceOf(VoteException.class)
 				.extracting(exception -> ((VoteException) exception).getErrorCode())
 				.isEqualTo(VoteErrorCode.VOTE_ALREADY_CLOSED);
 	}
 
 	@Test
-	@DisplayName("종료 일시가 지난 투표는 조회 시 종료 상태로 동기화된다")
-	void syncStatusAfterClosesAt() {
-		VoteResponse vote =
-				voteService.create(
-						plan.getId(),
-						creator.getId(),
-						new VoteCreateRequest(
-								"어디로 갈까요",
-								null,
-								VoteType.SINGLE,
-								LocalDateTime.now().plusSeconds(1),
-								List.of(
-										new VoteOptionCreateRequest("성산일출봉", null),
-										new VoteOptionCreateRequest("협재해수욕장", null))));
+	@DisplayName("아무도 투표하지 않고 마감하면 결과 요약이 그 사실을 알려 준다")
+	void closeVoteWithoutParticipation() {
+		VoteResponse vote = voteService.create(plan.getId(), creator.getId(), createRequest());
+
+		VoteResponse closed = voteService.close(plan.getId(), id(vote.id()), creator.getId());
+
+		assertThat(closed.resultSummary()).isEqualTo("투표 없이 마감되었어요");
+	}
+
+	@Test
+	@DisplayName("동점으로 마감하면 결과 요약에 동률이 표시된다")
+	void closeVoteWithTie() {
+		VoteResponse vote = voteService.create(plan.getId(), creator.getId(), createRequest());
+		voteParticipationService.participate(
+				plan.getId(),
+				id(vote.id()),
+				creator.getId(),
+				new VoteParticipationRequest(id(vote.options().get(0).id()), null));
+		voteParticipationService.participate(
+				plan.getId(),
+				id(vote.id()),
+				participant.getId(),
+				new VoteParticipationRequest(id(vote.options().get(1).id()), null));
+
+		VoteResponse closed = voteService.close(plan.getId(), id(vote.id()), creator.getId());
+
+		assertThat(closed.resultSummary()).isEqualTo("성산일출봉 외 1곳 1표 동률");
+	}
+
+	@Test
+	@DisplayName("마감 일시가 지난 투표는 조회 시 마감 상태로 동기화된다")
+	void syncStatusAfterDeadline() {
+		VoteResponse vote = voteService.create(plan.getId(), creator.getId(), createRequest());
 
 		voteRepository
-				.findById(vote.voteId())
+				.findById(id(vote.id()))
 				.orElseThrow()
-				.update(null, null, LocalDateTime.now().minusMinutes(1));
+				.update(null, null, Instant.now().minus(1, ChronoUnit.MINUTES));
 
-		VoteResponse found = voteService.findById(vote.voteId(), creator.getId());
+		VoteResponse found = voteService.findById(plan.getId(), id(vote.id()), creator.getId());
 		assertThat(found.status()).isEqualTo(VoteStatus.CLOSED);
 	}
 
@@ -173,23 +282,33 @@ class VoteServiceTest {
 
 		VoteOptionResponse added =
 				voteService.addOption(
-						vote.voteId(), creator.getId(), new VoteOptionCreateRequest("우도", null));
+						plan.getId(),
+						id(vote.id()),
+						creator.getId(),
+						new VoteOptionCreateRequest("우도", "제주 우도면", "⛴️", null));
 
-		assertThat(added.optionId()).isNotNull();
-		assertThat(voteService.findById(vote.voteId(), creator.getId()).options()).hasSize(3);
+		assertThat(added.id()).isNotNull();
+		assertThat(added.placeName()).isEqualTo("우도");
+		assertThat(voteService.findById(plan.getId(), id(vote.id()), creator.getId()).options())
+				.hasSize(3);
 	}
 
 	@Test
 	@DisplayName("선택지 수정 시 placeId를 비우면 장소 연결이 해제된다")
 	void updateOptionDetachesPlace() {
 		VoteResponse vote = voteService.create(plan.getId(), creator.getId(), createRequest());
-		Long optionId = vote.options().get(0).optionId();
+		String optionId = vote.options().get(0).id();
 
 		VoteOptionResponse updated =
 				voteService.updateOption(
-						vote.voteId(), optionId, creator.getId(), new VoteOptionUpdateRequest("우도", null));
+						plan.getId(),
+						id(vote.id()),
+						id(optionId),
+						creator.getId(),
+						new VoteOptionUpdateRequest("우도", "제주 우도면", "⛴️", null));
 
-		assertThat(updated.content()).isEqualTo("우도");
+		assertThat(updated.placeName()).isEqualTo("우도");
+		assertThat(updated.placeAddress()).isEqualTo("제주 우도면");
 		assertThat(updated.placeId()).isNull();
 	}
 
@@ -197,9 +316,12 @@ class VoteServiceTest {
 	@DisplayName("선택지가 2개뿐이면 삭제할 수 없다")
 	void deleteOptionBelowMinimum() {
 		VoteResponse vote = voteService.create(plan.getId(), creator.getId(), createRequest());
-		Long optionId = vote.options().get(0).optionId();
+		String optionId = vote.options().get(0).id();
 
-		assertThatThrownBy(() -> voteService.deleteOption(vote.voteId(), optionId, creator.getId()))
+		assertThatThrownBy(
+						() ->
+								voteService.deleteOption(
+										plan.getId(), id(vote.id()), id(optionId), creator.getId()))
 				.isInstanceOf(VoteException.class)
 				.extracting(exception -> ((VoteException) exception).getErrorCode())
 				.isEqualTo(VoteErrorCode.OPTION_BELOW_MINIMUM);
@@ -209,14 +331,21 @@ class VoteServiceTest {
 	@DisplayName("선택지를 삭제하면 그 선택지에 걸린 참여 기록도 사라진다")
 	void deleteOptionRemovesParticipation() {
 		VoteResponse vote = voteService.create(plan.getId(), creator.getId(), createRequest());
-		voteService.addOption(vote.voteId(), creator.getId(), new VoteOptionCreateRequest("우도", null));
-		Long optionId = vote.options().get(0).optionId();
+		voteService.addOption(
+				plan.getId(),
+				id(vote.id()),
+				creator.getId(),
+				new VoteOptionCreateRequest("우도", null, null, null));
+		String optionId = vote.options().get(0).id();
 		voteParticipationService.participate(
-				vote.voteId(), participant.getId(), new VoteParticipationRequest(List.of(optionId)));
+				plan.getId(),
+				id(vote.id()),
+				participant.getId(),
+				new VoteParticipationRequest(id(optionId), null));
 
-		voteService.deleteOption(vote.voteId(), optionId, creator.getId());
+		voteService.deleteOption(plan.getId(), id(vote.id()), id(optionId), creator.getId());
 
-		VoteResponse found = voteService.findById(vote.voteId(), participant.getId());
+		VoteResponse found = voteService.findById(plan.getId(), id(vote.id()), participant.getId());
 		assertThat(found.options()).hasSize(2);
 		assertThat(found.participantCount()).isZero();
 	}
@@ -226,15 +355,16 @@ class VoteServiceTest {
 	void updateOptionOfAnotherVote() {
 		VoteResponse first = voteService.create(plan.getId(), creator.getId(), createRequest());
 		VoteResponse second = voteService.create(plan.getId(), creator.getId(), createRequest());
-		Long foreignOptionId = second.options().get(0).optionId();
+		String foreignOptionId = second.options().get(0).id();
 
 		assertThatThrownBy(
 						() ->
 								voteService.updateOption(
-										first.voteId(),
-										foreignOptionId,
+										plan.getId(),
+										id(first.id()),
+										id(foreignOptionId),
 										creator.getId(),
-										new VoteOptionUpdateRequest("우도", null)))
+										new VoteOptionUpdateRequest("우도", null, null, null)))
 				.isInstanceOf(VoteException.class)
 				.extracting(exception -> ((VoteException) exception).getErrorCode())
 				.isEqualTo(VoteErrorCode.OPTION_NOT_IN_VOTE);
@@ -245,23 +375,28 @@ class VoteServiceTest {
 	void deleteVote() {
 		VoteResponse vote = voteService.create(plan.getId(), creator.getId(), createRequest());
 		voteParticipationService.participate(
-				vote.voteId(),
+				plan.getId(),
+				id(vote.id()),
 				participant.getId(),
-				new VoteParticipationRequest(List.of(vote.options().get(0).optionId())));
+				new VoteParticipationRequest(id(vote.options().get(0).id()), null));
 
-		voteService.delete(vote.voteId(), creator.getId());
+		voteService.delete(plan.getId(), id(vote.id()), creator.getId());
 
-		assertThat(voteRepository.findById(vote.voteId())).isEmpty();
+		assertThat(voteRepository.findById(id(vote.id()))).isEmpty();
 	}
 
 	private VoteCreateRequest createRequest() {
 		return new VoteCreateRequest(
 				"첫날 어디 갈까요",
 				"오전 일정 후보입니다",
+				Instant.now().plus(1, ChronoUnit.DAYS),
 				VoteType.SINGLE,
-				LocalDateTime.now().plusDays(1),
 				List.of(
-						new VoteOptionCreateRequest("성산일출봉", place.getId()),
-						new VoteOptionCreateRequest("협재해수욕장", null)));
+						new VoteOptionCreateRequest("성산일출봉", "제주 서귀포시 성산읍", "🌅", place.getId()),
+						new VoteOptionCreateRequest("협재해수욕장", "제주 한림읍", "🏖️", null)));
+	}
+
+	private static long id(String value) {
+		return Long.parseLong(value);
 	}
 }
