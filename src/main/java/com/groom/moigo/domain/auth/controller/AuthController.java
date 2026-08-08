@@ -29,6 +29,7 @@ public class AuthController {
     private final AuthService authService;
     private final KakaoOAuthProperties kakaoOAuthProperties;
     private final OAuthCookieProperties oAuthCookieProperties;
+    private static final String OAUTH_NONCE_COOKIE = "oauth_nonce";
 
     @PostMapping("/kakao/login")
     public ResponseEntity<CommonResponse<LoginResponse>> loginWithKakao(
@@ -37,7 +38,6 @@ public class AuthController {
     ) {
         LoginResponse response = authService.loginWithKakao(
                 request.code(),
-                request.redirectUri(),
                 request.state(),
                 nonce
         );
@@ -71,7 +71,6 @@ public class AuthController {
     ) {
         LoginResponse response = authService.loginWithKakao(
                 code,
-                kakaoOAuthProperties.redirectUri(),
                 state,
                 nonce
         );
@@ -106,11 +105,12 @@ public class AuthController {
 
 
     private ResponseCookie createOAuthNonceCookie(String value, Duration maxAge) {
-        return ResponseCookie.from("oauth_nonce", value)
+        return ResponseCookie
+                .from(OAUTH_NONCE_COOKIE, value)
                 .httpOnly(true)
                 .secure(oAuthCookieProperties.cookieSecure())
                 .sameSite("Lax")
-                .path("/")
+                .path("/api/v1/auth")
                 .maxAge(maxAge)
                 .build();
     }

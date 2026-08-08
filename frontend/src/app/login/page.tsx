@@ -1,21 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
   const { loginWithKakao } = useAuth();
-  const router = useRouter();
   const [pending, setPending] = useState(false);
 
   async function handleLogin() {
     setPending(true);
     try {
       await loginWithKakao();
-      router.replace("/plans");
-    } finally {
+    } catch {
       setPending(false);
     }
   }

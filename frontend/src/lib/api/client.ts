@@ -23,10 +23,28 @@ export class ApiError extends Error {
 }
 
 const ACCESS_TOKEN_KEY = "tripmate_access_token";
+const REFRESH_TOKEN_KEY = "tripmate_refresh_token";
 
 function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
   return window.localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+export function saveAuthTokens(accessToken: string, refreshToken: string): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+  window.localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+}
+
+export function clearAuthTokens(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(ACCESS_TOKEN_KEY);
+  window.localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -48,6 +66,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     res = await fetch(fullUrl, {
       ...init,
       headers,
+      credentials: "include",
     });
   } catch {
     // 네트워크 장애, 요청 취소(AbortController) 등 fetch 자체가 실패한 경우

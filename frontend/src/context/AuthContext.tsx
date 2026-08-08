@@ -1,7 +1,11 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { loginWithKakao, logout as apiLogout } from "@/lib/api";
+import {
+  completeKakaoLogin as completeKakaoLoginRequest,
+  loginWithKakao,
+  logout as apiLogout,
+} from "@/lib/api";
 import type { User } from "@/lib/api";
 
 const STORAGE_KEY = "tripmate_auth";
@@ -10,6 +14,7 @@ interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   loginWithKakao: () => Promise<void>;
+  completeKakaoLogin: (code: string, state: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -33,7 +38,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async () => {
-    const me = await loginWithKakao();
+    await loginWithKakao();
+  }, []);
+
+  const completeLogin = useCallback(async (code: string, state: string) => {
+    const me = await completeKakaoLoginRequest(code, state);
     setUser(me);
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(me));
   }, []);
@@ -45,8 +54,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, isLoading, loginWithKakao: login, logout }),
-    [user, isLoading, login, logout],
+    () => ({ user, isLoading, loginWithKakao: login, completeKakaoLogin: completeLogin, logout }),
+    [user, isLoading, login, completeLogin, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

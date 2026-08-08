@@ -35,8 +35,8 @@ public class KakaoOAuthClient {
         this.restClient = restClientBuilder.build();
     }
 
-    public KakaoUserInfo getUserInfo(String code, String requestRedirectUri) {
-        KakaoTokenResponse tokenResponse = requestToken(code, requestRedirectUri);
+    public KakaoUserInfo getUserInfo(String code) {
+        KakaoTokenResponse tokenResponse = requestToken(code);
         Jwt idToken = decodeIdToken(tokenResponse.idToken());
 
         return new KakaoUserInfo(
@@ -46,11 +46,11 @@ public class KakaoOAuthClient {
         );
     }
 
-    private KakaoTokenResponse requestToken(String code, String requestRedirectUri) {
+    private KakaoTokenResponse requestToken(String code) {
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("grant_type", "authorization_code");
         body.add("client_id", properties.clientId());
-        body.add("redirect_uri", resolveRedirectUri(requestRedirectUri));
+        body.add("redirect_uri", properties.redirectUri());
         body.add("code", code);
 
         if (StringUtils.hasText(properties.clientSecret())) {
@@ -118,13 +118,6 @@ public class KakaoOAuthClient {
         };
 
         return new DelegatingOAuth2TokenValidator<>(issuerValidator, audienceValidator);
-    }
-
-    private String resolveRedirectUri(String requestRedirectUri) {
-        if (StringUtils.hasText(requestRedirectUri)) {
-            return requestRedirectUri;
-        }
-        return properties.redirectUri();
     }
 
     private Long parseKakaoId(String subject) {

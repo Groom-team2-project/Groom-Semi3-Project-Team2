@@ -24,10 +24,10 @@ public class AuthService {
     private final RefreshTokenService refreshTokenService;
     private final UserRepository userRepository;
 
-    public LoginResponse loginWithKakao(String code, String redirectUri, String state, String nonce) {
+    public LoginResponse loginWithKakao(String code, String state, String nonce) {
         oAuthStateService.validateAndConsume(state, nonce);
 
-        KakaoUserInfo userInfo = kakaoOAuthClient.getUserInfo(code, redirectUri);
+        KakaoUserInfo userInfo = kakaoOAuthClient.getUserInfo(code);
 
         AuthMemberService.UserLookupResult lookupResult = authMemberService.findOrCreateUser(userInfo);
         String accessToken = jwtTokenProvider.createAccessToken(lookupResult.user());
