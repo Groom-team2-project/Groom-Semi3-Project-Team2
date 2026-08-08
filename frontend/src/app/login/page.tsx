@@ -24,7 +24,7 @@ export default function LoginPage() {
     <div className="flex min-h-dvh flex-col justify-center gap-4 px-6 pb-10">
       <div className="flex flex-col items-center gap-2 text-center">
         <div className="text-4xl">🧭</div>
-        <div className="text-2xl font-extrabold">트립메이트</div>
+        <div className="text-2xl font-extrabold">모이Go</div>
         <p className="text-[13.5px] leading-relaxed text-gray-500">
           같이 짜는 여행 일정,
           <br />
