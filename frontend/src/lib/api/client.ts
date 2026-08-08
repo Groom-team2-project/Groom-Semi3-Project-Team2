@@ -10,19 +10,74 @@
  */
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
-/** 지금은 API_BASE_URL이 없으니 항상 mock을 쓴다. 나중에 백엔드가 붙으면 false로. */
-export const USE_MOCK = true;
+export const USE_MOCK = !API_BASE_URL;
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+    this.name = "ApiError";
+  }
+}
+
+const ACCESS_TOKEN_KEY = "tripmate_access_token";
+
+function getAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(ACCESS_TOKEN_KEY);
+}
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`API Error ${res.status}: ${path}`);
+  const token = getAccessToken();
+  const fullUrl = API_BASE_URL + path;
+
+  // Headers 인스턴스로 정규화 — init.headers가 Headers/배열/객체 어떤 형태로 와도 올바르게 병합되고,
+  // 이미 값이 있으면 기본값(Content-Type, Authorization)으로 덮어쓰지 않는다.
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
   }
-  return res.json();
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", "Bearer " + token);
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(fullUrl, {
+      ...init,
+      headers,
+    });
+  } catch {
+    // 네트워크 장애, 요청 취소(AbortController) 등 fetch 자체가 실패한 경우
+    throw new ApiError("요청을 보내지 못했어요 (네트워크 오류 또는 요청 취소)", 0);
+  }
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      if (typeof window !== "undefined") {
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+        window.location.href = "/login";
+      }
+      throw new ApiError("로그인이 필요해요", 401);
+    }
+
+    if (res.status >= 500) {
+      throw new ApiError("서버에 문제가 생겼어요. 잠시 후 다시 시도해주세요.", res.status);
+    }
+
+    throw new ApiError("요청에 실패했어요 (" + res.status + ")", res.status);
+  }
+
+  // 204 No Content — 응답 본문이 없으므로 res.json()을 시도하지 않는다.
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
+  try {
+    return await res.json();
+  } catch {
+    throw new ApiError("서버 응답을 처리하지 못했어요", res.status);
+  }
 }

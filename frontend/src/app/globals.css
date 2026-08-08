@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* 트립메이트 디자인 토큰 — Toss/Triple 톤 (파란 포인트, 둥근 카드, 넉넉한 여백) */
+/* 모이Go 디자인 토큰 — Toss/Triple 톤 (파란 포인트, 둥근 카드, 넉넉한 여백) */
 :root {
   --color-primary: #3182f6;
   --color-primary-dark: #1b64da;

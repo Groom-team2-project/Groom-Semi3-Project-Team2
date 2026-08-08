@@ -29,8 +29,12 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   - 계획 상세 하위 화면: `<div className="flex min-h-dvh flex-col"><AppBar .../><div className="flex flex-1 flex-col gap-3 px-4 pb-8">...내용...</div></div>`
   - 하단 탭바가 필요한 화면(홈/일정/투표/내정보 4개)만 `<BottomTabBar planId={...} />`를 맨 아래에 추가
   - 리스트류 화면은 `gap-3`, 폼 화면은 `Field` + `FieldInput`/`FieldTextarea` 조합 사용
-- 라우트 페이지(`page.tsx`)는 `"use client"` + `use(params)` / `use(searchParams)` 패턴을 그대로 따르세요
-  (params/searchParams가 Promise로 오는 Next 16 App Router 컨벤션). 예시는 아무 `src/app/plans/[planId]/**/page.tsx`나 참고.
+- `"use client"`는 브라우저 상태(useState/useEffect)·세션·토큰·클릭 같은 이벤트가 실제로 필요한 페이지에만
+  붙이세요. 이 프로젝트는 지금 전부 mock API를 클라이언트에서 `useEffect`로 호출하는 구조라 모든
+  `src/app/plans/[planId]/**/page.tsx`가 `"use client"` + `use(params)` / `use(searchParams)` 패턴을
+  쓰고 있지만(params/searchParams가 Promise로 오는 Next 16 App Router 컨벤션), 서버에서 미리 데이터를
+  내려줘도 되는 순수 목록/정적 페이지를 새로 만든다면 서버 컴포넌트로 두고 `await params` /
+  `await searchParams`를 쓰는 것도 고려하세요. 클라이언트 번들이 줄어듭니다.
 - `<Link>`/`Button href=...`는 내부적으로 `<a>` 태그입니다. 전역 기본 링크색(`globals.css`의
   `@layer base { a { color: var(--color-gray-500); } }`)이 있으니, 강조가 필요한 링크는 반드시
   `text-primary` 등 명시적 색상 클래스를 직접 줘야 합니다 (기본값에 기대지 말 것).
@@ -171,11 +175,22 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   건드릴 필요가 없습니다 — 이미 `await getPlans()`, `await createSchedule(...)` 처럼 함수 호출만으로 되어
   있기 때문입니다.
 - 공통 fetch 헬퍼는 `src/lib/api/client.ts`의 `apiFetch<T>(path, init)`와 `API_BASE_URL`
-  (`process.env.NEXT_PUBLIC_API_BASE_URL`)을 사용하세요. `USE_MOCK` 플래그로 점진적 전환이 가능합니다.
+  (`process.env.NEXT_PUBLIC_API_BASE_URL`)을 사용하세요. `USE_MOCK`은 `API_BASE_URL`이 비어있는지로
+  자동 계산되는 값이라(`!API_BASE_URL`), `.env.local`에 주소를 채우면 따로 코드를 안 고쳐도 자동으로
+  `false`가 됩니다. 실제 전환은 이 플래그를 코드에서 분기하는 게 아니라, `src/lib/api/*.ts`의 함수를
+  **하나씩** mock → `apiFetch` 호출로 바꿔나가는 방식으로 점진적으로 진행하면 됩니다.
 - 새로 API를 연동할 때도 반드시 **`src/lib/api` 안에 함수로 분리**해서 추가하세요. 컴포넌트/페이지에서
   직접 `fetch`를 호출하지 마세요.
 - 타입은 `src/lib/api/types.ts` 기준으로 맞추고, 백엔드 응답 필드명이 다르면 API 함수 내부에서 매핑하세요
   (타입 자체를 함수마다 다르게 만들지 말 것).
+- `apiFetch`는 아래를 이미 알아서 처리해줍니다. 도메인 API 함수에서 따로 구현하지 마세요.
+  - **인증 토큰 자동 첨부**: `localStorage`의 `tripmate_access_token`이 있으면 모든 요청에
+    `Authorization: Bearer <토큰>` 헤더를 자동으로 실어 보냅니다. (로그인 API가 실제로 붙으면, 로그인
+    성공 시 이 키로 토큰을 저장하도록 구현하면 됩니다)
+  - **401 자동 처리**: 응답이 401이면 `/login`으로 강제 이동시키고 `ApiError`를 던집니다.
+  - **에러 타입**: 실패하면 항상 `ApiError`(`status`, `message` 포함)를 던집니다. 도메인 함수에서 상태
+    코드별로 다르게 처리하고 싶으면 `catch (e) { if (e instanceof ApiError && e.status === 404) ... }`
+    형태로 잡으세요.
 
 ## 작업 전 체크리스트
 

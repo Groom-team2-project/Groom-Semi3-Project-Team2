@@ -16,7 +16,7 @@ export default function RootPage() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-2">
       <div className="text-4xl">🧭</div>
-      <div className="text-[15px] font-bold text-gray-500">트립메이트 불러오는 중…</div>
+      <div className="text-[15px] font-bold text-gray-500">모이Go 불러오는 중…</div>
     </div>
   );
 }
