@@ -15,7 +15,7 @@ import java.util.List;
  *
  * @param title 투표 제목
  * @param description 투표 설명
- * @param deadline 마감 일시(UTC 기준 ISO-8601). null이면 생성자가 직접 종료할 때까지 진행
+ * @param deadline 마감 일시(UTC 기준 ISO-8601). ERD의 VOTES.end_datetime이며 필수
  * @param type 투표 방식(SINGLE, MULTIPLE). 생략하면 SINGLE
  * @param options 선택지 목록. 최소 2개
  */
@@ -24,7 +24,7 @@ public record VoteCreateRequest(
 				@Size(max = 100, message = "투표 제목은 100자를 넘을 수 없습니다.")
 				String title,
 		@Size(max = 500, message = "투표 설명은 500자를 넘을 수 없습니다.") String description,
-		Instant deadline,
+		@NotNull(message = "마감 일시는 필수입니다.") Instant deadline,
 		VoteType type,
 		@NotNull(message = "선택지는 필수입니다.")
 				@Size(min = 2, message = "선택지는 최소 2개 이상이어야 합니다.")

@@ -24,11 +24,14 @@ import lombok.NoArgsConstructor;
  *
  * <p>프론트엔드는 카카오 장소 검색 결과를 저장하기 전에 투표를 만들기 때문에 {@code place} FK 없이 이름·주소·이모지만 전달한다. 그래서 주소와 이모지를
  * 선택지에 스냅샷으로 함께 저장한다. 장소를 먼저 저장한 뒤 {@code placeId}를 보내는 흐름도 그대로 지원한다(ERD상 장소ID NULL 허용).
+ *
+ * <p>NOTE {@code place_address}, {@code emoji}는 ERD의 VOTE_OPTIONS에 없는 추가 컬럼이다. 장소를 저장하기 전에 후보를 담아야
+ * 하고, 이모지는 PLACES에도 둘 자리가 없어 여기에 둔다. ERD 반영은 팀 논의 필요.
  */
 @Entity
 @Table(
-		name = "vote_option",
-		indexes = {@Index(name = "idx_vote_option_vote_id", columnList = "vote_id")})
+		name = "vote_options",
+		indexes = {@Index(name = "idx_vote_options_vote_id", columnList = "vote_id")})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class VoteOption {

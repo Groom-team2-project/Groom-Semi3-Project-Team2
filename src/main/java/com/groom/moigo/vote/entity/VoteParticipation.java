@@ -27,15 +27,15 @@ import lombok.NoArgsConstructor;
  */
 @Entity
 @Table(
-		name = "vote_participation",
+		name = "vote_participations",
 		uniqueConstraints = {
 			@UniqueConstraint(
-					name = "uk_vote_participation_option_member",
-					columnNames = {"option_id", "member_id"})
+					name = "uk_vote_participations_option_user",
+					columnNames = {"option_id", "user_id"})
 		},
 		indexes = {
-			@Index(name = "idx_vote_participation_vote_member", columnList = "vote_id, member_id"),
-			@Index(name = "idx_vote_participation_option_id", columnList = "option_id")
+			@Index(name = "idx_vote_participations_vote_user", columnList = "vote_id, user_id"),
+			@Index(name = "idx_vote_participations_option_id", columnList = "option_id")
 		})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -54,8 +54,9 @@ public class VoteParticipation {
 	@JoinColumn(name = "option_id", nullable = false)
 	private VoteOption option;
 
+	/** 투표에 참여한 회원. ERD의 VOTE_PARTICIPATIONS.user_id(참가자). */
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "member_id", nullable = false)
+	@JoinColumn(name = "user_id", nullable = false)
 	private Member member;
 
 	@Column(name = "participated_at", nullable = false, updatable = false)

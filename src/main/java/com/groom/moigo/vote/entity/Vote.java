@@ -35,10 +35,10 @@ import lombok.NoArgsConstructor;
  */
 @Entity
 @Table(
-		name = "vote",
+		name = "votes",
 		indexes = {
-			@Index(name = "idx_vote_plan_id", columnList = "plan_id"),
-			@Index(name = "idx_vote_creator_id", columnList = "creator_id")
+			@Index(name = "idx_votes_plan_id", columnList = "plan_id"),
+			@Index(name = "idx_votes_user_id", columnList = "user_id")
 		})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -55,8 +55,9 @@ public class Vote {
 	@JoinColumn(name = "plan_id", nullable = false)
 	private Plan plan;
 
+	/** 투표를 만든 회원. ERD의 VOTES.user_id(생성자). */
 	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "creator_id", nullable = false)
+	@JoinColumn(name = "user_id", nullable = false)
 	private Member creator;
 
 	@Column(name = "title", nullable = false, length = 100)
@@ -66,16 +67,16 @@ public class Vote {
 	private String description;
 
 	@Enumerated(EnumType.STRING)
-	@Column(name = "vote_type", nullable = false, length = 20)
+	@Column(name = "type", nullable = false, length = 20)
 	private VoteType type;
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "status", nullable = false, length = 20)
 	private VoteStatus status;
 
-	/** 마감 일시. null이면 생성자가 직접 종료할 때까지 진행한다. 응답에서는 {@code deadline}으로 내려간다. */
-	@Column(name = "closes_at")
-	private Instant closesAt;
+	/** 마감 일시. ERD의 VOTES.end_datetime이며 필수다. 응답에서는 {@code deadline}으로 내려간다. */
+	@Column(name = "end_datetime", nullable = false)
+	private Instant endDatetime;
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
@@ -85,14 +86,19 @@ public class Vote {
 
 	@Builder
 	private Vote(
-			Plan plan, Member creator, String title, String description, VoteType type, Instant closesAt) {
+			Plan plan,
+			Member creator,
+			String title,
+			String description,
+			VoteType type,
+			Instant endDatetime) {
 		this.plan = plan;
 		this.creator = creator;
 		this.title = title;
 		this.description = description;
 		this.type = type == null ? VoteType.SINGLE : type;
 		this.status = VoteStatus.OPEN;
-		this.closesAt = closesAt;
+		this.endDatetime = endDatetime;
 	}
 
 	@PrePersist
@@ -112,15 +118,15 @@ public class Vote {
 		return options.size() > MIN_OPTION_COUNT;
 	}
 
-	public void update(String title, String description, Instant closesAt) {
+	public void update(String title, String description, Instant endDatetime) {
 		if (title != null) {
 			this.title = title;
 		}
 		if (description != null) {
 			this.description = description;
 		}
-		if (closesAt != null) {
-			this.closesAt = closesAt;
+		if (endDatetime != null) {
+			this.endDatetime = endDatetime;
 		}
 	}
 
@@ -128,9 +134,9 @@ public class Vote {
 		this.status = VoteStatus.CLOSED;
 	}
 
-	/** 종료 일시가 지났는데 상태가 아직 진행이면 종료로 동기화한다. 상태가 바뀌었으면 true. */
+	/** 마감 일시가 지났는데 상태가 아직 진행이면 마감으로 동기화한다. 상태가 바뀌었으면 true. */
 	public boolean syncStatus(Instant now) {
-		if (status == VoteStatus.OPEN && closesAt != null && !now.isBefore(closesAt)) {
+		if (status == VoteStatus.OPEN && !now.isBefore(endDatetime)) {
 			status = VoteStatus.CLOSED;
 			return true;
 		}
@@ -138,7 +144,7 @@ public class Vote {
 	}
 
 	public boolean isClosed(Instant now) {
-		return status == VoteStatus.CLOSED || (closesAt != null && !now.isBefore(closesAt));
+		return status == VoteStatus.CLOSED || !now.isBefore(endDatetime);
 	}
 
 	public boolean isCreatedBy(Long memberId) {

@@ -55,7 +55,7 @@ public record VoteResponse(
 				String.valueOf(vote.getPlan().getId()),
 				vote.getTitle(),
 				vote.getStatus(),
-				vote.getClosesAt(),
+				vote.getEndDatetime(),
 				options,
 				myOptionIds.isEmpty() ? null : myOptionIds.get(0),
 				null,

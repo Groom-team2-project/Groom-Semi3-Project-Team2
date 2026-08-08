@@ -131,6 +131,25 @@ class VoteServiceTest {
 	}
 
 	@Test
+	@DisplayName("마감 일시를 보내지 않으면 투표를 만들 수 없다")
+	void createVoteWithoutDeadline() {
+		VoteCreateRequest request =
+				new VoteCreateRequest(
+						"어디로 갈까요",
+						null,
+						null,
+						VoteType.SINGLE,
+						List.of(
+								new VoteOptionCreateRequest("성산일출봉", null, null, null),
+								new VoteOptionCreateRequest("협재해수욕장", null, null, null)));
+
+		assertThatThrownBy(() -> voteService.create(plan.getId(), creator.getId(), request))
+				.isInstanceOf(VoteException.class)
+				.extracting(exception -> ((VoteException) exception).getErrorCode())
+				.isEqualTo(VoteErrorCode.INVALID_DEADLINE);
+	}
+
+	@Test
 	@DisplayName("마감 일시가 과거면 투표를 만들 수 없다")
 	void createVoteWithPastDeadline() {
 		VoteCreateRequest request =

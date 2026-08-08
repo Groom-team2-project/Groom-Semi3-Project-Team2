@@ -52,7 +52,7 @@ public class VoteService {
 						.findById(planId)
 						.orElseThrow(() -> new VoteException(VoteErrorCode.PLAN_NOT_FOUND));
 		Member creator = findMember(memberId);
-		validateDeadline(request.deadline());
+		validateRequiredDeadline(request.deadline());
 
 		Vote vote =
 				Vote.builder()
@@ -61,7 +61,7 @@ public class VoteService {
 						.title(request.title())
 						.description(request.description())
 						.type(request.typeOrDefault())
-						.closesAt(request.deadline())
+						.endDatetime(request.deadline())
 						.build();
 
 		for (VoteOptionCreateRequest optionRequest : request.options()) {
@@ -233,9 +233,18 @@ public class VoteService {
 		}
 	}
 
+	/** 수정 요청은 마감 일시를 생략할 수 있다. 보냈다면 미래여야 한다. */
 	private void validateDeadline(Instant deadline) {
 		if (deadline != null && !deadline.isAfter(Instant.now())) {
 			throw new VoteException(VoteErrorCode.INVALID_DEADLINE);
 		}
+	}
+
+	/** 생성 요청의 마감 일시는 ERD상 필수(VOTES.end_datetime NOT NULL)다. */
+	private void validateRequiredDeadline(Instant deadline) {
+		if (deadline == null) {
+			throw new VoteException(VoteErrorCode.INVALID_DEADLINE);
+		}
+		validateDeadline(deadline);
 	}
 }
