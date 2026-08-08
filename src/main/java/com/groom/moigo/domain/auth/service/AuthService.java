@@ -2,7 +2,6 @@ package com.groom.moigo.domain.auth.service;
 
 import com.groom.moigo.domain.auth.client.KakaoOAuthClient;
 import com.groom.moigo.domain.auth.config.KakaoOAuthProperties;
-import com.groom.moigo.auth.dto.*;
 import com.groom.moigo.domain.auth.dto.*;
 import com.groom.moigo.domain.user.entity.UserEntity;
 import com.groom.moigo.domain.user.repository.UserRepository;

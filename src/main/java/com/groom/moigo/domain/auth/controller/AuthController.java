@@ -4,7 +4,6 @@ import java.time.Duration;
 
 import com.groom.moigo.domain.auth.config.KakaoOAuthProperties;
 import com.groom.moigo.domain.auth.config.OAuthCookieProperties;
-import com.groom.moigo.auth.dto.*;
 import com.groom.moigo.domain.auth.dto.*;
 import com.groom.moigo.domain.auth.service.AuthService;
 import com.groom.moigo.global.response.CommonResponse;
