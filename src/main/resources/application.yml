@@ -25,6 +25,8 @@ app:
     secret: ${JWT_SECRET:dev-only-dummy-secret-change-me}
     access-token-expiration-seconds: ${JWT_ACCESS_EXPIRATION:3600}
     refresh-token-expiration-seconds: ${JWT_REFRESH_EXPIRATION:1209600}
+  oauth:
+    cookie-secure: ${OAUTH_COOKIE_SECURE:false}
 
 kakao:
   oauth:
@@ -71,6 +73,8 @@ spring:
 app:
   jwt:
     secret: ${JWT_SECRET}
+  oauth:
+    cookie-secure: ${OAUTH_COOKIE_SECURE:true}
 
 kakao:
   oauth:
