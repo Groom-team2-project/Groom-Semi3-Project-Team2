@@ -1,3 +1,6 @@
+# ===================================================================
+# 1. 공통 및 로컬 개발 환경 설정
+# ===================================================================
 spring:
   application:
     name: moigo
@@ -7,26 +10,36 @@ spring:
     password: ${DB_PASSWORD:}
   jpa:
     hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:create-drop}
+      ddl-auto: ${JPA_DDL_AUTO:validate}
     open-in-view: false
     properties:
       hibernate:
         format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
 
-# TODO:
-# JWT Secret, 토큰 만료 시간, 카카오 관련 id, secret, redirect-uri 설정
 app:
   jwt:
-    secret:
-    access-token-expiration-seconds:
-    refresh-token-expiration-seconds:
+    secret: ${JWT_SECRET:dev-only-dummy-secret-change-me}
+    access-token-expiration-seconds: ${JWT_ACCESS_EXPIRATION:3600}
+    refresh-token-expiration-seconds: ${JWT_REFRESH_EXPIRATION:1209600}
+  oauth:
+    cookie-secure: ${OAUTH_COOKIE_SECURE:false}
 
 kakao:
   oauth:
-    client-id:
-    client-secret:
-    redirect-uri:
+    client-id: ${KAKAO_CLIENT_ID:dummy-kakao-client-id}
+    client-secret: ${KAKAO_CLIENT_SECRET:dummy-kakao-client-secret}
+    redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:8080/login/oauth2/code/kakao}
 
+server:
+  port: ${SERVER_PORT:8080}
+
+# -------------------------------------------------------------------
+# Actuator 헬스체크 엔드포인트 설정
+# -------------------------------------------------------------------
 management:
   endpoints:
     web:
@@ -36,5 +49,58 @@ management:
     health:
       show-details: when_authorized
 
-server:
-  port: ${SERVER_PORT:8080}
+---
+# ===================================================================
+# 2. 운영 환경 설정 (AWS RDS & Docker/EC2 배포용)
+# ===================================================================
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+  oauth:
+    cookie-secure: ${OAUTH_COOKIE_SECURE:true}
+
+kakao:
+  oauth:
+    client-id: ${KAKAO_CLIENT_ID}
+    client-secret: ${KAKAO_CLIENT_SECRET}
+    redirect-uri: ${KAKAO_REDIRECT_URI}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+---
+# ===================================================================
+# 3. Gradle test 및 CI 환경을 위한 테스트 전용
+# ===================================================================
+spring:
+  config:
+    activate:
+      on-profile: test
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
