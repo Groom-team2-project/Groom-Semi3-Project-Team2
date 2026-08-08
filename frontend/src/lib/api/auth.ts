@@ -1,9 +1,4 @@
-import {
-  apiFetch,
-  clearAuthTokens,
-  getRefreshToken,
-  saveAuthTokens,
-} from "./client";
+import { apiFetch, clearAccessToken, setAccessToken } from "./client";
 import { store, simulateLatency } from "./store";
 import type { User } from "./types";
 
@@ -23,10 +18,16 @@ interface LoginResponse {
   tokenType: string;
   accessToken: string;
   expiresIn: number;
-  refreshToken: string;
   refreshTokenExpiresIn: number;
   userId: number;
   newUser: boolean;
+}
+
+interface TokenReissueResponse {
+  tokenType: string;
+  accessToken: string;
+  expiresIn: number;
+  refreshTokenExpiresIn: number;
 }
 
 export async function loginWithKakao(): Promise<void> {
@@ -46,7 +47,7 @@ export async function completeKakaoLogin(code: string, state: string): Promise<U
     },
   );
 
-  saveAuthTokens(response.data.accessToken, response.data.refreshToken);
+  setAccessToken(response.data.accessToken);
 
   // 사용자 상세 조회 API가 생기기 전까지 로그인 응답으로 구성하는 최소 사용자 정보입니다.
   return {
@@ -56,6 +57,15 @@ export async function completeKakaoLogin(code: string, state: string): Promise<U
     avatarColor: "#FEE500",
     avatarInitial: "카",
   };
+}
+
+export async function restoreAccessToken(): Promise<void> {
+  const response = await apiFetch<CommonResponse<TokenReissueResponse>>(
+    "/api/v1/auth/reissue",
+    { method: "POST" },
+  );
+
+  setAccessToken(response.data.accessToken);
 }
 
 // 프로필 API가 연결될 때 실제 백엔드 호출로 교체합니다.
@@ -71,16 +81,11 @@ export async function updateMe(input: Partial<Pick<User, "name">>): Promise<User
 }
 
 export async function logout(): Promise<void> {
-  const refreshToken = getRefreshToken();
-
   try {
-    if (refreshToken) {
-      await apiFetch<CommonResponse<null>>("/api/v1/auth/logout", {
-        method: "POST",
-        body: JSON.stringify({ refreshToken }),
-      });
-    }
+    await apiFetch<CommonResponse<null>>("/api/v1/auth/logout", {
+      method: "POST",
+    });
   } finally {
-    clearAuthTokens();
+    clearAccessToken();
   }
 }

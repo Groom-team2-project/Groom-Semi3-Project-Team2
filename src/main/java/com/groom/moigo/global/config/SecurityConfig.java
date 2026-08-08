@@ -39,7 +39,8 @@ public class SecurityConfig {
 						).permitAll()
 						.requestMatchers(
 								"/api/v1/auth/kakao/**",
-								"/api/v1/auth/reissue"
+								"/api/v1/auth/reissue",
+								"/api/v1/auth/logout"
 						).permitAll()
 						.anyRequest().authenticated()
 				)
