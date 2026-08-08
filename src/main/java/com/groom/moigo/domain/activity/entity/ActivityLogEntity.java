@@ -27,7 +27,8 @@ public class ActivityLogEntity {
     @Column(name = "plan_id", nullable = false)
     private Long planId;
 
-    @Column(name = "user_id", nullable = false)
+    // 투표 자동 마감, 일정 상태 변경, 만료 초대 취소처럼 시스템이 자동 처리한 활동 로그는 수행한 사용자가 없으므로 null을 허용합니다.
+    @Column(name = "user_id")
     private Long userId;
 
     @Enumerated(EnumType.STRING)
