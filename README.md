@@ -74,9 +74,77 @@
 - 테스트, 오류 추적, 성능 최적화
 - 배포 자동화와 운영 환경 구성
 
+## 실행하기
+
+Java 21이 필요합니다. 별도의 Gradle 설치 없이 저장소에 포함된 Gradle Wrapper를 사용합니다.
+
+### 애플리케이션 실행
+
+```bash
+./gradlew bootRun
+```
+
+Windows PowerShell에서는 다음 명령을 사용합니다.
+
+```powershell
+.\gradlew.bat bootRun
+```
+
+실행 후 `http://localhost:8080`에서 목업 화면을 확인할 수 있습니다. 서버 상태는 `http://localhost:8080/actuator/health`에서 확인합니다.
+
+### 테스트
+
+```bash
+./gradlew test
+```
+
+로컬에서는 별도의 데이터베이스 설정 없이 H2 인메모리 데이터베이스를 사용합니다. MySQL을 사용할 때는 `.env.example`을 참고해 `.env` 파일을 만듭니다. `.env`는 앱 실행 시 자동으로 읽힙니다(별도로 `export` 안 해도 됩니다). 실제 비밀번호가 포함된 `.env` 파일은 Git에 올리지 않습니다.
+
+### 데이터베이스 마이그레이션
+
+스키마 변경은 Hibernate 자동 생성이 아니라 Flyway 마이그레이션으로 관리합니다. 새 SQL 파일은
+`src/main/resources/db/migration`에 추가합니다. 이미 적용된 마이그레이션 파일은 수정하지 않고,
+다음 버전의 새 파일을 추가합니다.
+
+버전 번호는 도메인별로 구간을 미리 나눠두지 않고, `V2`, `V3`, `V4` ... 순서대로 그냥 다음 번호를
+씁니다.
+
+```text
+V{번호}__{설명}.sql
+예) V2__add_places_table.sql
+```
+
+`develop`을 최신으로 받아서 가장 큰 번호 다음 번호를 쓰세요. PR 두 개가 같은 번호를 써서 겹치면,
+**아직 merge 안 된 쪽만** 번호를 바꾸세요. 이미 merge된 마이그레이션의 번호나 내용을 바꾸면 다른 사람
+환경에서 에러가 나니 절대 건드리지 마세요.
+
+`V1__init_schema.sql`은 공통 초기 스키마이므로 수정하지 않습니다.
+
 ## 프로젝트 구조
 
-실제 개발이 시작되면 애플리케이션, 공통 컴포넌트, 서버, 테스트 영역을 목적에 맞게 분리할 예정입니다.
+```text
+.
+├── gradle/                         # Gradle Wrapper
+├── src/
+│   ├── main/
+│   │   ├── java/com/groom/moigo/
+│   │   │   ├── domain/
+│   │   │   │   ├── auth/          # 인증·인가 (카카오 로그인, JWT)
+│   │   │   │   ├── user/          # 유저 엔티티
+│   │   │   │   ├── plan/          # 여행 계획·멤버·초대
+│   │   │   │   ├── place/         # 장소 검색·저장
+│   │   │   │   ├── schedule/      # 일정·댓글
+│   │   │   │   └── vote/          # 투표
+│   │   │   └── global/            # 공통 설정, 에러, 응답 포맷
+│   │   └── resources/
+│   │       ├── db/migration/     # Flyway SQL 마이그레이션
+│   │       ├── static/index.html  # UI 목업
+│   │       └── application.yml
+│   └── test/                       # 테스트
+├── .env.example                    # 환경 변수 예시
+├── build.gradle
+└── settings.gradle
+```
 
 ## 기여하기
 
