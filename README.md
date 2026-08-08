@@ -118,6 +118,26 @@ Windows PowerShell에서는 다음 명령을 사용합니다.
 
 로컬에서는 별도의 데이터베이스 설정 없이 H2 인메모리 데이터베이스를 사용합니다. MySQL을 사용할 때는 `.env.example`을 참고해 환경 변수를 설정합니다. 실제 비밀번호가 포함된 `.env` 파일은 Git에 올리지 않습니다.
 
+### 데이터베이스 마이그레이션
+
+스키마 변경은 Hibernate 자동 생성이 아니라 Flyway 마이그레이션으로 관리합니다. 새 SQL 파일은
+`src/main/resources/db/migration`에 추가합니다. 이미 적용된 마이그레이션 파일은 수정하지 않고,
+다음 버전의 새 파일을 추가합니다.
+
+버전 번호는 도메인별로 구간을 미리 나눠두지 않고, `V2`, `V3`, `V4` ... 순서대로 그냥 다음 번호를
+씁니다.
+
+```
+V{번호}__{설명}.sql
+예) V2__add_places_table.sql
+```
+
+새 마이그레이션을 추가하기 전에 `develop`을 최신으로 받아서 `db/migration` 폴더에 이미 있는 가장
+큰 번호 다음 번호를 쓰세요. 여러 명이 동시에 작업하다 번호가 겹치면(같은 번호로 PR이 2개 올라오면)
+나중에 merge하는 쪽에서 번호를 한 칸씩 밀어서 다시 붙이면 됩니다.
+
+`V1__init_schema.sql`은 공통 초기 스키마이므로 수정하지 않습니다.
+
 ## 프로젝트 구조
 
 ```text
@@ -133,6 +153,7 @@ Windows PowerShell에서는 다음 명령을 사용합니다.
 │   │   │   ├── vote/              # 투표
 │   │   │   └── common/            # 공통 설정과 응답
 │   │   └── resources/
+│   │       ├── db/migration/     # Flyway SQL 마이그레이션
 │   │       ├── static/index.html  # UI 목업
 │   │       └── application.yml
 │   └── test/                       # 테스트
