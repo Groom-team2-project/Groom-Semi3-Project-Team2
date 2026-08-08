@@ -33,14 +33,26 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   const token = getAccessToken();
   const fullUrl = API_BASE_URL + path;
 
-  const res = await fetch(fullUrl, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: "Bearer " + token } : {}),
-      ...init?.headers,
-    },
-  });
+  // Headers 인스턴스로 정규화 — init.headers가 Headers/배열/객체 어떤 형태로 와도 올바르게 병합되고,
+  // 이미 값이 있으면 기본값(Content-Type, Authorization)으로 덮어쓰지 않는다.
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", "Bearer " + token);
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(fullUrl, {
+      ...init,
+      headers,
+    });
+  } catch {
+    // 네트워크 장애, 요청 취소(AbortController) 등 fetch 자체가 실패한 경우
+    throw new ApiError("요청을 보내지 못했어요 (네트워크 오류 또는 요청 취소)", 0);
+  }
 
   if (!res.ok) {
     if (res.status === 401) {
@@ -58,5 +70,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new ApiError("요청에 실패했어요 (" + res.status + ")", res.status);
   }
 
-  return res.json();
+  // 204 No Content — 응답 본문이 없으므로 res.json()을 시도하지 않는다.
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
+  try {
+    return await res.json();
+  } catch {
+    throw new ApiError("서버 응답을 처리하지 못했어요", res.status);
+  }
 }
