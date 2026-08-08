@@ -10,19 +10,53 @@
  */
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
-/** 지금은 API_BASE_URL이 없으니 항상 mock을 쓴다. 나중에 백엔드가 붙으면 false로. */
-export const USE_MOCK = true;
+export const USE_MOCK = !API_BASE_URL;
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+    this.name = "ApiError";
+  }
+}
+
+const ACCESS_TOKEN_KEY = "tripmate_access_token";
+
+function getAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(ACCESS_TOKEN_KEY);
+}
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const token = getAccessToken();
+  const fullUrl = API_BASE_URL + path;
+
+  const res = await fetch(fullUrl, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: "Bearer " + token } : {}),
       ...init?.headers,
     },
   });
+
   if (!res.ok) {
-    throw new Error(`API Error ${res.status}: ${path}`);
+    if (res.status === 401) {
+      if (typeof window !== "undefined") {
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+        window.location.href = "/login";
+      }
+      throw new ApiError("로그인이 필요해요", 401);
+    }
+
+    if (res.status >= 500) {
+      throw new ApiError("서버에 문제가 생겼어요. 잠시 후 다시 시도해주세요.", res.status);
+    }
+
+    throw new ApiError("요청에 실패했어요 (" + res.status + ")", res.status);
   }
+
   return res.json();
 }

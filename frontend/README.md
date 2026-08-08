@@ -1,6 +1,6 @@
-# 트립메이트 프론트엔드
+# 모이Go 프론트엔드
 
-트립메이트(여행 계획 공동 작성 서비스)의 프론트엔드입니다. **Next.js(App Router) + TypeScript + Tailwind CSS**로 만들어졌고,
+모이Go(여행 계획 공동 작성 서비스)의 프론트엔드입니다. **Next.js(App Router) + TypeScript + Tailwind CSS**로 만들어졌고,
 아직 백엔드 API가 없어 `src/lib/api/*`가 mock 데이터를 리턴하는 구조로 전체 화면이 동작합니다.
 
 ## 로컬 실행
@@ -37,7 +37,8 @@ cp .env.example .env.local
 
 지금은 `.env.local`의 `NEXT_PUBLIC_API_BASE_URL`을 **비워둔 채로 두면 됩니다.** 이 값이 비어있는 동안
 `src/lib/api/*`의 모든 함수는 실제 fetch 대신 mock 데이터를 리턴합니다 (`src/lib/api/client.ts`의
-`USE_MOCK` 참고). 백엔드가 준비되면 이 값에 API 서버 주소를 채우고, `lib/api/*` 내부 구현만 fetch로
+`USE_MOCK`은 `!API_BASE_URL`로 자동 계산돼서, 이 값을 채우면 따로 코드를 안 고쳐도 자동으로 꺼집니다).
+백엔드가 준비되면 이 값에 API 서버 주소를 채우고, `lib/api/*` 내부 구현만 함수 단위로 하나씩 fetch로
 바꾸면 됩니다.
 
 ## 브랜치 전략
