@@ -1,4 +1,4 @@
-package com.groom.moigo.common.config;
+package com.groom.moigo.global.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

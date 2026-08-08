@@ -13,6 +13,20 @@ spring:
       hibernate:
         format_sql: true
 
+# TODO:
+# JWT Secret, 토큰 만료 시간, 카카오 관련 id, secret, redirect-uri 설정
+app:
+  jwt:
+    secret:
+    access-token-expiration-seconds:
+    refresh-token-expiration-seconds:
+
+kakao:
+  oauth:
+    client-id:
+    client-secret:
+    redirect-uri:
+
 management:
   endpoints:
     web:
