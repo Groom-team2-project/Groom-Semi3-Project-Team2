@@ -21,6 +21,7 @@ CREATE TABLE plans (
     recruitment_count INT,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
+    deleted_at DATETIME(6) NULL, -- 소프트딜리트를위해 삭제일 추가
     CONSTRAINT fk_plans_user
         FOREIGN KEY (user_id) REFERENCES users (user_id)
 );
@@ -30,6 +31,8 @@ CREATE TABLE members (
     plan_id BIGINT NOT NULL,
     user_id BIGINT NOT NULL,
     role ENUM('OWNER', 'EDITOR', 'VIEWER') NOT NULL,
+    status ENUM('JOINED', 'LEFT') NOT NULL DEFAULT 'JOINED', -- 멤버 상태값 추가
+    joined_at DATETIME(6) NULL, -- 참여 시각 추가
     CONSTRAINT uk_members_plan_user UNIQUE (plan_id, user_id),
     CONSTRAINT fk_members_plan
         FOREIGN KEY (plan_id) REFERENCES plans (plan_id),
@@ -41,6 +44,8 @@ CREATE TABLE invitations (
     invitation_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     plan_id BIGINT NOT NULL,
     invite_code VARCHAR(20) NOT NULL,
+    inviter_id BIGINT NULL, -- 초대발급자 id 추가
+    status ENUM('ACTIVE', 'EXPIRED', 'REVOKED') NOT NULL DEFAULT 'ACTIVE', -- 링크 상태 추가
     expires_at DATETIME(6) NOT NULL,
     created_at DATETIME(6) NOT NULL,
     CONSTRAINT uk_invitations_invite_code UNIQUE (invite_code),
@@ -184,3 +189,20 @@ CREATE INDEX idx_comments_schedule
 
 CREATE INDEX idx_vote_participants_vote_user
     ON vote_participants (vote_id, user_id);
+
+INSERT INTO users (
+    kakao_id,
+    email,
+    nickname,
+    profile_image,
+    created_at,
+    updated_at
+)
+VALUES (
+           1,
+           'test1@test.com',
+           '테스트유저',
+           NULL,
+           CURRENT_TIMESTAMP,
+           CURRENT_TIMESTAMP
+       );
