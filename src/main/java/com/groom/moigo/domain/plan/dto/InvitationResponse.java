@@ -1,7 +1,6 @@
 package com.groom.moigo.domain.plan.dto;
 
 import com.groom.moigo.domain.plan.entity.InvitationEntity;
-import com.groom.moigo.domain.plan.entity.InvitationRole;
 import com.groom.moigo.domain.plan.entity.InvitationStatus;
 
 import java.time.LocalDateTime;
@@ -12,7 +11,6 @@ import java.time.LocalDateTime;
 public record InvitationResponse(
         Long invitationId,
         String inviteCode,
-        InvitationRole role,
         InvitationStatus status,
         LocalDateTime expiresAt
 ) {
@@ -20,7 +18,6 @@ public record InvitationResponse(
         return new InvitationResponse(
                 invitation.getInvitationId(),
                 invitation.getInviteCode(),
-                invitation.getRole(),
                 invitation.getStatus(),
                 invitation.getExpiresAt()
         );

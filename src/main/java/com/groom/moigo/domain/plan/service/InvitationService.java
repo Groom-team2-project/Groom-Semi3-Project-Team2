@@ -137,10 +137,10 @@ public class InvitationService {
             if (existing.isPresent()) {
                 // LEFT 상태
                 member = existing.get();
-                member.rejoin(MemberRole.valueOf(invitation.getRole().name()));
+                member.rejoin(MemberRole.EDITOR);
             } else {
                 // 신규 참여자
-                member = MemberEntity.createFromInvitation(plan, user, invitation.getRole());
+                member = MemberEntity.createFromInvitation(plan, user, MemberRole.EDITOR);
                 memberRepository.save(member);
             }
         } catch (DataIntegrityViolationException e) {
@@ -161,11 +161,10 @@ public class InvitationService {
             try {
                 // 코드로 참여시 role은 항상 EDITOR
                 return invitationRepository.save(
-                        InvitationEntity.create(plan, inviter, code, InvitationRole.EDITOR, expiresAt)
+                        InvitationEntity.create(plan, inviter, code, expiresAt)
                 );
             } catch (DataIntegrityViolationException e) {
                 // 동시에 같은 초대 코드가 저장된 경우 새 코드로 재시도
-                continue;
             }
         }
         throw new BusinessException(ErrorCode.INVITATION_CODE_DUPLICATED);

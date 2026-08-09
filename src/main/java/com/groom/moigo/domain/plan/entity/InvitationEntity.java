@@ -41,10 +41,6 @@ public class InvitationEntity {
     private String inviteCode;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false, length = 20)
-    private InvitationRole role;
-
-    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private InvitationStatus status;
 
@@ -55,13 +51,11 @@ public class InvitationEntity {
     private LocalDateTime createdAt;
 
     /** 새 초대 링크를 만듭니다. 생성 시점 상태는 항상 ACTIVE로 시작합니다. */
-    public static InvitationEntity create(PlanEntity plan, UserEntity inviter, String inviteCode,
-                                          InvitationRole role, LocalDateTime expiresAt) {
+    public static InvitationEntity create(PlanEntity plan, UserEntity inviter, String inviteCode, LocalDateTime expiresAt) {
         InvitationEntity invitation = new InvitationEntity();
         invitation.plan = plan;
         invitation.inviter = inviter;
         invitation.inviteCode = inviteCode;
-        invitation.role = role;
         invitation.status = InvitationStatus.ACTIVE;
         invitation.expiresAt = expiresAt;
         return invitation;

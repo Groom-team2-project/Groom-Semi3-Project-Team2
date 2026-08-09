@@ -66,8 +66,8 @@ public class MemberEntity {
         return new MemberEntity(plan, user, MemberRole.OWNER);
     }
 
-    public static MemberEntity createFromInvitation(PlanEntity plan, UserEntity user, InvitationRole invitationRole) {
-        return new MemberEntity(plan, user, MemberRole.valueOf(invitationRole.name()));
+    public static MemberEntity createFromInvitation(PlanEntity plan, UserEntity user, MemberRole role) {
+        return new MemberEntity(plan, user, role);
     }
 
     public void rejoin(MemberRole newRole) {
