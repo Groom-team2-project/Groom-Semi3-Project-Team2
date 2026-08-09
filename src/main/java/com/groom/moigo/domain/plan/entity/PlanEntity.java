@@ -55,7 +55,7 @@ public class PlanEntity {
     private LocalDateTime updatedAt;
 
     @Column(name = "deleted_at")
-    private LocalDateTime deletedAt; /
+    private LocalDateTime deletedAt;
 
     // 계획 생성 검증
     public static PlanEntity create(UserEntity owner, String title, String description,
