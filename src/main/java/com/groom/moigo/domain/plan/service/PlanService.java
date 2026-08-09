@@ -93,15 +93,13 @@ public class PlanService {
     @Transactional
     public void deletePlan(Long userId, Long planId) {
         PlanEntity plan = getPlanOrThrow(planId);
-        MemberEntity me = planAccessService.requireJoinedMember(planId, userId);
-        planAccessService.requireOwner(me);
-        memberRepository.deleteAll(memberRepository.findAllByPlan_PlanId(planId));
-        invitationRepository.deleteAll(invitationRepository.findAllByPlan_PlanId(planId));
-        planRepository.delete(plan);
+        MemberEntity currentMember = planAccessService.requireJoinedMember(planId, userId);
+        planAccessService.requireOwner(currentMember);
+        plan.softDelete();
     }
 
     private PlanEntity getPlanOrThrow(Long planId) {
-        return planRepository.findById(planId)
+        return planRepository.findByIdAndNotDeleted(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
     }
 

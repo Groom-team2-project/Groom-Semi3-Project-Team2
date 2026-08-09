@@ -1,38 +1,100 @@
-import { store, simulateLatency } from "./store";
+//import { store, simulateLatency } from "./store";
+import { apiFetch } from "./client";
 import type { Invitation, Member, Role } from "./types";
 
+interface CommonResponse<T> {
+  success: boolean;
+  data: T;
+  errorCode: string | null;
+  message: string;
+}
+
+interface MemberApiResponse {
+  memberId: number;
+  userId: number;
+  nickname: string;
+  profileImage: string | null;
+  role: Role;
+  status: "JOINED" | "LEFT";
+  joinedAt: string | null;
+}
+
+const AVATAR_COLORS = ["#3182F6", "#00C896", "#FF9F1C", "#8B7FF2", "#F45B69"];
+
+function mapMember(res: MemberApiResponse): Member {
+  return {
+    id: String(res.memberId),
+    userId: String(res.userId),
+    name: res.nickname,
+    avatarColor: AVATAR_COLORS[res.userId % AVATAR_COLORS.length],
+    avatarInitial: res.nickname.charAt(0),
+    role: res.role,
+    status: res.status,
+  };
+}
 /** GET /api/v1/plans/{planId}/members */
 export async function getMembers(planId: string): Promise<Member[]> {
-  await simulateLatency(150);
-  return store.getPlan(planId)?.members ?? [];
+  const response = await apiFetch<CommonResponse<MemberApiResponse[]>>(
+      `/api/v1/plans/${planId}/members`,
+  );
+  return response.data.map(mapMember);
 }
 
 /** PATCH /api/v1/plans/{planId}/members/{memberId} — 모임장이 편집자 ↔ 뷰어 전환 */
 export async function updateMemberRole(planId: string, memberId: string, role: Role): Promise<Member> {
-  await simulateLatency();
-  const plan = store.getPlan(planId);
-  const member = plan?.members.find((m) => m.id === memberId);
-  if (!plan || !member) throw new Error("Member not found");
-  member.role = role;
-  return member;
+  const response = await apiFetch<CommonResponse<MemberApiResponse>>(
+      `/api/v1/plans/${planId}/members/${memberId}/role`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+      },
+  );
+  return mapMember(response.data);
+}
+
+export async function removeMember(planId: string, memberId: string): Promise<void> {
+  await apiFetch<CommonResponse<null>>(`/api/v1/plans/${planId}/members/${memberId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function leavePlan(planId: string): Promise<void> {
+  await apiFetch<CommonResponse<null>>(`/api/v1/plans/${planId}/members/me`, {
+    method: "DELETE",
+  });
+}
+
+interface InvitationApiResponse {
+  invitationId: number;
+  inviteCode: string;
+  status: "ACTIVE" | "EXPIRED" | "REVOKED";
+  expiresAt: string;
+}
+
+function mapInvitation(res: InvitationApiResponse): Invitation {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  return {
+    code: res.inviteCode,
+    url: `${appUrl}/j/${res.inviteCode}`,
+    expiresAt: res.expiresAt,
+    status: res.status,
+    invitationId: String(res.invitationId),
+  };
 }
 
 /** POST /api/v1/plans/{planId}/invitations — 초대 링크 발급/조회 */
 export async function getInvitation(planId: string): Promise<Invitation> {
-  await simulateLatency(150);
-  return {
-    code: planId.slice(-6).toUpperCase(),
-    url: `trip.app/j/${planId.slice(-6).toUpperCase()}`,
-    expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
-  };
+  const response = await apiFetch<CommonResponse<InvitationApiResponse>>(
+      `/api/v1/plans/${planId}/invitations`,
+      { method: "POST" },
+  );
+  return mapInvitation(response.data);
 }
 
 export async function reissueInvitation(planId: string): Promise<Invitation> {
-  await simulateLatency(250);
-  store.recordActivity(planId, "invitation_reissued", "초대 링크를 재발급했어요", "member");
-  return {
-    code: Math.random().toString(36).slice(2, 8).toUpperCase(),
-    url: `trip.app/j/${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-    expiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
-  };
+  const response = await apiFetch<CommonResponse<InvitationApiResponse>>(
+      `/api/v1/plans/${planId}/invitations/reissue`,
+      { method: "POST" },
+  );
+  return mapInvitation(response.data);
 }

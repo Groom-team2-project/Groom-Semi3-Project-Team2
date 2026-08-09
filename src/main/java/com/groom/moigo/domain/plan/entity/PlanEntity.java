@@ -54,6 +54,9 @@ public class PlanEntity {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt; /
+
     // 계획 생성 검증
     public static PlanEntity create(UserEntity owner, String title, String description,
                                     LocalDate startDate, LocalDate endDate, Integer recruitmentCount) {
@@ -110,5 +113,13 @@ public class PlanEntity {
     @PreUpdate
     private void preUpdate() {
         this.updatedAt = LocalDateTime.now();
+    }
+
+    public boolean isDeleted() {
+        return this.deletedAt != null;
+    }
+
+    public void softDelete() {
+        this.deletedAt = LocalDateTime.now();
     }
 }
