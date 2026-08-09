@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -34,12 +35,25 @@ public class InvitationService {
     private final UserRepository userRepository;
     private final PlanAccessService planAccessService;
 
-   // 초대 링크 생성
+   // 초대 링크 발급/재발급
     @Transactional
     public InvitationResponse createInvitation(Long userId, Long planId) {
         PlanEntity plan = getPlanOrThrow(planId);
-        MemberEntity me = planAccessService.requireJoinedMember(planId, userId);
-        planAccessService.requireOwner(me); // owner만 가능함
+        MemberEntity currentMember = planAccessService.requireJoinedMember(planId, userId);
+        planAccessService.requireOwner(currentMember); // owner만 가능함
+
+        //Active 초대링크인지 확인
+        List<InvitationEntity> activeInvitations =
+                invitationRepository.findAllByPlan_PlanIdAndStatus(planId, InvitationStatus.ACTIVE);
+
+        if (!activeInvitations.isEmpty()) {
+            InvitationEntity existing = activeInvitations.get(0);
+            existing.expireIfNeeded(); // 만료 시각 지났는데 상태만 ACTIVE로 남아있으면 여기서 정리
+            if (existing.getStatus() == InvitationStatus.ACTIVE) {
+                return InvitationResponse.from(existing);
+            }
+            // 방금 EXPIRED로 바뀌었으면 아래로 내려가서 새로 만듭니다.
+        }
 
         UserEntity inviter = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
@@ -52,8 +66,8 @@ public class InvitationService {
     @Transactional
     public InvitationResponse reissueInvitation(Long userId, Long planId) {
         PlanEntity plan = getPlanOrThrow(planId);
-        MemberEntity me = planAccessService.requireJoinedMember(planId, userId);
-        planAccessService.requireOwner(me);
+        MemberEntity currentMember = planAccessService.requireJoinedMember(planId, userId);
+        planAccessService.requireOwner(currentMember);
 
         UserEntity inviter = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
@@ -69,8 +83,8 @@ public class InvitationService {
     @Transactional
     public void revokeInvitation(Long userId, Long planId, Long invitationId) {
         getPlanOrThrow(planId);
-        MemberEntity me = planAccessService.requireJoinedMember(planId, userId);
-        planAccessService.requireOwner(me);
+        MemberEntity currentMember = planAccessService.requireJoinedMember(planId, userId);
+        planAccessService.requireOwner(currentMember);
 
         InvitationEntity invitation = invitationRepository.findById(invitationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVITATION_NOT_FOUND));
@@ -103,7 +117,7 @@ public class InvitationService {
         InvitationEntity invitation = invitationRepository.findByInviteCode(inviteCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVITATION_NOT_FOUND));
 
-        expireIfNeeded(invitation);
+        expireIfNeeded(invitation); //초대링크 만료 여부 확인
 
         if (invitation.getStatus() == InvitationStatus.REVOKED) {
             throw new BusinessException(ErrorCode.INVITATION_REVOKED);
