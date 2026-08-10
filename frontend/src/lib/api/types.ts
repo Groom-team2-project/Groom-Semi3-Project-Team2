@@ -23,6 +23,7 @@ export interface Member {
   avatarColor: string;
   avatarInitial: string;
   role: Role;
+  status: "JOINED" | "LEFT";
 }
 
 export interface Plan {
@@ -36,6 +37,8 @@ export interface Plan {
   ownerId: string;
   members: Member[];
   createdAt: string;
+  myRole: Role;
+  memberCount: number;
 }
 
 export interface Invitation {

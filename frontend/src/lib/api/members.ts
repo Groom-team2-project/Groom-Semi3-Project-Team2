@@ -78,7 +78,7 @@ function mapInvitation(res: InvitationApiResponse): Invitation {
     url: `${appUrl}/j/${res.inviteCode}`,
     expiresAt: res.expiresAt,
     status: res.status,
-    invitationId: String(res.invitationId),
+    invitationId: String(res.invitationId)
   };
 }
 
