@@ -3,13 +3,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   completeKakaoLogin as completeKakaoLoginRequest,
+  getMe,
   loginWithKakao,
   logout as apiLogout,
   restoreAccessToken,
 } from "@/lib/api";
 import type { User } from "@/lib/api";
-
-const STORAGE_KEY = "tripmate_auth";
 
 interface AuthContextValue {
   user: User | null;
@@ -25,20 +24,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 최초 마운트 시에만 localStorage 확인 (SSR/CSR mismatch 방지를 위해 렌더 이후 useEffect에서 처리)
   useEffect(() => {
     let active = true;
 
     async function initializeAuth() {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (!saved) return;
-
       try {
-        const savedUser = JSON.parse(saved) as User;
         await restoreAccessToken();
-        if (active) setUser(savedUser);
+        const me = await getMe();
+        if (active) setUser(me);
       } catch {
-        window.localStorage.removeItem(STORAGE_KEY);
+        if (active) setUser(null);
       }
     }
 
@@ -58,7 +53,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const completeLogin = useCallback(async (code: string, state: string) => {
     const me = await completeKakaoLoginRequest(code, state);
     setUser(me);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(me));
   }, []);
 
   const logout = useCallback(async () => {
@@ -66,7 +60,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await apiLogout();
     } finally {
       setUser(null);
-      window.localStorage.removeItem(STORAGE_KEY);
     }
   }, []);
 

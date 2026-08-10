@@ -30,6 +30,27 @@ interface TokenReissueResponse {
   refreshTokenExpiresIn: number;
 }
 
+interface UserMeResponse {
+  userId: number;
+  nickname: string;
+  email: string | null;
+  profileImage: string | null;
+}
+
+let restoreAccessTokenPromise: Promise<void> | null = null;
+
+function toUser(response: UserMeResponse): User {
+  const name = response.nickname.trim() || "사용자";
+
+  return {
+    id: String(response.userId),
+    name,
+    email: response.email ?? "",
+    avatarColor: "#FEE500",
+    avatarInitial: name.slice(0, 1),
+  };
+}
+
 export async function loginWithKakao(): Promise<void> {
   const response = await apiFetch<CommonResponse<KakaoAuthorizeUrlResponse>>(
     "/api/v1/auth/kakao/authorize-url",
@@ -48,32 +69,32 @@ export async function completeKakaoLogin(code: string, state: string): Promise<U
   );
 
   setAccessToken(response.data.accessToken);
-
-  // 사용자 상세 조회 API가 생기기 전까지 로그인 응답으로 구성하는 최소 사용자 정보입니다.
-  return {
-    id: String(response.data.userId),
-    name: "카카오 사용자",
-    email: "",
-    avatarColor: "#FEE500",
-    avatarInitial: "카",
-  };
+  return getMe();
 }
 
-export async function restoreAccessToken(): Promise<void> {
-  const response = await apiFetch<CommonResponse<TokenReissueResponse>>(
-    "/api/v1/auth/reissue",
-    { method: "POST" },
-  );
+export function restoreAccessToken(): Promise<void> {
+  if (!restoreAccessTokenPromise) {
+    restoreAccessTokenPromise = apiFetch<CommonResponse<TokenReissueResponse>>(
+      "/api/v1/auth/reissue",
+      { method: "POST" },
+    )
+      .then((response) => {
+        setAccessToken(response.data.accessToken);
+      })
+      .finally(() => {
+        restoreAccessTokenPromise = null;
+      });
+  }
 
-  setAccessToken(response.data.accessToken);
+  return restoreAccessTokenPromise;
 }
 
-// 프로필 API가 연결될 때 실제 백엔드 호출로 교체합니다.
 export async function getMe(): Promise<User> {
-  await simulateLatency(120);
-  return store.me;
+  const response = await apiFetch<CommonResponse<UserMeResponse>>("/api/v1/users/me");
+  return toUser(response.data);
 }
 
+// 프로필 수정 API가 구현될 때 실제 백엔드 호출로 교체합니다.
 export async function updateMe(input: Partial<Pick<User, "name">>): Promise<User> {
   await simulateLatency();
   store.me = { ...store.me, ...input };
