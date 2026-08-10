@@ -27,6 +27,9 @@ public class AuthService {
     private final RefreshTokenService refreshTokenService;
     private final UserRepository userRepository;
 
+    private static final String KAKAO_OIDC_SCOPE =
+            "openid,profile_nickname,account_email";
+
     public LoginResult loginWithKakao(String code, String state, String nonce) {
         oAuthStateService.validateAndConsume(state, nonce);
 
@@ -81,6 +84,7 @@ public class AuthService {
                 .queryParam("response_type", "code")
                 .queryParam("client_id", kakaoOAuthProperties.clientId())
                 .queryParam("redirect_uri", kakaoOAuthProperties.redirectUri())
+                .queryParam("scope", KAKAO_OIDC_SCOPE)
                 .queryParam("state", oAuthState.state())
                 .build()
                 .toUriString();
