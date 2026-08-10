@@ -35,9 +35,9 @@ const MEMBERS_JEJU: Member[] = [
 ];
 
 const MEMBERS_BUSAN: Member[] = [
-  { id: "mem_5", userId: "user_jieun", name: "이지은", avatarColor: "#3182F6", avatarInitial: "이", role: "OWNER" },
-  { id: "mem_6", userId: "user_minsu", name: "김민수", avatarColor: "#00C896", avatarInitial: "김", role: "EDITOR" },
-  { id: "mem_7", userId: "user_seoyeon", name: "박서연", avatarColor: "#FF9F1C", avatarInitial: "박", role: "VIEWER" },
+  { id: "mem_5", userId: "user_jieun", name: "이지은", avatarColor: "#3182F6", avatarInitial: "이", role: "OWNER", status: "JOINED"},
+  { id: "mem_6", userId: "user_minsu", name: "김민수", avatarColor: "#00C896", avatarInitial: "김", role: "EDITOR", status: "JOINED" },
+  { id: "mem_7", userId: "user_seoyeon", name: "박서연", avatarColor: "#FF9F1C", avatarInitial: "박", role: "VIEWER", status: "JOINED" },
 ];
 
 const YEAR = new Date().getFullYear();
