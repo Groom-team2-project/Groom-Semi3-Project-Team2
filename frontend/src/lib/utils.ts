@@ -71,3 +71,13 @@ export const AVATAR_COLORS = ["#3182F6", "#00C896", "#FF9F1C", "#8B7FF2", "#F044
 export function cx(...classes: Array<string | false | null | undefined>): string {
   return classes.filter(Boolean).join(" ");
 }
+
+/**
+ * 계획이 완료됐는지 판단합니다.
+ * endDate가 "2026-08-08"이면, 8/8 23:59:59까지는 진행 중으로 보고, 8/9 00:00:00부터 완료로 처리합니다.
+ */
+export function isPlanCompleted(endIso: string, nowMs = Date.now()): boolean {
+  const end = new Date(endIso + "T00:00:00");
+  end.setDate(end.getDate() + 1);
+  return nowMs >= end.getTime();
+}
