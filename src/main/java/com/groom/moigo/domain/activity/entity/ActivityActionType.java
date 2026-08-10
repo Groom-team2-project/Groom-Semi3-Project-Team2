@@ -1,0 +1,16 @@
+package com.groom.moigo.domain.activity.entity;
+
+public enum ActivityActionType {
+    SCHEDULE_CREATED,
+    SCHEDULE_UPDATED,
+    SCHEDULE_DELETED,
+    VOTE_CREATED,
+    VOTE_CLOSED,
+    VOTE_PARTICIPATED,
+    MEMBER_JOINED,
+    MEMBER_LEFT,
+    MEMBER_ROLE_CHANGED,
+    COMMENT_CREATED,
+    INVITATION_CREATED,
+    INVITATION_REVOKED
+}
