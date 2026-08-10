@@ -36,7 +36,6 @@ public class SecurityConfig {
 								"/index.html",
 								"/favicon.ico",
 								"/actuator/health"
-								,"/h2-console/**" //테스트용
 						).permitAll()
 						.requestMatchers(
 								"/api/v1/auth/kakao/**",
