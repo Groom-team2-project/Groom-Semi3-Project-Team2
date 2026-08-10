@@ -75,7 +75,6 @@ public class PlanEntity {
     // 계획 수정 검증
     public void update(String title, String description,
                        LocalDate startDate, LocalDate endDate, Integer recruitmentCount) {
-        validate(title, startDate, endDate, recruitmentCount);
         String nextTitle = title != null ? title : this.title;
         String nextDescription = description != null ? description : this.description;
         LocalDate nextStartDate = startDate != null ? startDate : this.startDate;
