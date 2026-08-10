@@ -35,7 +35,7 @@ export interface Plan {
   endDate: string; // ISO date (YYYY-MM-DD)
   capacity?: number;
   ownerId: string;
-  members: Member[];
+  members?: Member[];
   createdAt: string;
   myRole?: Role;
   memberCount?: number;

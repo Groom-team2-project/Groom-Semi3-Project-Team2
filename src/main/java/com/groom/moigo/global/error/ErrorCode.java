@@ -18,6 +18,8 @@ public enum ErrorCode {
     PLAN_DELETE_FORBIDDEN(HttpStatus.FORBIDDEN, "계획을 삭제할 권한이 없습니다."),
     INVALID_PLAN_DATE(HttpStatus.BAD_REQUEST, "계획 정보가 올바르지 않습니다."),
     PLAN_RECRUITMENT_FULL(HttpStatus.CONFLICT, "모집 인원이 마감되었습니다."),
+    INVALID_PLAN_TITLE(HttpStatus.BAD_REQUEST, "제목은 비어 있을 수 없습니다."),
+    INVALID_RECRUITMENT_COUNT(HttpStatus.BAD_REQUEST, "모집 인원은 1 이상이어야 합니다."),
 
     //member
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "멤버를 찾을 수 없습니다."),
