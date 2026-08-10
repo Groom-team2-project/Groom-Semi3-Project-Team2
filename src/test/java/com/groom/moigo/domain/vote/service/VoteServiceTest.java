@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.groom.moigo.domain.activity.entity.ActivityActionType;
 import com.groom.moigo.domain.activity.repository.ActivityLogRepository;
+import com.groom.moigo.domain.plan.entity.MemberRole;
 import com.groom.moigo.domain.vote.dto.request.VoteCreateRequest;
 import com.groom.moigo.domain.vote.dto.request.VoteOptionCreateRequest;
 import com.groom.moigo.domain.vote.dto.request.VoteOptionUpdateRequest;
@@ -18,6 +19,8 @@ import com.groom.moigo.domain.vote.exception.VoteErrorCode;
 import com.groom.moigo.domain.vote.exception.VoteException;
 import com.groom.moigo.domain.vote.repository.VoteRepository;
 import com.groom.moigo.domain.vote.support.VoteTestFixture;
+import com.groom.moigo.global.error.BusinessException;
+import com.groom.moigo.global.error.ErrorCode;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -48,7 +51,43 @@ class VoteServiceTest {
 		creatorId = fixture.createUser("생성자");
 		participantId = fixture.createUser("참여자");
 		planId = fixture.createPlan(creatorId, "제주도 3박 4일");
+		fixture.join(planId, participantId, MemberRole.EDITOR);
 		placeId = fixture.createPlace("성산일출봉");
+	}
+
+	@Test
+	@DisplayName("계획 멤버가 아니면 투표를 조회할 수 없다")
+	void findAllByPlanAsNonMember() {
+		Long outsiderId = fixture.createUser("외부인");
+
+		assertThatThrownBy(() -> voteService.findAllByPlan(planId, outsiderId))
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.PLAN_ACCESS_DENIED);
+	}
+
+	@Test
+	@DisplayName("계획에서 나간 멤버는 투표를 조회할 수 없다")
+	void findAllByPlanAsLeftMember() {
+		Long leftId = fixture.createUser("나간사람");
+		fixture.leave(planId, leftId, MemberRole.EDITOR);
+
+		assertThatThrownBy(() -> voteService.findAllByPlan(planId, leftId))
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.PLAN_ACCESS_DENIED);
+	}
+
+	@Test
+	@DisplayName("VIEWER는 투표를 만들 수 없다")
+	void createVoteAsViewer() {
+		Long viewerId = fixture.createUser("뷰어");
+		fixture.join(planId, viewerId, MemberRole.VIEWER);
+
+		assertThatThrownBy(() -> voteService.create(planId, viewerId, createRequest()))
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.PLAN_UPDATE_FORBIDDEN);
 	}
 
 	@Test

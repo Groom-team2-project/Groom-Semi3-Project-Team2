@@ -4,6 +4,7 @@ import com.groom.moigo.domain.activity.dto.ActivityRecordCommand;
 import com.groom.moigo.domain.activity.entity.ActivityActionType;
 import com.groom.moigo.domain.activity.entity.ActivityTargetType;
 import com.groom.moigo.domain.activity.service.ActivityLogService;
+import com.groom.moigo.domain.plan.service.PlanAccessService;
 import com.groom.moigo.domain.vote.dto.request.VoteParticipationRequest;
 import com.groom.moigo.domain.vote.dto.response.MyVoteResponse;
 import com.groom.moigo.domain.vote.dto.response.VoteResponse;
@@ -29,7 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>이미 참여한 회원이 다시 투표하면 기존 선택을 모두 지우고 새 선택으로 교체한다. 프론트엔드 투표 상세 화면의 "표를 바꿀 수 있어요" 동작이 이 규칙을 따른다.
  *
- * <p>TODO 계획 멤버만 투표할 수 있도록 하는 검증은 계획·멤버 도메인이 머지되면 추가한다.
+ * <p>계획에 참여 중인 멤버여야 투표할 수 있다. VIEWER도 참여할 수 있게 두었다. 투표는 계획 내용을 고치는 일이 아니라 의견을 남기는 일이라고 봤다.
  */
 @Service
 @RequiredArgsConstructor
@@ -41,10 +42,12 @@ public class VoteParticipationService {
 	private final VoteParticipationRepository voteParticipationRepository;
 	private final VoteResponseAssembler assembler;
 	private final ActivityLogService activityLogService;
+	private final PlanAccessService planAccessService;
 
 	@Transactional
 	public VoteResponse participate(
 			Long planId, Long voteId, Long userId, VoteParticipationRequest request) {
+		planAccessService.requireJoinedMember(planId, userId);
 		Vote vote = findVoteOfPlan(planId, voteId);
 		validateOpen(vote);
 
@@ -82,6 +85,7 @@ public class VoteParticipationService {
 
 	@Transactional
 	public void cancel(Long planId, Long voteId, Long userId) {
+		planAccessService.requireJoinedMember(planId, userId);
 		Vote vote = findVoteOfPlan(planId, voteId);
 		validateOpen(vote);
 
@@ -92,6 +96,7 @@ public class VoteParticipationService {
 	}
 
 	public MyVoteResponse findMyParticipation(Long planId, Long voteId, Long userId) {
+		planAccessService.requireJoinedMember(planId, userId);
 		findVoteOfPlan(planId, voteId);
 
 		List<VoteParticipation> participations =
@@ -109,7 +114,8 @@ public class VoteParticipationService {
 	}
 
 	@Transactional
-	public VoteResultResponse findResult(Long planId, Long voteId) {
+	public VoteResultResponse findResult(Long planId, Long voteId, Long userId) {
+		planAccessService.requireJoinedMember(planId, userId);
 		Vote vote = findVoteOfPlan(planId, voteId);
 		vote.syncStatus(Instant.now());
 		return assembler.toResultResponse(vote);

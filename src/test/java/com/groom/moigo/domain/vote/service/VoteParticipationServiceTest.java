@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.groom.moigo.domain.activity.entity.ActivityActionType;
 import com.groom.moigo.domain.activity.repository.ActivityLogRepository;
+import com.groom.moigo.domain.plan.entity.MemberRole;
 import com.groom.moigo.domain.vote.dto.request.VoteCreateRequest;
 import com.groom.moigo.domain.vote.dto.request.VoteOptionCreateRequest;
 import com.groom.moigo.domain.vote.dto.request.VoteParticipationRequest;
@@ -16,6 +17,8 @@ import com.groom.moigo.domain.vote.entity.VoteType;
 import com.groom.moigo.domain.vote.exception.VoteErrorCode;
 import com.groom.moigo.domain.vote.exception.VoteException;
 import com.groom.moigo.domain.vote.support.VoteTestFixture;
+import com.groom.moigo.global.error.BusinessException;
+import com.groom.moigo.global.error.ErrorCode;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -46,6 +49,36 @@ class VoteParticipationServiceTest {
 		firstId = fixture.createUser("참여자1");
 		secondId = fixture.createUser("참여자2");
 		planId = fixture.createPlan(creatorId, "부산 1박 2일");
+		fixture.join(planId, firstId, MemberRole.EDITOR);
+		fixture.join(planId, secondId, MemberRole.EDITOR);
+	}
+
+	@Test
+	@DisplayName("VIEWER도 투표에는 참여할 수 있다")
+	void participateAsViewer() {
+		VoteResponse vote = createVote(VoteType.SINGLE);
+		Long viewerId = fixture.createUser("뷰어");
+		fixture.join(planId, viewerId, MemberRole.VIEWER);
+
+		VoteResponse result =
+				voteParticipationService.participate(
+						planId, id(vote.id()), viewerId, single(vote.options().get(0).id()));
+
+		assertThat(result.participantCount()).isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("계획 멤버가 아니면 투표에 참여할 수 없다")
+	void participateAsNonMember() {
+		VoteResponse vote = createVote(VoteType.SINGLE);
+		Long outsiderId = fixture.createUser("외부인");
+		VoteParticipationRequest request = single(vote.options().get(0).id());
+
+		assertThatThrownBy(
+						() -> voteParticipationService.participate(planId, id(vote.id()), outsiderId, request))
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.PLAN_ACCESS_DENIED);
 	}
 
 	@Test
@@ -172,6 +205,7 @@ class VoteParticipationServiceTest {
 	void participateThroughAnotherPlan() {
 		VoteResponse vote = createVote(VoteType.SINGLE);
 		Long otherPlanId = fixture.createPlan(creatorId, "제주 2박 3일");
+		fixture.join(otherPlanId, firstId, MemberRole.EDITOR);
 		VoteParticipationRequest request = single(vote.options().get(0).id());
 
 		assertThatThrownBy(
@@ -264,7 +298,7 @@ class VoteParticipationServiceTest {
 		voteParticipationService.participate(planId, id(vote.id()), secondId, single(secondOptionId));
 		voteParticipationService.participate(planId, id(vote.id()), creatorId, single(firstOptionId));
 
-		VoteResultResponse result = voteParticipationService.findResult(planId, id(vote.id()));
+		VoteResultResponse result = voteParticipationService.findResult(planId, id(vote.id()), firstId);
 
 		assertThat(result.participantCount()).isEqualTo(3);
 		assertThat(result.totalSelectionCount()).isEqualTo(3);
