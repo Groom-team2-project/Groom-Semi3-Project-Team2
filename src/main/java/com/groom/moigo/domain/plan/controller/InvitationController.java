@@ -4,6 +4,8 @@ import com.groom.moigo.domain.auth.security.AuthMember;
 import com.groom.moigo.domain.plan.dto.InvitationJoinResponse;
 import com.groom.moigo.domain.plan.dto.InvitationResponse;
 import com.groom.moigo.domain.plan.service.InvitationService;
+import com.groom.moigo.global.error.BusinessException;
+import com.groom.moigo.global.error.ErrorCode;
 import com.groom.moigo.global.response.CommonResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -58,6 +60,9 @@ public class InvitationController {
             @AuthenticationPrincipal AuthMember authMember,
             @PathVariable String inviteCode
     ) {
+        if (authMember == null){
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+        }
         InvitationJoinResponse response = invitationService.join(authMember.userId(), inviteCode);
         return ResponseEntity.ok(CommonResponse.success(response, "계획 참여 성공"));
     }
