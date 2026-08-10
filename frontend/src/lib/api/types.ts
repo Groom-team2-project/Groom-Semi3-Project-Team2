@@ -23,7 +23,7 @@ export interface Member {
   avatarColor: string;
   avatarInitial: string;
   role: Role;
-  status: "JOINED" | "LEFT";
+  status?: "JOINED" | "LEFT";
 }
 
 export interface Plan {
@@ -35,7 +35,7 @@ export interface Plan {
   endDate: string; // ISO date (YYYY-MM-DD)
   capacity?: number;
   ownerId: string;
-  members?: Member[];
+  members: Member[];
   createdAt: string;
   myRole?: Role;
   memberCount?: number;
