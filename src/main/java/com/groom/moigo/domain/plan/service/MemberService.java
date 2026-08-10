@@ -98,7 +98,7 @@ public class MemberService {
     }
 
     private void requirePlanExists(Long planId) {
-        if (!planRepository.existsById(planId)) {
+        if (!planRepository.existsByPlanIdAndDeletedAtIsNull(planId)) {
             throw new BusinessException(ErrorCode.PLAN_NOT_FOUND);
         }
     }

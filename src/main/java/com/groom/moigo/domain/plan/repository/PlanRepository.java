@@ -23,4 +23,5 @@ public interface PlanRepository extends JpaRepository<PlanEntity, Long> {
     @Query("select p from PlanEntity p where p.planId = :planId and p.deletedAt is null")
     Optional<PlanEntity> findByIdAndNotDeleted(@Param("planId") Long planId);
 
+    boolean existsByPlanIdAndDeletedAtIsNull(Long planId);
 }

@@ -3,10 +3,7 @@ package com.groom.moigo.domain.plan.service;
 import com.groom.moigo.domain.plan.dto.PlanCreateRequest;
 import com.groom.moigo.domain.plan.dto.PlanResponse;
 import com.groom.moigo.domain.plan.dto.PlanUpdateRequest;
-import com.groom.moigo.domain.plan.entity.MemberEntity;
-import com.groom.moigo.domain.plan.entity.MemberRole;
-import com.groom.moigo.domain.plan.entity.MemberStatus;
-import com.groom.moigo.domain.plan.entity.PlanEntity;
+import com.groom.moigo.domain.plan.entity.*;
 import com.groom.moigo.domain.plan.repository.InvitationRepository;
 import com.groom.moigo.domain.plan.repository.MemberRepository;
 import com.groom.moigo.domain.plan.repository.PlanRepository;
@@ -95,6 +92,10 @@ public class PlanService {
         PlanEntity plan = getPlanOrThrow(planId);
         MemberEntity currentMember = planAccessService.requireJoinedMember(planId, userId);
         planAccessService.requireOwner(currentMember);
+
+        invitationRepository.findAllByPlan_PlanIdAndStatus(planId, InvitationStatus.ACTIVE)
+                .forEach(InvitationEntity::revoke);
+
         plan.softDelete();
     }
 

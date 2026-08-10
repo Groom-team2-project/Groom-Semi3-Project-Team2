@@ -37,8 +37,8 @@ export interface Plan {
   ownerId: string;
   members: Member[];
   createdAt: string;
-  myRole: Role;
-  memberCount: number;
+  myRole?: Role;
+  memberCount?: number;
 }
 
 export interface Invitation {
