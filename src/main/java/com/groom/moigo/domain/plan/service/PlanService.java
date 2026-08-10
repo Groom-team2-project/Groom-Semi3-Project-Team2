@@ -41,7 +41,14 @@ public class PlanService {
                     request.startDate(), request.endDate(), request.recruitmentCount()
             );
         } catch (IllegalArgumentException e) {
-            throw new BusinessException(ErrorCode.INVALID_PLAN_DATE, e.getMessage());
+            String message = e.getMessage();
+            if (message.contains("제목")) {
+                throw new BusinessException(ErrorCode.INVALID_PLAN_TITLE, message);
+            }
+            if (message.contains("모집 인원")) {
+                throw new BusinessException(ErrorCode.INVALID_RECRUITMENT_COUNT, message);
+            }
+            throw new BusinessException(ErrorCode.INVALID_PLAN_DATE, message);
         }
 
         planRepository.save(plan);
@@ -80,7 +87,14 @@ public class PlanService {
             plan.update(request.title(), request.description(),
                     request.startDate(), request.endDate(), request.recruitmentCount());
         } catch (IllegalArgumentException e) {
-            throw new BusinessException(ErrorCode.INVALID_PLAN_DATE, e.getMessage());
+            String message = e.getMessage();
+            if (message.contains("제목")) {
+                throw new BusinessException(ErrorCode.INVALID_PLAN_TITLE, message);
+            }
+            if (message.contains("모집 인원")) {
+                throw new BusinessException(ErrorCode.INVALID_RECRUITMENT_COUNT, message);
+            }
+            throw new BusinessException(ErrorCode.INVALID_PLAN_DATE, message);
         }
 
         long memberCount = memberRepository.countByPlan_PlanIdAndStatus(planId, MemberStatus.JOINED);
