@@ -3,7 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 
 export const metadata: Metadata = {
-  title: "트립메이트 — 같이 짜는 여행 일정",
+  title: "모이Go — 같이 짜는 여행 일정",
   description: "여러 명이 하나의 여행 계획에 참여해 장소를 찾고, 일정을 만들고, 투표로 결정하는 서비스",
 };
 

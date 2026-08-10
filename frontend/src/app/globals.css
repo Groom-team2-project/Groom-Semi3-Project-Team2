@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* 트립메이트 디자인 토큰 — Toss/Triple 톤 (파란 포인트, 둥근 카드, 넉넉한 여백) */
+/* 모이Go 디자인 토큰 — Toss/Triple 톤 (파란 포인트, 둥근 카드, 넉넉한 여백) */
 :root {
   --color-primary: #3182f6;
   --color-primary-dark: #1b64da;
@@ -64,8 +64,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-a {
-  color: var(--color-primary);
+/* Tailwind 유틸리티(@layer utilities)보다 우선순위가 밀리도록 base 레이어에 둠.
+   레이어 밖(unlayered)에 두면 specificity와 무관하게 항상 이겨버려서,
+   Link로 렌더링되는 파란 버튼의 text-white가 무시되고 글자가 파랗게 나오는 문제가 있었음.
+   기본 링크 색은 gray-500 — 활성화된 메뉴 등 강조가 필요한 곳만 text-primary로 개별 override. */
+@layer base {
+  a {
+    color: var(--color-gray-500);
+  }
 }
 
 button {
