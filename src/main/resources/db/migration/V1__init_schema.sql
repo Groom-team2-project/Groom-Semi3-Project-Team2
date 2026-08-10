@@ -189,20 +189,3 @@ CREATE INDEX idx_comments_schedule
 
 CREATE INDEX idx_vote_participants_vote_user
     ON vote_participants (vote_id, user_id);
-
-INSERT INTO users (
-    kakao_id,
-    email,
-    nickname,
-    profile_image,
-    created_at,
-    updated_at
-)
-VALUES (
-           1,
-           'test1@test.com',
-           '테스트유저',
-           NULL,
-           CURRENT_TIMESTAMP,
-           CURRENT_TIMESTAMP
-       );
