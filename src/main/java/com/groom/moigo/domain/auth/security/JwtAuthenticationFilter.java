@@ -57,4 +57,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         filterChain.doFilter(request, response);
     }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String contextPath = request.getContextPath();
+        String requestUri = request.getRequestURI();
+        String path = requestUri.substring(contextPath.length());
+
+
+        return path.startsWith("/api/v1/auth/kakao/")
+                || path.equals("/api/v1/auth/reissue")
+                || path.equals("/api/v1/auth/logout");
+    }
 }
