@@ -62,8 +62,11 @@ public class VoteParticipationController {
 	/** 투표 집계 결과를 조회한다. */
 	@GetMapping("/result")
 	public ResponseEntity<CommonResponse<VoteResultResponse>> findResult(
-			@PathVariable Long planId, @PathVariable Long voteId) {
-		VoteResultResponse response = voteParticipationService.findResult(planId, voteId);
+			@PathVariable Long planId,
+			@PathVariable Long voteId,
+			@AuthenticationPrincipal AuthMember authMember) {
+		VoteResultResponse response =
+				voteParticipationService.findResult(planId, voteId, authMember.userId());
 		return ResponseEntity.ok(CommonResponse.success(response, "투표 결과 조회 성공"));
 	}
 }

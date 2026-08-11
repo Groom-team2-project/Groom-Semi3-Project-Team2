@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.groom.moigo.domain.activity.entity.ActivityActionType;
 import com.groom.moigo.domain.activity.repository.ActivityLogRepository;
+import com.groom.moigo.domain.plan.entity.MemberRole;
 import com.groom.moigo.domain.vote.dto.request.VoteCreateRequest;
 import com.groom.moigo.domain.vote.dto.request.VoteOptionCreateRequest;
 import com.groom.moigo.domain.vote.dto.request.VoteOptionUpdateRequest;
@@ -18,6 +19,8 @@ import com.groom.moigo.domain.vote.exception.VoteErrorCode;
 import com.groom.moigo.domain.vote.exception.VoteException;
 import com.groom.moigo.domain.vote.repository.VoteRepository;
 import com.groom.moigo.domain.vote.support.VoteTestFixture;
+import com.groom.moigo.global.error.BusinessException;
+import com.groom.moigo.global.error.ErrorCode;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -48,7 +51,43 @@ class VoteServiceTest {
 		creatorId = fixture.createUser("생성자");
 		participantId = fixture.createUser("참여자");
 		planId = fixture.createPlan(creatorId, "제주도 3박 4일");
+		fixture.join(planId, participantId, MemberRole.EDITOR);
 		placeId = fixture.createPlace("성산일출봉");
+	}
+
+	@Test
+	@DisplayName("계획 멤버가 아니면 투표를 조회할 수 없다")
+	void findAllByPlanAsNonMember() {
+		Long outsiderId = fixture.createUser("외부인");
+
+		assertThatThrownBy(() -> voteService.findAllByPlan(planId, outsiderId))
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.PLAN_ACCESS_DENIED);
+	}
+
+	@Test
+	@DisplayName("계획에서 나간 멤버는 투표를 조회할 수 없다")
+	void findAllByPlanAsLeftMember() {
+		Long leftId = fixture.createUser("나간사람");
+		fixture.leave(planId, leftId, MemberRole.EDITOR);
+
+		assertThatThrownBy(() -> voteService.findAllByPlan(planId, leftId))
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.PLAN_ACCESS_DENIED);
+	}
+
+	@Test
+	@DisplayName("VIEWER는 투표를 만들 수 없다")
+	void createVoteAsViewer() {
+		Long viewerId = fixture.createUser("뷰어");
+		fixture.join(planId, viewerId, MemberRole.VIEWER);
+
+		assertThatThrownBy(() -> voteService.create(planId, viewerId, createRequest()))
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.PLAN_UPDATE_FORBIDDEN);
 	}
 
 	@Test
@@ -326,8 +365,8 @@ class VoteServiceTest {
 	}
 
 	@Test
-	@DisplayName("선택지 수정 시 placeId를 비우면 장소 연결이 해제된다")
-	void updateOptionDetachesPlace() {
+	@DisplayName("선택지 수정 시 placeId를 생략하면 기존 장소 연결이 유지된다")
+	void updateOptionKeepsPlaceWhenPlaceIdOmitted() {
 		VoteResponse vote = voteService.create(planId, creatorId, createRequest());
 		String optionId = vote.options().get(0).id();
 
@@ -337,11 +376,82 @@ class VoteServiceTest {
 						id(vote.id()),
 						id(optionId),
 						creatorId,
-						new VoteOptionUpdateRequest("우도", "제주 우도면", "⛴️", null));
+						new VoteOptionUpdateRequest("우도", "제주 우도면", "⛴️", null, false));
 
 		assertThat(updated.placeName()).isEqualTo("우도");
 		assertThat(updated.placeAddress()).isEqualTo("제주 우도면");
+		assertThat(updated.placeId()).isEqualTo(String.valueOf(placeId));
+	}
+
+	@Test
+	@DisplayName("선택지 수정 시 clearPlace를 보내야 장소 연결이 해제된다")
+	void updateOptionDetachesPlaceOnlyWithClearPlace() {
+		VoteResponse vote = voteService.create(planId, creatorId, createRequest());
+		String optionId = vote.options().get(0).id();
+
+		VoteOptionResponse updated =
+				voteService.updateOption(
+						planId,
+						id(vote.id()),
+						id(optionId),
+						creatorId,
+						new VoteOptionUpdateRequest("우도", null, null, null, true));
+
 		assertThat(updated.placeId()).isNull();
+	}
+
+	@Test
+	@DisplayName("선택지 수정으로 다른 장소를 연결할 수 있다")
+	void updateOptionAttachesAnotherPlace() {
+		VoteResponse vote = voteService.create(planId, creatorId, createRequest());
+		String optionId = vote.options().get(1).id();
+		Long anotherPlaceId = fixture.createPlace("우도");
+
+		VoteOptionResponse updated =
+				voteService.updateOption(
+						planId,
+						id(vote.id()),
+						id(optionId),
+						creatorId,
+						new VoteOptionUpdateRequest("우도", null, null, anotherPlaceId, false));
+
+		assertThat(updated.placeId()).isEqualTo(String.valueOf(anotherPlaceId));
+	}
+
+	@Test
+	@DisplayName("다른 계획의 일정에는 투표를 연결할 수 없다")
+	void createVoteLinkedToScheduleOfAnotherPlan() {
+		Long otherPlanId = fixture.createPlan(creatorId, "부산 당일치기");
+		Long foreignScheduleId = fixture.createSchedule(otherPlanId, "남의 계획 일정");
+		VoteCreateRequest request =
+				new VoteCreateRequest(
+						"둘째날 저녁 뭐 먹지?",
+						null,
+						Instant.now().plus(1, ChronoUnit.DAYS),
+						null,
+						foreignScheduleId,
+						List.of(
+								new VoteOptionCreateRequest("연돈", null, null, null),
+								new VoteOptionCreateRequest("제주바다", null, null, null)));
+
+		assertThatThrownBy(() -> voteService.create(planId, creatorId, request))
+				.isInstanceOf(VoteException.class)
+				.extracting(exception -> ((VoteException) exception).getErrorCode())
+				.isEqualTo(VoteErrorCode.SCHEDULE_NOT_IN_PLAN);
+	}
+
+	@Test
+	@DisplayName("투표 수정으로도 다른 계획의 일정에 연결할 수 없다")
+	void updateVoteLinkedToScheduleOfAnotherPlan() {
+		VoteResponse vote = voteService.create(planId, creatorId, createRequest());
+		Long otherPlanId = fixture.createPlan(creatorId, "부산 당일치기");
+		Long foreignScheduleId = fixture.createSchedule(otherPlanId, "남의 계획 일정");
+		VoteUpdateRequest request = new VoteUpdateRequest(null, null, null, foreignScheduleId);
+
+		assertThatThrownBy(() -> voteService.update(planId, id(vote.id()), creatorId, request))
+				.isInstanceOf(VoteException.class)
+				.extracting(exception -> ((VoteException) exception).getErrorCode())
+				.isEqualTo(VoteErrorCode.SCHEDULE_NOT_IN_PLAN);
 	}
 
 	@Test
@@ -388,7 +498,7 @@ class VoteServiceTest {
 										id(first.id()),
 										id(foreignOptionId),
 										creatorId,
-										new VoteOptionUpdateRequest("우도", null, null, null)))
+										new VoteOptionUpdateRequest("우도", null, null, null, false)))
 				.isInstanceOf(VoteException.class)
 				.extracting(exception -> ((VoteException) exception).getErrorCode())
 				.isEqualTo(VoteErrorCode.OPTION_NOT_IN_VOTE);

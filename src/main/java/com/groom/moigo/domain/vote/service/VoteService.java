@@ -4,6 +4,8 @@ import com.groom.moigo.domain.activity.dto.ActivityRecordCommand;
 import com.groom.moigo.domain.activity.entity.ActivityActionType;
 import com.groom.moigo.domain.activity.entity.ActivityTargetType;
 import com.groom.moigo.domain.activity.service.ActivityLogService;
+import com.groom.moigo.domain.plan.entity.MemberEntity;
+import com.groom.moigo.domain.plan.service.PlanAccessService;
 import com.groom.moigo.domain.vote.dto.request.VoteCreateRequest;
 import com.groom.moigo.domain.vote.dto.request.VoteOptionCreateRequest;
 import com.groom.moigo.domain.vote.dto.request.VoteOptionUpdateRequest;
@@ -28,8 +30,10 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>모든 조회·변경은 계획(Plan) 하위에서 이뤄지므로 투표가 해당 계획에 속하는지 먼저 검증한다.
  *
- * <p>TODO 계획 멤버 권한(members.role) 검증은 계획·멤버 도메인이 머지되면 추가한다. 현재는 투표 생성자 본인 여부만 검증한다. 계획·장소 존재 여부도
- * 해당 도메인이 리포지토리를 제공하기 전까지는 마이그레이션의 FK 제약에 맡긴다.
+ * <p>권한은 세 겹으로 본다. 조회는 계획에 참여 중인 멤버면 되고, 투표를 만드는 일은 EDITOR 이상이어야 하며, 이미 만들어진 투표를 고치는 일은 그 투표를 만든
+ * 사람만 할 수 있다.
+ *
+ * <p>TODO 장소 존재 여부는 장소 도메인이 리포지토리를 제공하기 전까지 마이그레이션의 FK 제약에 맡긴다.
  */
 @Service
 @RequiredArgsConstructor
@@ -41,10 +45,14 @@ public class VoteService {
 	private final VoteParticipationRepository voteParticipationRepository;
 	private final VoteResponseAssembler assembler;
 	private final ActivityLogService activityLogService;
+	private final PlanAccessService planAccessService;
+	private final ScheduleLinkReader scheduleLinkReader;
 
 	@Transactional
 	public VoteResponse create(Long planId, Long userId, VoteCreateRequest request) {
+		requireEditor(planId, userId);
 		validateRequiredDeadline(request.deadline());
+		validateScheduleInPlan(planId, request.scheduleId());
 
 		Vote vote =
 				Vote.builder()
@@ -80,6 +88,8 @@ public class VoteService {
 	/** 계획에 등록된 투표를 최신순으로 모두 조회한다. 선택지와 득표 수까지 함께 내려간다. */
 	@Transactional
 	public List<VoteResponse> findAllByPlan(Long planId, Long userId) {
+		planAccessService.requireJoinedMember(planId, userId);
+
 		List<Vote> votes = voteRepository.findByPlanIdOrderByCreatedAtDesc(planId);
 		Instant now = Instant.now();
 		votes.forEach(vote -> vote.syncStatus(now));
@@ -89,6 +99,8 @@ public class VoteService {
 
 	@Transactional
 	public VoteResponse findById(Long planId, Long voteId, Long userId) {
+		planAccessService.requireJoinedMember(planId, userId);
+
 		Vote vote = findVoteOfPlan(planId, voteId);
 		vote.syncStatus(Instant.now());
 		return assembler.toVoteResponse(vote, userId);
@@ -96,10 +108,10 @@ public class VoteService {
 
 	@Transactional
 	public VoteResponse update(Long planId, Long voteId, Long userId, VoteUpdateRequest request) {
-		Vote vote = findVoteOfPlan(planId, voteId);
-		validateCreator(vote, userId);
+		Vote vote = findEditableVote(planId, voteId, userId);
 		validateOpen(vote);
 		validateDeadline(request.deadline());
+		validateScheduleInPlan(planId, request.scheduleId());
 
 		vote.update(request.title(), request.description(), request.deadline());
 		if (request.scheduleId() != null) {
@@ -110,8 +122,7 @@ public class VoteService {
 
 	@Transactional
 	public void delete(Long planId, Long voteId, Long userId) {
-		Vote vote = findVoteOfPlan(planId, voteId);
-		validateCreator(vote, userId);
+		findEditableVote(planId, voteId, userId);
 
 		voteParticipationRepository.deleteByVoteId(voteId);
 		voteRepository.deleteById(voteId);
@@ -119,8 +130,7 @@ public class VoteService {
 
 	@Transactional
 	public VoteResponse close(Long planId, Long voteId, Long userId) {
-		Vote vote = findVoteOfPlan(planId, voteId);
-		validateCreator(vote, userId);
+		Vote vote = findEditableVote(planId, voteId, userId);
 		validateOpen(vote);
 
 		vote.close();
@@ -136,8 +146,7 @@ public class VoteService {
 	@Transactional
 	public VoteOptionResponse addOption(
 			Long planId, Long voteId, Long userId, VoteOptionCreateRequest request) {
-		Vote vote = findVoteOfPlan(planId, voteId);
-		validateCreator(vote, userId);
+		Vote vote = findEditableVote(planId, voteId, userId);
 		validateOpen(vote);
 
 		VoteOption option =
@@ -156,21 +165,23 @@ public class VoteService {
 	@Transactional
 	public VoteOptionResponse updateOption(
 			Long planId, Long voteId, Long optionId, Long userId, VoteOptionUpdateRequest request) {
-		Vote vote = findVoteOfPlan(planId, voteId);
-		validateCreator(vote, userId);
+		Vote vote = findEditableVote(planId, voteId, userId);
 		validateOpen(vote);
 
 		VoteOption option = findOptionOf(vote, optionId);
 		option.update(
-				request.placeName(), request.placeAddress(), request.emoji(), request.placeId());
+				request.placeName(),
+				request.placeAddress(),
+				request.emoji(),
+				request.placeId(),
+				request.clearPlace());
 
 		return assembler.toOptionResponse(option, userId);
 	}
 
 	@Transactional
 	public void deleteOption(Long planId, Long voteId, Long optionId, Long userId) {
-		Vote vote = findVoteOfPlan(planId, voteId);
-		validateCreator(vote, userId);
+		Vote vote = findEditableVote(planId, voteId, userId);
 		validateOpen(vote);
 
 		VoteOption option = findOptionOf(vote, optionId);
@@ -185,16 +196,27 @@ public class VoteService {
 		voteOptionRepository.deleteById(targetId);
 	}
 
+	/** 이미 만들어진 투표를 고치기 위한 공통 검증. 계획을 편집할 수 있으면서 그 투표를 만든 사람이어야 한다. */
+	private Vote findEditableVote(Long planId, Long voteId, Long userId) {
+		requireEditor(planId, userId);
+		Vote vote = findVoteOfPlan(planId, voteId);
+		if (!vote.isCreatedBy(userId)) {
+			throw new VoteException(VoteErrorCode.NOT_VOTE_CREATOR);
+		}
+		return vote;
+	}
+
+	/** 투표를 만들거나 고치는 일은 계획을 편집할 수 있는 멤버(OWNER, EDITOR)만 할 수 있다. */
+	private void requireEditor(Long planId, Long userId) {
+		MemberEntity member = planAccessService.requireJoinedMember(planId, userId);
+		planAccessService.requireEditable(member);
+	}
+
 	private void recordActivity(
 			Vote vote, Long userId, ActivityActionType actionType, String summary) {
 		activityLogService.record(
 				new ActivityRecordCommand(
-						vote.getPlanId(),
-						userId,
-						actionType,
-						ActivityTargetType.VOTE,
-						vote.getId(),
-						summary));
+						vote.getPlanId(), userId, actionType, ActivityTargetType.VOTE, vote.getId(), summary));
 	}
 
 	private Vote findVoteOfPlan(Long planId, Long voteId) {
@@ -219,12 +241,6 @@ public class VoteService {
 		return option;
 	}
 
-	private void validateCreator(Vote vote, Long userId) {
-		if (!vote.isCreatedBy(userId)) {
-			throw new VoteException(VoteErrorCode.NOT_VOTE_CREATOR);
-		}
-	}
-
 	private void validateOpen(Vote vote) {
 		if (vote.isClosed(Instant.now())) {
 			throw new VoteException(VoteErrorCode.VOTE_ALREADY_CLOSED);
@@ -235,6 +251,20 @@ public class VoteService {
 	private void validateDeadline(Instant deadline) {
 		if (deadline != null && !deadline.isAfter(Instant.now())) {
 			throw new VoteException(VoteErrorCode.INVALID_DEADLINE);
+		}
+	}
+
+	/**
+	 * 연결하려는 일정이 같은 계획에 속하는지 확인한다.
+	 *
+	 * <p>FK 제약은 일정 존재 여부만 보므로 다른 계획의 일정에 투표가 붙는 것을 막지 못한다.
+	 */
+	private void validateScheduleInPlan(Long planId, Long scheduleId) {
+		if (scheduleId == null) {
+			return;
+		}
+		if (!scheduleLinkReader.existsInPlan(scheduleId, planId)) {
+			throw new VoteException(VoteErrorCode.SCHEDULE_NOT_IN_PLAN);
 		}
 	}
 
