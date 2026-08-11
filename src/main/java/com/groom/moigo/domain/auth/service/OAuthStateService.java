@@ -32,17 +32,20 @@ public class OAuthStateService {
         return new OAuthState(state, nonce);
     }
 
-    public void validateAndConsume(String state, String nonce) {
+    public String validateAndConsume(String state, String nonce) {
         if (!StringUtils.hasText(state) || !StringUtils.hasText(nonce)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "OAuth State가 필요합니다.");
         }
 
         StateEntry savedState = stateStore.remove(state);
+
         if (savedState == null
                 || savedState.expiresAt().isBefore(Instant.now())
                 || !secureEquals(savedState.nonce(), nonce)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "유효하지 않거나 만료된 OAuth State입니다.");
         }
+
+        return savedState.nonce;
     }
 
     private void removeExpiredStates() {

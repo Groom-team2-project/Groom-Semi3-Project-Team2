@@ -3,10 +3,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   completeKakaoLogin as completeKakaoLoginRequest,
-  getMe,
   loginWithKakao,
   logout as apiLogout,
-  restoreAccessToken,
+  restoreAuthentication,
 } from "@/lib/api";
 import type { User } from "@/lib/api";
 
@@ -29,8 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function initializeAuth() {
       try {
-        await restoreAccessToken();
-        const me = await getMe();
+        const me = await restoreAuthentication();
         if (active) setUser(me);
       } catch {
         if (active) setUser(null);

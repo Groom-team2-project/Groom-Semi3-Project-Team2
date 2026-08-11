@@ -21,6 +21,8 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.List;
 
 @Component
@@ -35,15 +37,50 @@ public class KakaoOAuthClient {
         this.restClient = restClientBuilder.build();
     }
 
-    public KakaoUserInfo getUserInfo(String code) {
+    public KakaoUserInfo getUserInfo(String code, String expectedNonce) {
         KakaoTokenResponse tokenResponse = requestToken(code);
         Jwt idToken = decodeIdToken(tokenResponse.idToken());
 
+        validateNonce(idToken, expectedNonce);
+
+        String email = idToken.getClaimAsString("email");
+        String nickname = idToken.getClaimAsString("nickname");
+
+        if(!StringUtils.hasText(email)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "카카오 계정의 이메일 제공 동의가 필요합니다."
+            );
+        }
+
+        if(!StringUtils.hasText(nickname)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "카카오 닉네임을 확인할 수 없습니다"
+            );
+        }
+
         return new KakaoUserInfo(
                 parseKakaoId(idToken.getSubject()),
-                idToken.getClaimAsString("email"),
-                idToken.getClaimAsString("nickname")
+                email,
+                nickname
         );
+    }
+
+    private void validateNonce(Jwt idToken, String expectedNonce) {
+        String actualNonce = idToken.getClaimAsString("nonce");
+
+        if(!StringUtils.hasText(expectedNonce)
+            || !StringUtils.hasText(actualNonce)
+            || !MessageDigest.isEqual(
+                    expectedNonce.getBytes(StandardCharsets.UTF_8),
+                    actualNonce.getBytes(StandardCharsets.UTF_8)
+        )) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "카카오 ID Token의 nonce가 유효하지 않습니다."
+            );
+        }
     }
 
     private KakaoTokenResponse requestToken(String code) {

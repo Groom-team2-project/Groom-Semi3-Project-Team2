@@ -1,4 +1,4 @@
-import { apiFetch, clearAccessToken, setAccessToken } from "./client";
+import { ApiError, apiFetch, clearAccessToken, setAccessToken } from "./client";
 import { store, simulateLatency } from "./store";
 import type { User } from "./types";
 
@@ -37,7 +37,46 @@ interface UserMeResponse {
   profileImage: string | null;
 }
 
-let restoreAccessTokenPromise: Promise<void> | null = null;
+interface RestoreAccessTokenTask {
+  generation: number;
+  promise: Promise<void>;
+}
+
+let authenticationGeneration = 0;
+let restoreAccessTokenTask: RestoreAccessTokenTask | null = null;
+
+class SupersededAuthenticationError extends Error {
+  constructor() {
+    super("A newer authentication operation has superseded this one.");
+    this.name = "SupersededAuthenticationError";
+  }
+}
+
+export function clearAuthentication(): void {
+  authenticationGeneration += 1;
+  clearAccessToken();
+}
+
+function beginAuthentication(): number {
+  clearAuthentication();
+  return authenticationGeneration;
+}
+
+function assertCurrentAuthentication(generation: number): void {
+  if (generation !== authenticationGeneration) {
+    throw new SupersededAuthenticationError();
+  }
+}
+
+function clearRejectedAuthentication(error: unknown, generation: number): void {
+  if (
+    generation === authenticationGeneration
+    && error instanceof ApiError
+    && error.status === 401
+  ) {
+    clearAuthentication();
+  }
+}
 
 function toUser(response: UserMeResponse): User {
   const name = response.nickname.trim() || "사용자";
@@ -60,33 +99,72 @@ export async function loginWithKakao(): Promise<void> {
 }
 
 export async function completeKakaoLogin(code: string, state: string): Promise<User> {
-  const response = await apiFetch<CommonResponse<LoginResponse>>(
-    "/api/v1/auth/kakao/login",
-    {
-      method: "POST",
-      body: JSON.stringify({ code, state }),
-    },
-  );
+  const generation = beginAuthentication();
 
-  setAccessToken(response.data.accessToken);
-  return getMe();
+  try {
+    const response = await apiFetch<CommonResponse<LoginResponse>>(
+      "/api/v1/auth/kakao/login",
+      {
+        method: "POST",
+        body: JSON.stringify({ code, state }),
+      },
+    );
+
+    assertCurrentAuthentication(generation);
+    setAccessToken(response.data.accessToken);
+
+    const me = await getMe();
+    assertCurrentAuthentication(generation);
+    return me;
+  } catch (error) {
+    clearRejectedAuthentication(error, generation);
+    throw error;
+  }
 }
 
 export function restoreAccessToken(): Promise<void> {
-  if (!restoreAccessTokenPromise) {
-    restoreAccessTokenPromise = apiFetch<CommonResponse<TokenReissueResponse>>(
+  const generation = authenticationGeneration;
+
+  if (restoreAccessTokenTask?.generation === generation) {
+    return restoreAccessTokenTask.promise;
+  }
+
+  const promise = apiFetch<CommonResponse<TokenReissueResponse>>(
       "/api/v1/auth/reissue",
       { method: "POST" },
     )
       .then((response) => {
+        assertCurrentAuthentication(generation);
         setAccessToken(response.data.accessToken);
       })
+      .catch((error) => {
+        clearRejectedAuthentication(error, generation);
+        throw error;
+      })
       .finally(() => {
-        restoreAccessTokenPromise = null;
+        if (restoreAccessTokenTask?.promise === promise) {
+          restoreAccessTokenTask = null;
+        }
       });
-  }
 
-  return restoreAccessTokenPromise;
+  restoreAccessTokenTask = { generation, promise };
+  return promise;
+}
+
+export async function restoreAuthentication(): Promise<User> {
+  const generation = authenticationGeneration;
+
+  try {
+    await restoreAccessToken();
+    assertCurrentAuthentication(generation);
+
+    const me = await getMe();
+    assertCurrentAuthentication(generation);
+    return me;
+  } catch (error) {
+    clearRejectedAuthentication(error, generation);
+    throw error;
+  }
 }
 
 export async function getMe(): Promise<User> {
@@ -102,11 +180,15 @@ export async function updateMe(input: Partial<Pick<User, "name">>): Promise<User
 }
 
 export async function logout(): Promise<void> {
+  const generation = beginAuthentication();
+
   try {
     await apiFetch<CommonResponse<null>>("/api/v1/auth/logout", {
       method: "POST",
     });
   } finally {
-    clearAccessToken();
+    if (generation === authenticationGeneration) {
+      clearAccessToken();
+    }
   }
 }
