@@ -103,7 +103,8 @@ public class PlanService {
 
     @Transactional
     public void deletePlan(Long userId, Long planId) {
-        PlanEntity plan = getPlanOrThrow(planId);
+        PlanEntity plan = planRepository.findByIdForUpdate(planId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
         MemberEntity currentMember = planAccessService.requireJoinedMember(planId, userId);
         planAccessService.requireOwner(currentMember);
 
