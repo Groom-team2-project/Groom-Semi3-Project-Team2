@@ -25,6 +25,7 @@ public class CommentServiceImpl implements CommentService {
     private final CommentRepository commentRepository;
     private final UserRepository userRepository;
     private final ActivityLogService activityLogService;
+    private final CommentScheduleLinkReader commentScheduleLinkReader;
 
     @Override
     public CommentResponse create(
@@ -33,6 +34,7 @@ public class CommentServiceImpl implements CommentService {
             Long userId,
             CommentCreateRequest request
     ) {
+        validateScheduleInPlan(planId, scheduleId);
         validateParentComment(request.parentCommentId(), scheduleId);
 
         UserEntity user = findUser(userId);
@@ -62,6 +64,7 @@ public class CommentServiceImpl implements CommentService {
     @Override
     @Transactional(readOnly = true)
     public List<CommentResponse> getComments(Long planId, Long scheduleId) {
+        validateScheduleInPlan(planId, scheduleId);
         return commentRepository.findByScheduleIdOrderByCreatedAtAsc(scheduleId)
                 .stream()
                 .filter(comment -> comment.getPlanId().equals(planId))
@@ -76,6 +79,8 @@ public class CommentServiceImpl implements CommentService {
             Long commentId,
             Long userId
     ) {
+        validateScheduleInPlan(planId, scheduleId);
+
         CommentEntity comment = commentRepository.findByCommentIdAndScheduleId(commentId, scheduleId)
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.INVALID_INPUT_VALUE,
@@ -131,5 +136,14 @@ public class CommentServiceImpl implements CommentService {
                         ErrorCode.UNAUTHORIZED,
                         "사용자를 찾을 수 없습니다."
                 ));
+    }
+
+    private void validateScheduleInPlan(Long planId, Long scheduleId) {
+        if (!commentScheduleLinkReader.existsInPlan(scheduleId, planId)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "해당 계획의 일정을 찾을 수 없습니다."
+            );
+        }
     }
 }
