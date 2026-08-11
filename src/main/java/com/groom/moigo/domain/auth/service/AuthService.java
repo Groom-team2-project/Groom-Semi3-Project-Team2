@@ -31,9 +31,9 @@ public class AuthService {
             "openid,profile_nickname,account_email";
 
     public LoginResult loginWithKakao(String code, String state, String nonce) {
-        oAuthStateService.validateAndConsume(state, nonce);
+        String validatedNonce = oAuthStateService.validateAndConsume(state, nonce);
+        KakaoUserInfo userInfo = kakaoOAuthClient.getUserInfo(code, validatedNonce);
 
-        KakaoUserInfo userInfo = kakaoOAuthClient.getUserInfo(code);
         AuthMemberService.UserLookupResult lookupResult = authMemberService.findOrCreateUser(userInfo);
         String accessToken = jwtTokenProvider.createAccessToken(lookupResult.user());
         String refreshToken = refreshTokenService.issue(lookupResult.user().getUserId());
@@ -86,6 +86,7 @@ public class AuthService {
                 .queryParam("redirect_uri", kakaoOAuthProperties.redirectUri())
                 .queryParam("scope", KAKAO_OIDC_SCOPE)
                 .queryParam("state", oAuthState.state())
+                .queryParam("nonce", oAuthState.nonce())
                 .build()
                 .toUriString();
 

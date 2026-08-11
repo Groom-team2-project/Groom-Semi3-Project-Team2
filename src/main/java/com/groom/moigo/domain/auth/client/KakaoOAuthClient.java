@@ -21,6 +21,8 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.List;
 
 @Component
@@ -35,9 +37,11 @@ public class KakaoOAuthClient {
         this.restClient = restClientBuilder.build();
     }
 
-    public KakaoUserInfo getUserInfo(String code) {
+    public KakaoUserInfo getUserInfo(String code, String expectedNonce) {
         KakaoTokenResponse tokenResponse = requestToken(code);
         Jwt idToken = decodeIdToken(tokenResponse.idToken());
+
+        validateNonce(idToken, expectedNonce);
 
         String email = idToken.getClaimAsString("email");
         String nickname = idToken.getClaimAsString("nickname");
@@ -61,6 +65,22 @@ public class KakaoOAuthClient {
                 email,
                 nickname
         );
+    }
+
+    private void validateNonce(Jwt idToken, String expectedNonce) {
+        String actualNonce = idToken.getClaimAsString("nonce");
+
+        if(!StringUtils.hasText(expectedNonce)
+            || !StringUtils.hasText(actualNonce)
+            || !MessageDigest.isEqual(
+                    expectedNonce.getBytes(StandardCharsets.UTF_8),
+                    actualNonce.getBytes(StandardCharsets.UTF_8)
+        )) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "카카오 ID Token의 nonce가 유효하지 않습니다."
+            );
+        }
     }
 
     private KakaoTokenResponse requestToken(String code) {
