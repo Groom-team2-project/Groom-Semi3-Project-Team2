@@ -66,7 +66,7 @@ public class Vote {
 	@Column(name = "status", nullable = false, length = 20)
 	private VoteStatus status;
 
-	/** 마감 일시. 응답에서는 {@code deadline}으로 내려간다. */
+	/** 마감 일시. 모든 투표가 가져야 하며 응답에서는 {@code deadline}으로 내려간다. */
 	@Column(name = "end_datetime", nullable = false)
 	private Instant endDatetime;
 

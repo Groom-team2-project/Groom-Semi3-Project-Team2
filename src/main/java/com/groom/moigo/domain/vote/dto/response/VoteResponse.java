@@ -15,7 +15,7 @@ import java.util.List;
  * @param planId 계획 ID
  * @param title 투표 제목
  * @param status 투표 상태(OPEN, CLOSED)
- * @param deadline 마감 일시(UTC 기준 ISO-8601). null이면 생성자가 직접 종료할 때까지 진행
+ * @param deadline 마감 일시(UTC 기준 ISO-8601). 모든 투표가 마감 일시를 가지므로 null이 아니다
  * @param options 선택지 목록
  * @param myOptionId 요청한 회원이 고른 선택지 ID. 참여 전이면 null
  * @param linkedScheduleId 이 투표가 채우려는 일정 ID. 일정과 무관한 투표면 null

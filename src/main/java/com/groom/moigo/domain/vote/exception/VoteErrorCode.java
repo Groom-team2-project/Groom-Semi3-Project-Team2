@@ -15,6 +15,7 @@ public enum VoteErrorCode {
 
 	VOTE_ALREADY_CLOSED(HttpStatus.CONFLICT, "이미 종료된 투표입니다."),
 	VOTE_NOT_IN_PLAN(HttpStatus.BAD_REQUEST, "해당 계획에 속하지 않은 투표입니다."),
+	SCHEDULE_NOT_IN_PLAN(HttpStatus.BAD_REQUEST, "해당 계획에 속하지 않은 일정입니다."),
 	OPTION_NOT_IN_VOTE(HttpStatus.BAD_REQUEST, "해당 투표에 속하지 않은 선택지입니다."),
 	OPTION_NOT_SELECTED(HttpStatus.BAD_REQUEST, "선택지를 하나 이상 선택해야 합니다."),
 	SINGLE_CHOICE_ONLY(HttpStatus.BAD_REQUEST, "단일 선택 투표는 선택지를 하나만 고를 수 있습니다."),

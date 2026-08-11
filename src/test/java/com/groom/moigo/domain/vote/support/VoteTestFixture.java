@@ -1,5 +1,7 @@
 package com.groom.moigo.domain.vote.support;
 
+import com.groom.moigo.domain.plan.entity.MemberRole;
+import com.groom.moigo.domain.plan.entity.MemberStatus;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -23,6 +25,7 @@ public class VoteTestFixture {
 
 	private final SimpleJdbcInsert userInsert;
 	private final SimpleJdbcInsert planInsert;
+	private final SimpleJdbcInsert memberInsert;
 	private final SimpleJdbcInsert placeInsert;
 	private final SimpleJdbcInsert scheduleInsert;
 
@@ -32,6 +35,10 @@ public class VoteTestFixture {
 				new SimpleJdbcInsert(dataSource).withTableName("users").usingGeneratedKeyColumns("user_id");
 		this.planInsert =
 				new SimpleJdbcInsert(dataSource).withTableName("plans").usingGeneratedKeyColumns("plan_id");
+		this.memberInsert =
+				new SimpleJdbcInsert(dataSource)
+						.withTableName("members")
+						.usingGeneratedKeyColumns("member_id");
 		this.placeInsert =
 				new SimpleJdbcInsert(dataSource).withTableName("places").usingGeneratedKeyColumns("place_id");
 		this.scheduleInsert =
@@ -52,6 +59,7 @@ public class VoteTestFixture {
 		return userInsert.executeAndReturnKey(values).longValue();
 	}
 
+	/** 계획을 만들고 만든 사람을 OWNER 멤버로 등록한다. */
 	public Long createPlan(Long userId, String title) {
 		LocalDateTime now = LocalDateTime.now();
 		Map<String, Object> values = new HashMap<>();
@@ -61,7 +69,31 @@ public class VoteTestFixture {
 		values.put("end_date", LocalDate.now().plusDays(3));
 		values.put("created_at", now);
 		values.put("updated_at", now);
-		return planInsert.executeAndReturnKey(values).longValue();
+		Long planId = planInsert.executeAndReturnKey(values).longValue();
+		join(planId, userId, MemberRole.OWNER);
+		return planId;
+	}
+
+	/** 계획에 참여 중인 멤버로 등록한다. */
+	public void join(Long planId, Long userId, MemberRole role) {
+		Map<String, Object> values = new HashMap<>();
+		values.put("plan_id", planId);
+		values.put("user_id", userId);
+		values.put("role", role.name());
+		values.put("status", MemberStatus.JOINED.name());
+		values.put("joined_at", LocalDateTime.now());
+		memberInsert.execute(values);
+	}
+
+	/** 계획에 참여했다가 나간 멤버로 등록한다. */
+	public void leave(Long planId, Long userId, MemberRole role) {
+		Map<String, Object> values = new HashMap<>();
+		values.put("plan_id", planId);
+		values.put("user_id", userId);
+		values.put("role", role.name());
+		values.put("status", MemberStatus.LEFT.name());
+		values.put("joined_at", LocalDateTime.now());
+		memberInsert.execute(values);
 	}
 
 	public Long createPlace(String name) {
