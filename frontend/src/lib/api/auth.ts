@@ -39,6 +39,10 @@ interface UserMeResponse {
 
 let restoreAccessTokenPromise: Promise<void> | null = null;
 
+export function clearAuthentication(): void {
+  clearAccessToken();
+}
+
 function toUser(response: UserMeResponse): User {
   const name = response.nickname.trim() || "사용자";
 
@@ -69,7 +73,13 @@ export async function completeKakaoLogin(code: string, state: string): Promise<U
   );
 
   setAccessToken(response.data.accessToken);
-  return getMe();
+
+  try {
+    return await getMe();
+  } catch (error) {
+    clearAuthentication();
+    throw error;
+  }
 }
 
 export function restoreAccessToken(): Promise<void> {
@@ -80,6 +90,10 @@ export function restoreAccessToken(): Promise<void> {
     )
       .then((response) => {
         setAccessToken(response.data.accessToken);
+      })
+      .catch((error) => {
+        clearAuthentication();
+        throw error;
       })
       .finally(() => {
         restoreAccessTokenPromise = null;
@@ -107,6 +121,6 @@ export async function logout(): Promise<void> {
       method: "POST",
     });
   } finally {
-    clearAccessToken();
+    clearAuthentication();
   }
 }

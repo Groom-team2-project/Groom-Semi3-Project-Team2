@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
+  clearAuthentication,
   completeKakaoLogin as completeKakaoLoginRequest,
   getMe,
   loginWithKakao,
@@ -33,6 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const me = await getMe();
         if (active) setUser(me);
       } catch {
+        clearAuthentication();
         if (active) setUser(null);
       }
     }
@@ -59,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await apiLogout();
     } finally {
+      clearAuthentication();
       setUser(null);
     }
   }, []);
