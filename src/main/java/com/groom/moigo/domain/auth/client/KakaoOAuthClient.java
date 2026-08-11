@@ -39,10 +39,27 @@ public class KakaoOAuthClient {
         KakaoTokenResponse tokenResponse = requestToken(code);
         Jwt idToken = decodeIdToken(tokenResponse.idToken());
 
+        String email = idToken.getClaimAsString("email");
+        String nickname = idToken.getClaimAsString("nickname");
+
+        if(!StringUtils.hasText(email)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "카카오 계정의 이메일 제공 동의가 필요합니다."
+            );
+        }
+
+        if(!StringUtils.hasText(nickname)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "카카오 닉네임을 확인할 수 없습니다"
+            );
+        }
+
         return new KakaoUserInfo(
                 parseKakaoId(idToken.getSubject()),
-                idToken.getClaimAsString("email"),
-                idToken.getClaimAsString("nickname")
+                email,
+                nickname
         );
     }
 
