@@ -2,12 +2,10 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
-  clearAuthentication,
   completeKakaoLogin as completeKakaoLoginRequest,
-  getMe,
   loginWithKakao,
   logout as apiLogout,
-  restoreAccessToken,
+  restoreAuthentication,
 } from "@/lib/api";
 import type { User } from "@/lib/api";
 
@@ -30,11 +28,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function initializeAuth() {
       try {
-        await restoreAccessToken();
-        const me = await getMe();
+        const me = await restoreAuthentication();
         if (active) setUser(me);
       } catch {
-        clearAuthentication();
         if (active) setUser(null);
       }
     }
@@ -61,7 +57,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await apiLogout();
     } finally {
-      clearAuthentication();
       setUser(null);
     }
   }, []);
