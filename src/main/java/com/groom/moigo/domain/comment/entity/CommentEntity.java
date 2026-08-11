@@ -45,7 +45,7 @@ public class CommentEntity {
     private LocalDateTime updatedAt;
 
     @Column(name = "is_deleted", nullable = false)
-    private Boolean deleted;
+    private boolean deleted;
 
     public static CommentEntity create(
             Long planId,
