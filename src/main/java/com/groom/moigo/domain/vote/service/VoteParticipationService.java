@@ -69,6 +69,7 @@ public class VoteParticipationService {
 		voteParticipationRepository.saveAll(participations);
 
 		// 표를 바꾼 경우는 새로 참여한 것이 아니므로 활동 이력을 남기지 않는다.
+		// 참여를 취소했다가 다시 참여하는 것은 새로 참여한 것으로 보고 이력을 남긴다.
 		if (!revote) {
 			activityLogService.record(
 					new ActivityRecordCommand(

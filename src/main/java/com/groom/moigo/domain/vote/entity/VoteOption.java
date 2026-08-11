@@ -68,8 +68,14 @@ public class VoteOption {
 		this.vote = vote;
 	}
 
-	/** null인 필드는 변경하지 않는다. 다만 {@code placeId}는 null을 보내면 장소 연결이 해제된다. */
-	public void update(String content, String placeAddress, String emoji, Long placeId) {
+	/**
+	 * null인 필드는 변경하지 않는다.
+	 *
+	 * <p>장소 연결 해제는 {@code clearPlace}로만 한다. {@code placeId}가 null인 것은 "생략"이지 "해제"가 아니다. 요청 DTO에서 생략과
+	 * 명시적 null을 구분할 수 없기 때문이다.
+	 */
+	public void update(
+			String content, String placeAddress, String emoji, Long placeId, boolean clearPlace) {
 		if (content != null) {
 			this.content = content;
 		}
@@ -79,7 +85,11 @@ public class VoteOption {
 		if (emoji != null) {
 			this.emoji = normalizeEmoji(emoji);
 		}
-		this.placeId = placeId;
+		if (clearPlace) {
+			this.placeId = null;
+		} else if (placeId != null) {
+			this.placeId = placeId;
+		}
 	}
 
 	public boolean belongsTo(Long voteId) {

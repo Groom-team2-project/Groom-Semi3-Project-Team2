@@ -133,6 +133,23 @@ class VoteParticipationServiceTest {
 	}
 
 	@Test
+	@DisplayName("참여를 취소했다가 다시 참여하면 활동 이력이 새로 남는다")
+	void rejoinAfterCancelRecordsActivityAgain() {
+		VoteResponse vote = createVote(VoteType.SINGLE);
+		voteParticipationService.participate(
+				planId, id(vote.id()), firstId, single(vote.options().get(0).id()));
+		voteParticipationService.cancel(planId, id(vote.id()), firstId);
+
+		voteParticipationService.participate(
+				planId, id(vote.id()), firstId, single(vote.options().get(0).id()));
+
+		// 표를 바꾸는 것과 달리 취소 후 재참여는 새로 참여한 것으로 본다.
+		assertThat(activityLogRepository.findAll())
+				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_PARTICIPATED)
+				.hasSize(2);
+	}
+
+	@Test
 	@DisplayName("단일 선택 투표에 선택지를 2개 이상 고르면 거부된다")
 	void participateSingleChoiceWithMultipleOptions() {
 		VoteResponse vote = createVote(VoteType.SINGLE);

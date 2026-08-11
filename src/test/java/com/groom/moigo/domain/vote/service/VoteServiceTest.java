@@ -365,8 +365,8 @@ class VoteServiceTest {
 	}
 
 	@Test
-	@DisplayName("선택지 수정 시 placeId를 비우면 장소 연결이 해제된다")
-	void updateOptionDetachesPlace() {
+	@DisplayName("선택지 수정 시 placeId를 생략하면 기존 장소 연결이 유지된다")
+	void updateOptionKeepsPlaceWhenPlaceIdOmitted() {
 		VoteResponse vote = voteService.create(planId, creatorId, createRequest());
 		String optionId = vote.options().get(0).id();
 
@@ -376,11 +376,82 @@ class VoteServiceTest {
 						id(vote.id()),
 						id(optionId),
 						creatorId,
-						new VoteOptionUpdateRequest("우도", "제주 우도면", "⛴️", null));
+						new VoteOptionUpdateRequest("우도", "제주 우도면", "⛴️", null, false));
 
 		assertThat(updated.placeName()).isEqualTo("우도");
 		assertThat(updated.placeAddress()).isEqualTo("제주 우도면");
+		assertThat(updated.placeId()).isEqualTo(String.valueOf(placeId));
+	}
+
+	@Test
+	@DisplayName("선택지 수정 시 clearPlace를 보내야 장소 연결이 해제된다")
+	void updateOptionDetachesPlaceOnlyWithClearPlace() {
+		VoteResponse vote = voteService.create(planId, creatorId, createRequest());
+		String optionId = vote.options().get(0).id();
+
+		VoteOptionResponse updated =
+				voteService.updateOption(
+						planId,
+						id(vote.id()),
+						id(optionId),
+						creatorId,
+						new VoteOptionUpdateRequest("우도", null, null, null, true));
+
 		assertThat(updated.placeId()).isNull();
+	}
+
+	@Test
+	@DisplayName("선택지 수정으로 다른 장소를 연결할 수 있다")
+	void updateOptionAttachesAnotherPlace() {
+		VoteResponse vote = voteService.create(planId, creatorId, createRequest());
+		String optionId = vote.options().get(1).id();
+		Long anotherPlaceId = fixture.createPlace("우도");
+
+		VoteOptionResponse updated =
+				voteService.updateOption(
+						planId,
+						id(vote.id()),
+						id(optionId),
+						creatorId,
+						new VoteOptionUpdateRequest("우도", null, null, anotherPlaceId, false));
+
+		assertThat(updated.placeId()).isEqualTo(String.valueOf(anotherPlaceId));
+	}
+
+	@Test
+	@DisplayName("다른 계획의 일정에는 투표를 연결할 수 없다")
+	void createVoteLinkedToScheduleOfAnotherPlan() {
+		Long otherPlanId = fixture.createPlan(creatorId, "부산 당일치기");
+		Long foreignScheduleId = fixture.createSchedule(otherPlanId, "남의 계획 일정");
+		VoteCreateRequest request =
+				new VoteCreateRequest(
+						"둘째날 저녁 뭐 먹지?",
+						null,
+						Instant.now().plus(1, ChronoUnit.DAYS),
+						null,
+						foreignScheduleId,
+						List.of(
+								new VoteOptionCreateRequest("연돈", null, null, null),
+								new VoteOptionCreateRequest("제주바다", null, null, null)));
+
+		assertThatThrownBy(() -> voteService.create(planId, creatorId, request))
+				.isInstanceOf(VoteException.class)
+				.extracting(exception -> ((VoteException) exception).getErrorCode())
+				.isEqualTo(VoteErrorCode.SCHEDULE_NOT_IN_PLAN);
+	}
+
+	@Test
+	@DisplayName("투표 수정으로도 다른 계획의 일정에 연결할 수 없다")
+	void updateVoteLinkedToScheduleOfAnotherPlan() {
+		VoteResponse vote = voteService.create(planId, creatorId, createRequest());
+		Long otherPlanId = fixture.createPlan(creatorId, "부산 당일치기");
+		Long foreignScheduleId = fixture.createSchedule(otherPlanId, "남의 계획 일정");
+		VoteUpdateRequest request = new VoteUpdateRequest(null, null, null, foreignScheduleId);
+
+		assertThatThrownBy(() -> voteService.update(planId, id(vote.id()), creatorId, request))
+				.isInstanceOf(VoteException.class)
+				.extracting(exception -> ((VoteException) exception).getErrorCode())
+				.isEqualTo(VoteErrorCode.SCHEDULE_NOT_IN_PLAN);
 	}
 
 	@Test
@@ -427,7 +498,7 @@ class VoteServiceTest {
 										id(first.id()),
 										id(foreignOptionId),
 										creatorId,
-										new VoteOptionUpdateRequest("우도", null, null, null)))
+										new VoteOptionUpdateRequest("우도", null, null, null, false)))
 				.isInstanceOf(VoteException.class)
 				.extracting(exception -> ((VoteException) exception).getErrorCode())
 				.isEqualTo(VoteErrorCode.OPTION_NOT_IN_VOTE);

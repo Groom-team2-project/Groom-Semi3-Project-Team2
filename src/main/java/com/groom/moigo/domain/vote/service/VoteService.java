@@ -46,11 +46,13 @@ public class VoteService {
 	private final VoteResponseAssembler assembler;
 	private final ActivityLogService activityLogService;
 	private final PlanAccessService planAccessService;
+	private final ScheduleLinkReader scheduleLinkReader;
 
 	@Transactional
 	public VoteResponse create(Long planId, Long userId, VoteCreateRequest request) {
 		requireEditor(planId, userId);
 		validateRequiredDeadline(request.deadline());
+		validateScheduleInPlan(planId, request.scheduleId());
 
 		Vote vote =
 				Vote.builder()
@@ -109,6 +111,7 @@ public class VoteService {
 		Vote vote = findEditableVote(planId, voteId, userId);
 		validateOpen(vote);
 		validateDeadline(request.deadline());
+		validateScheduleInPlan(planId, request.scheduleId());
 
 		vote.update(request.title(), request.description(), request.deadline());
 		if (request.scheduleId() != null) {
@@ -166,7 +169,12 @@ public class VoteService {
 		validateOpen(vote);
 
 		VoteOption option = findOptionOf(vote, optionId);
-		option.update(request.placeName(), request.placeAddress(), request.emoji(), request.placeId());
+		option.update(
+				request.placeName(),
+				request.placeAddress(),
+				request.emoji(),
+				request.placeId(),
+				request.clearPlace());
 
 		return assembler.toOptionResponse(option, userId);
 	}
@@ -243,6 +251,20 @@ public class VoteService {
 	private void validateDeadline(Instant deadline) {
 		if (deadline != null && !deadline.isAfter(Instant.now())) {
 			throw new VoteException(VoteErrorCode.INVALID_DEADLINE);
+		}
+	}
+
+	/**
+	 * 연결하려는 일정이 같은 계획에 속하는지 확인한다.
+	 *
+	 * <p>FK 제약은 일정 존재 여부만 보므로 다른 계획의 일정에 투표가 붙는 것을 막지 못한다.
+	 */
+	private void validateScheduleInPlan(Long planId, Long scheduleId) {
+		if (scheduleId == null) {
+			return;
+		}
+		if (!scheduleLinkReader.existsInPlan(scheduleId, planId)) {
+			throw new VoteException(VoteErrorCode.SCHEDULE_NOT_IN_PLAN);
 		}
 	}
 
