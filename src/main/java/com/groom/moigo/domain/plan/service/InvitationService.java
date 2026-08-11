@@ -127,7 +127,9 @@ public class InvitationService {
         }
 
         Long planId = invitation.getPlan().getPlanId();
-        PlanEntity plan = getPlanOrThrow(planId);
+        PlanEntity plan = planRepository.findByIdForUpdate(planId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
+
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
 
