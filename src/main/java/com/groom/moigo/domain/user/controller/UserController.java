@@ -5,6 +5,7 @@ import com.groom.moigo.domain.user.dto.UserProfileResponse;
 import com.groom.moigo.domain.user.dto.UserProfileUpdateRequest;
 import com.groom.moigo.domain.user.service.UserService;
 import com.groom.moigo.global.response.CommonResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.annotations.Struct;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +20,7 @@ public class UserController {
 
     @GetMapping("/profile")
     public ResponseEntity<CommonResponse<UserProfileResponse>> getProfile(
-            @AuthenticationPrincipal AuthMember authMember
+            @Valid @AuthenticationPrincipal AuthMember authMember
             ) {
         UserProfileResponse response =
                 userService.getMe(authMember.userId());
@@ -32,7 +33,7 @@ public class UserController {
         );
     }
 
-    @PostMapping("/profile/nickname")
+    @PostMapping("/profile")
     public ResponseEntity<CommonResponse<UserProfileResponse>> updateProfile(
             @AuthenticationPrincipal AuthMember authMember,
             @RequestBody UserProfileUpdateRequest request

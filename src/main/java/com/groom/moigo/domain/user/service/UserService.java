@@ -22,6 +22,7 @@ public class UserService {
         return UserProfileResponse.from(user);
     }
 
+    @Transactional
     public UserProfileResponse updateUserProfile(Long userId, UserProfileUpdateRequest request) {
         UserEntity user = findUser(userId);
 
