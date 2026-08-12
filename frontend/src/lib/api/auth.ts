@@ -36,7 +36,7 @@ interface TokenReissueResponse {
   refreshTokenExpiresIn: number;
 }
 
-interface UserMeResponse {
+interface UserProfileResponse {
   userId: number;
   nickname: string;
   email: string | null;
@@ -91,7 +91,7 @@ function clearRejectedAuthentication(error: unknown, generation: number): void {
   }
 }
 
-function toUser(response: UserMeResponse): User {
+function toUser(response: UserProfileResponse): User {
   const name = response.nickname.trim() || "사용자";
 
   return {
@@ -127,9 +127,9 @@ export async function completeKakaoLogin(code: string, state: string): Promise<U
     assertCurrentAuthentication(generation);
     setAccessToken(response.data.accessToken);
 
-    const me = await getMe();
+    const profile = await getProfile();
     assertCurrentAuthentication(generation);
-    return me;
+    return profile;
   } catch (error) {
     clearRejectedAuthentication(error, generation);
     throw error;
@@ -173,17 +173,19 @@ export async function restoreAuthentication(): Promise<User> {
     await restoreAccessToken();
     assertCurrentAuthentication(generation);
 
-    const me = await getMe();
+    const profile = await getProfile();
     assertCurrentAuthentication(generation);
-    return me;
+    return profile;
   } catch (error) {
     clearRejectedAuthentication(error, generation);
     throw error;
   }
 }
 
-export async function getMe(): Promise<User> {
-  const response = await apiFetch<CommonResponse<UserMeResponse>>("/api/v1/users/me");
+export async function getProfile(): Promise<User> {
+  const response = await apiFetch<CommonResponse<UserProfileResponse>>(
+    "/api/v1/users/profile",
+  );
   return toUser(response.data);
 }
 
