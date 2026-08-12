@@ -81,7 +81,10 @@ public class RefreshTokenService {
 
     private String requireRefreshToken(String refreshToken) {
         if (!StringUtils.hasText(refreshToken)) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "Refresh Token이 필요합니다.");
+            throw new BusinessException(
+                    ErrorCode.INVALID_TOKEN,
+                    "Refresh Token이 필요합니다."
+            );
         }
         return refreshToken;
     }

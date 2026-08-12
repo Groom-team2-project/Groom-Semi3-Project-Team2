@@ -1,11 +1,7 @@
 package com.groom.moigo.domain.auth.controller;
 
 import com.groom.moigo.domain.auth.config.OAuthCookieProperties;
-import com.groom.moigo.domain.auth.dto.KakaoAuthorizeResult;
-import com.groom.moigo.domain.auth.dto.KakaoAuthorizeUrlResponse;
-import com.groom.moigo.domain.auth.dto.KakaoLoginRequest;
-import com.groom.moigo.domain.auth.dto.LoginResponse;
-import com.groom.moigo.domain.auth.dto.TokenReissueResponse;
+import com.groom.moigo.domain.auth.dto.*;
 import com.groom.moigo.domain.auth.service.AuthService;
 import com.groom.moigo.global.response.CommonResponse;
 import jakarta.validation.Valid;
@@ -39,7 +35,7 @@ public class AuthController {
             @Valid @RequestBody KakaoLoginRequest request,
             @CookieValue(name = OAUTH_NONCE_COOKIE, required = false) String nonce
     ) {
-        AuthService.LoginResult result = authService.loginWithKakao(
+        LoginResult result = authService.loginWithKakao(
                 request.code(),
                 request.state(),
                 nonce
@@ -73,7 +69,7 @@ public class AuthController {
             @RequestParam String state,
             @CookieValue(name = OAUTH_NONCE_COOKIE, required = false) String nonce
     ) {
-        AuthService.LoginResult result = authService.loginWithKakao(code, state, nonce);
+        LoginResult result = authService.loginWithKakao(code, state, nonce);
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, createOAuthNonceCookie("", Duration.ZERO).toString())
@@ -88,7 +84,7 @@ public class AuthController {
     public ResponseEntity<CommonResponse<TokenReissueResponse>> reissue(
             @CookieValue(name = REFRESH_TOKEN_COOKIE, required = false) String refreshToken
     ) {
-        AuthService.ReissueResult result = authService.reissue(refreshToken);
+        ReissueResult result = authService.reissue(refreshToken);
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, createRefreshTokenCookie(
