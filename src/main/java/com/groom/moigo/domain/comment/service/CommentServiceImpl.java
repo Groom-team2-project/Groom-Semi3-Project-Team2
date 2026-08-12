@@ -17,6 +17,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -65,10 +68,37 @@ public class CommentServiceImpl implements CommentService {
     @Transactional(readOnly = true)
     public List<CommentResponse> getComments(Long planId, Long scheduleId) {
         validateScheduleInPlan(planId, scheduleId);
-        return commentRepository.findByScheduleIdOrderByCreatedAtAsc(scheduleId)
+
+        List<CommentEntity> comments = commentRepository.findByScheduleIdOrderByCreatedAtAsc(scheduleId)
                 .stream()
                 .filter(comment -> comment.getPlanId().equals(planId))
-                .map(comment -> CommentResponse.from(comment, findUser(comment.getUserId())))
+                .toList();
+
+        Map<Long, UserEntity> usersById = userRepository.findAllById(
+                        comments.stream()
+                                .filter(comment -> !comment.isDeleted())
+                                .map(CommentEntity::getUserId)
+                                .distinct()
+                                .toList()
+                ).stream()
+                .collect(Collectors.toMap(UserEntity::getUserId, Function.identity()));
+
+        return comments.stream()
+                .map(comment -> {
+                    if (comment.isDeleted()) {
+                        return CommentResponse.from(comment, null);
+                    }
+
+                    UserEntity user = usersById.get(comment.getUserId());
+                    if (user == null) {
+                        throw new BusinessException(
+                                ErrorCode.UNAUTHORIZED,
+                                "사용자를 찾을 수 없습니다."
+                        );
+                    }
+
+                    return CommentResponse.from(comment, user);
+                })
                 .toList();
     }
 
