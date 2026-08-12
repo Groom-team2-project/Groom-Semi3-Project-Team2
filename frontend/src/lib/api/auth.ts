@@ -5,7 +5,6 @@ import {
   setAccessToken,
   setAuthenticationRecovery,
 } from "./client";
-import { store, simulateLatency } from "./store";
 import type { User } from "./types";
 
 interface CommonResponse<T> {
@@ -189,11 +188,16 @@ export async function getProfile(): Promise<User> {
   return toUser(response.data);
 }
 
-// 프로필 수정 API가 구현될 때 실제 백엔드 호출로 교체합니다.
-export async function updateMe(input: Partial<Pick<User, "name">>): Promise<User> {
-  await simulateLatency();
-  store.me = { ...store.me, ...input };
-  return store.me;
+export async function updateProfile(nickname: string): Promise<User> {
+  const response = await apiFetch<CommonResponse<UserProfileResponse>>(
+    "/api/v1/users/profile",
+    {
+      method: "PATCH",
+      body: JSON.stringify({ nickname }),
+    },
+  );
+
+  return toUser(response.data);
 }
 
 export async function logout(): Promise<void> {

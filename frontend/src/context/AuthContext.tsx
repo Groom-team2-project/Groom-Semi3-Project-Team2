@@ -7,6 +7,7 @@ import {
   logout as apiLogout,
   restoreAuthentication,
   subscribeAuthenticationCleared,
+  updateProfile as updateProfileRequest,
 } from "@/lib/api";
 import type { User } from "@/lib/api";
 
@@ -15,6 +16,7 @@ interface AuthContextValue {
   isLoading: boolean;
   loginWithKakao: () => Promise<void>;
   completeKakaoLogin: (code: string, state: string) => Promise<void>;
+  updateProfile: (nickname: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -58,6 +60,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(me);
   }, []);
 
+  const updateProfile = useCallback(async (nickname: string) => {
+    const profile = await updateProfileRequest(nickname);
+    setUser(profile);
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await apiLogout();
@@ -67,8 +74,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, isLoading, loginWithKakao: login, completeKakaoLogin: completeLogin, logout }),
-    [user, isLoading, login, completeLogin, logout],
+    () => ({
+      user,
+      isLoading,
+      loginWithKakao: login,
+      completeKakaoLogin: completeLogin,
+      updateProfile,
+      logout,
+    }),
+    [user, isLoading, login, completeLogin, updateProfile, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
