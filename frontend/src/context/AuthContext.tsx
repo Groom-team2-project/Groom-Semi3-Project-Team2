@@ -6,6 +6,7 @@ import {
   loginWithKakao,
   logout as apiLogout,
   restoreAuthentication,
+  subscribeAuthenticationCleared,
 } from "@/lib/api";
 import type { User } from "@/lib/api";
 
@@ -25,6 +26,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    const unsubscribe = subscribeAuthenticationCleared(() => {
+      if (active) setUser(null);
+    });
 
     async function initializeAuth() {
       try {
@@ -41,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       active = false;
+      unsubscribe();
     };
   }, []);
 

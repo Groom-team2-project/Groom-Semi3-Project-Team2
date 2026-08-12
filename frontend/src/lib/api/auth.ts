@@ -1,4 +1,10 @@
-import { ApiError, apiFetch, clearAccessToken, setAccessToken } from "./client";
+import {
+  ApiError,
+  apiFetch,
+  clearAccessToken,
+  setAccessToken,
+  setAuthenticationRecovery,
+} from "./client";
 import { store, simulateLatency } from "./store";
 import type { User } from "./types";
 
@@ -44,6 +50,7 @@ interface RestoreAccessTokenTask {
 
 let authenticationGeneration = 0;
 let restoreAccessTokenTask: RestoreAccessTokenTask | null = null;
+const authenticationClearedListeners = new Set<() => void>();
 
 class SupersededAuthenticationError extends Error {
   constructor() {
@@ -55,6 +62,12 @@ class SupersededAuthenticationError extends Error {
 export function clearAuthentication(): void {
   authenticationGeneration += 1;
   clearAccessToken();
+  authenticationClearedListeners.forEach((listener) => listener());
+}
+
+export function subscribeAuthenticationCleared(listener: () => void): () => void {
+  authenticationClearedListeners.add(listener);
+  return () => authenticationClearedListeners.delete(listener);
 }
 
 function beginAuthentication(): number {
@@ -108,6 +121,7 @@ export async function completeKakaoLogin(code: string, state: string): Promise<U
         method: "POST",
         body: JSON.stringify({ code, state }),
       },
+      { retryOnUnauthorized: false },
     );
 
     assertCurrentAuthentication(generation);
@@ -132,6 +146,7 @@ export function restoreAccessToken(): Promise<void> {
   const promise = apiFetch<CommonResponse<TokenReissueResponse>>(
       "/api/v1/auth/reissue",
       { method: "POST" },
+      { retryOnUnauthorized: false },
     )
       .then((response) => {
         assertCurrentAuthentication(generation);
@@ -185,10 +200,12 @@ export async function logout(): Promise<void> {
   try {
     await apiFetch<CommonResponse<null>>("/api/v1/auth/logout", {
       method: "POST",
-    });
+    }, { retryOnUnauthorized: false });
   } finally {
     if (generation === authenticationGeneration) {
       clearAccessToken();
     }
   }
 }
+
+setAuthenticationRecovery(restoreAccessToken);
