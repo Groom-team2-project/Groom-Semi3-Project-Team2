@@ -54,8 +54,7 @@ public class UserEntity {
         return user;
     }
 
-    public void updateProfile(String email, String nickname) {
-        this.email = email;
+    public void updateProfile(String nickname) {
         this.nickname = nickname;
     }
 
