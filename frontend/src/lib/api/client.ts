@@ -13,6 +13,11 @@ export class ApiError extends Error {
 }
 
 let accessToken: string | null = null;
+let recoverAuthentication: (() => Promise<void>) | null = null;
+
+interface ApiFetchOptions {
+  retryOnUnauthorized?: boolean;
+}
 
 export function setAccessToken(token: string): void {
   accessToken = token;
@@ -22,7 +27,17 @@ export function clearAccessToken(): void {
   accessToken = null;
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export function setAuthenticationRecovery(
+  recovery: (() => Promise<void>) | null,
+): void {
+  recoverAuthentication = recovery;
+}
+
+export async function apiFetch<T>(
+  path: string,
+  init?: RequestInit,
+  options: ApiFetchOptions = {},
+): Promise<T> {
   const fullUrl = API_BASE_URL + path;
   const headers = new Headers(init?.headers);
 
@@ -46,6 +61,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 
   if (!response.ok) {
     if (response.status === 401) {
+      if (options.retryOnUnauthorized !== false && recoverAuthentication) {
+        try {
+          await recoverAuthentication();
+          return apiFetch<T>(path, init, { retryOnUnauthorized: false });
+        } catch {
+          // 재발급 실패 시 원래 요청의 인증 오류를 반환합니다.
+        }
+      }
       throw new ApiError("로그인이 필요합니다.", 401);
     }
     if (response.status >= 500) {

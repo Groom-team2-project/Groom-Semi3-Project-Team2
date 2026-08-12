@@ -1,5 +1,10 @@
-import { ApiError, apiFetch, clearAccessToken, setAccessToken } from "./client";
-import { store, simulateLatency } from "./store";
+import {
+  ApiError,
+  apiFetch,
+  clearAccessToken,
+  setAccessToken,
+  setAuthenticationRecovery,
+} from "./client";
 import type { User } from "./types";
 
 interface CommonResponse<T> {
@@ -30,7 +35,7 @@ interface TokenReissueResponse {
   refreshTokenExpiresIn: number;
 }
 
-interface UserMeResponse {
+interface UserProfileResponse {
   userId: number;
   nickname: string;
   email: string | null;
@@ -44,6 +49,7 @@ interface RestoreAccessTokenTask {
 
 let authenticationGeneration = 0;
 let restoreAccessTokenTask: RestoreAccessTokenTask | null = null;
+const authenticationClearedListeners = new Set<() => void>();
 
 class SupersededAuthenticationError extends Error {
   constructor() {
@@ -55,6 +61,12 @@ class SupersededAuthenticationError extends Error {
 export function clearAuthentication(): void {
   authenticationGeneration += 1;
   clearAccessToken();
+  authenticationClearedListeners.forEach((listener) => listener());
+}
+
+export function subscribeAuthenticationCleared(listener: () => void): () => void {
+  authenticationClearedListeners.add(listener);
+  return () => authenticationClearedListeners.delete(listener);
 }
 
 function beginAuthentication(): number {
@@ -78,7 +90,7 @@ function clearRejectedAuthentication(error: unknown, generation: number): void {
   }
 }
 
-function toUser(response: UserMeResponse): User {
+function toUser(response: UserProfileResponse): User {
   const name = response.nickname.trim() || "사용자";
 
   return {
@@ -108,14 +120,15 @@ export async function completeKakaoLogin(code: string, state: string): Promise<U
         method: "POST",
         body: JSON.stringify({ code, state }),
       },
+      { retryOnUnauthorized: false },
     );
 
     assertCurrentAuthentication(generation);
     setAccessToken(response.data.accessToken);
 
-    const me = await getMe();
+    const profile = await getProfile();
     assertCurrentAuthentication(generation);
-    return me;
+    return profile;
   } catch (error) {
     clearRejectedAuthentication(error, generation);
     throw error;
@@ -132,6 +145,7 @@ export function restoreAccessToken(): Promise<void> {
   const promise = apiFetch<CommonResponse<TokenReissueResponse>>(
       "/api/v1/auth/reissue",
       { method: "POST" },
+      { retryOnUnauthorized: false },
     )
       .then((response) => {
         assertCurrentAuthentication(generation);
@@ -158,25 +172,32 @@ export async function restoreAuthentication(): Promise<User> {
     await restoreAccessToken();
     assertCurrentAuthentication(generation);
 
-    const me = await getMe();
+    const profile = await getProfile();
     assertCurrentAuthentication(generation);
-    return me;
+    return profile;
   } catch (error) {
     clearRejectedAuthentication(error, generation);
     throw error;
   }
 }
 
-export async function getMe(): Promise<User> {
-  const response = await apiFetch<CommonResponse<UserMeResponse>>("/api/v1/users/me");
+export async function getProfile(): Promise<User> {
+  const response = await apiFetch<CommonResponse<UserProfileResponse>>(
+    "/api/v1/users/profile",
+  );
   return toUser(response.data);
 }
 
-// 프로필 수정 API가 구현될 때 실제 백엔드 호출로 교체합니다.
-export async function updateMe(input: Partial<Pick<User, "name">>): Promise<User> {
-  await simulateLatency();
-  store.me = { ...store.me, ...input };
-  return store.me;
+export async function updateProfile(nickname: string): Promise<User> {
+  const response = await apiFetch<CommonResponse<UserProfileResponse>>(
+    "/api/v1/users/profile",
+    {
+      method: "PATCH",
+      body: JSON.stringify({ nickname }),
+    },
+  );
+
+  return toUser(response.data);
 }
 
 export async function logout(): Promise<void> {
@@ -185,10 +206,12 @@ export async function logout(): Promise<void> {
   try {
     await apiFetch<CommonResponse<null>>("/api/v1/auth/logout", {
       method: "POST",
-    });
+    }, { retryOnUnauthorized: false });
   } finally {
     if (generation === authenticationGeneration) {
       clearAccessToken();
     }
   }
 }
+
+setAuthenticationRecovery(restoreAccessToken);
