@@ -20,7 +20,7 @@ public class UserController {
 
     @GetMapping("/profile")
     public ResponseEntity<CommonResponse<UserProfileResponse>> getProfile(
-            @Valid @AuthenticationPrincipal AuthMember authMember
+            @AuthenticationPrincipal AuthMember authMember
             ) {
         UserProfileResponse response =
                 userService.getMe(authMember.userId());
@@ -36,7 +36,7 @@ public class UserController {
     @PostMapping("/profile")
     public ResponseEntity<CommonResponse<UserProfileResponse>> updateProfile(
             @AuthenticationPrincipal AuthMember authMember,
-            @RequestBody UserProfileUpdateRequest request
+            @Valid @RequestBody UserProfileUpdateRequest request
             ) {
         UserProfileResponse response =
                 userService.updateUserProfile(
