@@ -1,5 +1,24 @@
 # Place
 
+## 구현 결정 사항
+
+- 새 명세의 필드 구성을 기준으로 구현하며 기존 V1 마이그레이션은 수정하지 않는다.
+- 모든 API 응답은 프로젝트 공통 형식인 `CommonResponse<T>`로 감싼다. 아래 API별 JSON 예시는 일부가 `data` 중심으로 축약되어 있다.
+- Place는 Plan에 종속되지 않는 공용 장소 데이터다. Schedule과 Vote에서는 내부 `placeId`로 참조한다.
+- 사용자는 Place를 직접 생성·수정·삭제하지 않는다. 카카오 Local 검색 과정에서 저장 또는 갱신한다.
+- Schedule에 Place를 연결하는 권한은 Schedule 서비스에서 Plan 편집 권한으로 검증한다.
+
+### 공통 응답 형식
+
+```json
+{
+  "success": true,
+  "data": {},
+  "errorCode": null,
+  "message": "장소 조회 성공"
+}
+```
+
 ## Entity
 
 | 컬럼 | 타입 | 제약 | 설명 |
@@ -8,6 +27,7 @@
 | kakao_place_id | VARCHAR(50) | NOT NULL, UNIQUE | 카카오 로컬 API 원본 ID, 중복 저장 방지 |
 | name | VARCHAR(200) | NOT NULL | 장소명 |
 | category | VARCHAR(255) | NULL |  |
+| address | VARCHAR(300) | NULL | 지번 주소 |
 | road_address | VARCHAR(300) | NULL | 도로명 주소 |
 | latitude | DECIMAL(10,7) | NULL | 위도(y) |
 | longitude | DECIMAL(10,7) | NULL | 경도(x) |
@@ -41,6 +61,7 @@
 >     | `kakaoPlaceId` | VARCHAR(50) | X | 카카오 Local API 장소 ID |
 >     | `name` | VARCHAR(200) | X | 장소명 |
 >     | `category` | VARCHAR(255) | O | 카카오 카테고리 |
+>     | `address` | VARCHAR(300) | O | 지번 주소 |
 >     | `roadAddress` | VARCHAR(300) | O | 도로명 주소 |
 >     | `latitude` | DECIMAL(10,7) | O | 위도, 카카오 응답의 `y` |
 >     | `longitude` | DECIMAL(10,7) | O | 경도, 카카오 응답의 `x` |
@@ -57,6 +78,7 @@
 >     | `id` | `kakaoPlaceId` | 문자열로 저장 |
 >     | `place_name` | `name` | 그대로 저장 |
 >     | `category_name` | `category` | 빈 문자열이면 `NULL` |
+>     | `address_name` | `address` | 빈 문자열이면 `NULL` |
 >     | `road_address_name` | `roadAddress` | 빈 문자열이면 `NULL` |
 >     | `y` | `latitude` | `BigDecimal`로 변환 |
 >     | `x` | `longitude` | `BigDecimal`로 변환 |
