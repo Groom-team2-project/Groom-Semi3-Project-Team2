@@ -20,7 +20,7 @@ public class GlobalExceptionHandler {
                 .status(errorCode.getStatus())
                 .body(CommonResponse.error(
                         errorCode.name(),
-                        errorCode.getMessage()
+                        exception.getMessage()
                 ));
     }
 
