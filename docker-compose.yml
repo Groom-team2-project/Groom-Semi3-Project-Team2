@@ -8,13 +8,24 @@ services:
     image: moigo-backend:${IMAGE_TAG:-latest}
     container_name: moigo-backend
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
       SPRING_PROFILES_ACTIVE: prod
       SERVER_PORT: 8080
       # 호스트에서 실행할 때 쓰는 DB_URL과 컨테이너용 주소를 분리합니다.
       DB_URL: ${COMPOSE_DB_URL:-jdbc:mysql://mysql:3306/moigo?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+      DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      JPA_DDL_AUTO: validate
+
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_ACCESS_EXPIRATION: ${JWT_ACCESS_EXPIRATION:-3600}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-1209600}
+
+      OAUTH_COOKIE_SECURE: ${OAUTH_COOKIE_SECURE:-true}
+      KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID:?KAKAO_CLIENT_ID is required}
+      KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET:?KAKAO_CLIENT_SECRET is required}
+      KAKAO_REDIRECT_URI: ${KAKAO_REDIRECT_URI:?KAKAO_REDIRECT_URI is required}
+
       TZ: Asia/Seoul
     ports:
       - "${APP_PORT:-8080}:8080"

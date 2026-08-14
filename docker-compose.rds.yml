@@ -1,0 +1,8 @@
+services:
+  backend:
+    volumes:
+      - ./deploy/certs/rds-truststore.p12:/app/certs/rds-truststore.p12:ro
+    environment:
+      JAVA_TOOL_OPTIONS: >-
+        -Djavax.net.ssl.trustStore=/app/certs/rds-truststore.p12
+        -Djavax.net.ssl.trustStorePassword=${RDS_TRUSTSTORE_PASSWORD}
