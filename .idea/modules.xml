@@ -2,7 +2,9 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/Groom-Semi3-Project-Team2.iml" filepath="$PROJECT_DIR$/.idea/Groom-Semi3-Project-Team2.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/moigo.iml" filepath="$PROJECT_DIR$/.idea/modules/moigo.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/moigo.main.iml" filepath="$PROJECT_DIR$/.idea/modules/moigo.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/moigo.test.iml" filepath="$PROJECT_DIR$/.idea/modules/moigo.test.iml" />
     </modules>
   </component>
 </project>
