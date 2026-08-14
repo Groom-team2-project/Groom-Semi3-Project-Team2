@@ -120,6 +120,44 @@ V{번호}__{설명}.sql
 
 `V1__init_schema.sql`은 공통 초기 스키마이므로 수정하지 않습니다.
 
+## Docker Compose 배포
+
+현재 배포 구성은 한 대의 EC2에서 백엔드와 MySQL을 함께 실행합니다. MySQL 데이터는
+`moigo_mysql_data` Docker 볼륨에 보존되고, DB 포트는 EC2 외부에 공개하지 않습니다.
+
+1. `.env.example`을 `.env`로 복사하고 비밀번호, JWT, 카카오 OAuth 값을 실제 값으로 변경합니다.
+2. EC2 보안 그룹에서 애플리케이션 포트(기본값 `8080`)만 필요한 대상에 허용합니다.
+3. 다음 명령으로 빌드하고 실행합니다.
+
+```bash
+docker compose up -d --build
+docker compose ps
+docker compose logs -f backend
+```
+
+`COMPOSE_PROFILES=local-db`가 설정되어 있어 MySQL도 함께 실행됩니다. 배포 후
+`http://EC2주소:8080/actuator/health`가 `UP`인지 확인합니다.
+
+### RDS로 전환
+
+애플리케이션 이미지나 설정 파일을 수정할 필요 없이 `.env`의 두 값만 변경합니다.
+
+```dotenv
+COMPOSE_PROFILES=
+COMPOSE_DB_URL=jdbc:mysql://RDS엔드포인트:3306/moigo?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&useSSL=true
+```
+
+RDS 보안 그룹의 3306 인바운드는 인터넷 전체가 아니라 백엔드 EC2의 보안 그룹에서만 허용해야 합니다.
+RDS 데이터 마이그레이션을 마친 뒤 아래 순서로 전환합니다.
+
+```bash
+docker compose --profile local-db stop mysql
+docker compose up -d --build
+```
+
+백엔드는 RDS를 사용하고 로컬 MySQL 컨테이너는 중지됩니다. 기존 Docker 볼륨은 자동 삭제되지 않으므로
+전환 검증이 끝날 때까지 롤백 용도로 보존할 수 있습니다.
+
 ## 프로젝트 구조
 
 ```text
@@ -142,6 +180,8 @@ V{번호}__{설명}.sql
 │   │       └── application.yml
 │   └── test/                       # 테스트
 ├── .env.example                    # 환경 변수 예시
+├── Dockerfile                      # 백엔드 멀티 스테이지 이미지 빌드
+├── docker-compose.yml              # 백엔드 + 선택형 MySQL 배포 구성
 ├── build.gradle
 └── settings.gradle
 ```
