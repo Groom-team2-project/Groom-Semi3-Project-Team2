@@ -126,6 +126,67 @@ V{번호}__{설명}.sql
 
 `V1__init_schema.sql`은 공통 초기 스키마이므로 수정하지 않습니다.
 
+## Docker Compose 배포
+
+현재 배포 구성은 한 대의 EC2에서 백엔드와 MySQL을 함께 실행합니다. MySQL 데이터는
+`moigo_mysql_data` Docker 볼륨에 보존되고, DB 포트는 EC2 외부에 공개하지 않습니다.
+
+### 배포 전 확인
+
+이 구성은 `depends_on.required`를 사용하므로 **Docker Compose v2.20.0 이상**이 필요합니다. EC2에서
+다음 명령을 실행하고 출력된 버전이 `2.20.0` 이상인지 확인합니다.
+
+```bash
+docker compose version
+docker compose version --short
+```
+
+### 첫 EC2 통합 배포
+
+1. `.env.example`을 `.env`로 복사하고 비밀번호, JWT, 카카오 OAuth 값을 실제 값으로 변경합니다.
+2. `.env`의 `COMPOSE_PROFILES=local-db` 설정을 유지합니다.
+3. EC2 보안 그룹에서 `.env`의 `APP_PORT`만 필요한 대상에 허용합니다. `APP_PORT`가 없으면 기본값은
+   `8080`입니다.
+4. 다음 명령으로 빌드하고 실행합니다.
+
+```bash
+docker compose up -d --build
+docker compose ps
+docker compose logs -f backend
+```
+
+`COMPOSE_PROFILES=local-db`가 설정되어 있어 MySQL도 함께 실행됩니다. 배포 후
+`.env`에 지정한 `APP_PORT`로 Actuator 상태가 `UP`인지 확인합니다.
+
+```text
+APP_PORT 미설정 또는 APP_PORT=8080: http://EC2주소:8080/actuator/health
+APP_PORT=9090:                    http://EC2주소:9090/actuator/health
+```
+
+컨테이너 내부 애플리케이션 포트와 Docker 헬스체크는 항상 `8080`을 사용하고, `APP_PORT`는 EC2 외부에
+공개하는 포트만 변경합니다.
+
+### 향후 RDS 전환
+
+RDS 전환은 현재 첫 배포 범위에 포함하지 않습니다. 실제 전환 시에는 환경변수 두 개만 바꾸는 것으로 끝내지
+않고 다음 작업을 함께 진행해야 합니다.
+
+- JDBC URL에 `sslMode=VERIFY_IDENTITY`를 적용해 인증서와 RDS 호스트 이름을 모두 검증합니다.
+- Amazon RDS 루트 CA를 Java trust store에 등록하고 백엔드 컨테이너에 읽기 전용으로 마운트합니다.
+- RDS 보안 그룹의 3306 인바운드는 인터넷 전체가 아니라 백엔드 EC2 보안 그룹에서만 허용합니다.
+- EC2 MySQL 데이터를 RDS로 마이그레이션하고 데이터 정합성을 확인합니다.
+- `.env`의 `COMPOSE_PROFILES`를 비우고 `COMPOSE_DB_URL`을 RDS 주소로 변경합니다.
+- 전환 검증이 끝날 때까지 기존 `moigo_mysql_data` 볼륨을 롤백 용도로 보존합니다.
+
+RDS JDBC URL은 다음 형식을 사용합니다.
+
+```dotenv
+COMPOSE_DB_URL=jdbc:mysql://RDS엔드포인트:3306/moigo?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&sslMode=VERIFY_IDENTITY
+```
+
+인증서 다운로드, trust store 생성, 데이터 이전과 실제 전환 명령은 RDS 인스턴스와 사용하는 CA가 확정된
+뒤 작성합니다.
+
 ## 프로젝트 구조
 
 ```text
@@ -148,6 +209,8 @@ V{번호}__{설명}.sql
 │   │       └── application.yml
 │   └── test/                       # 테스트
 ├── .env.example                    # 환경 변수 예시
+├── Dockerfile                      # 백엔드 멀티 스테이지 이미지 빌드
+├── docker-compose.yml              # 백엔드 + 선택형 MySQL 배포 구성
 ├── build.gradle
 └── settings.gradle
 ```

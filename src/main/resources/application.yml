@@ -89,18 +89,38 @@ management:
         include: health,info
   endpoint:
     health:
-      show-details: always
+      show-details: never
 
 ---
 # ===================================================================
-# 3. Gradle test 및 CI 환경을 위한 테스트 전용
+# 3. RDS TLS 설정
+# ===================================================================
+spring:
+  config:
+    activate:
+      on-profile: rds
+    import: configtree:/run/secrets/
+  datasource:
+    hikari:
+      data-source-properties:
+        trustCertificateKeyStoreUrl: file:/app/certs/rds-truststore.p12
+        trustCertificateKeyStoreType: PKCS12
+        fallbackToSystemTrustStore: false
+
+---
+# ===================================================================
+# 4. Gradle test 및 CI 환경을 위한 테스트 전용
 # ===================================================================
 spring:
   config:
     activate:
       on-profile: test
+  datasource:
+    url: jdbc:h2:mem:moigo;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
   flyway:
-    enabled: false
+    enabled: true
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: none
