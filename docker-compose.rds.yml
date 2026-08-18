@@ -1,0 +1,13 @@
+services:
+  backend:
+    volumes:
+      - ./deploy/certs/rds-truststore.p12:/app/certs/rds-truststore.p12:ro
+    secrets:
+      - source: rds_truststore_password
+        target: spring.datasource.hikari.data-source-properties.trustCertificateKeyStorePassword
+    environment:
+      SPRING_PROFILES_ACTIVE: prod,rds
+
+secrets:
+  rds_truststore_password:
+    file: ./deploy/secrets/rds_truststore_password
