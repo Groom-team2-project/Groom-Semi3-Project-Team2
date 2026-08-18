@@ -23,6 +23,9 @@ public class KakaoDocument {
     @JsonProperty("road_address_name")
     private String roadAddress;
 
+    @JsonProperty("address_name")
+    private String address;
+
     private BigDecimal x;
     private BigDecimal y;
 
