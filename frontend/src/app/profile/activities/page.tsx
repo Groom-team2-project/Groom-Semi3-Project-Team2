@@ -1,29 +1,28 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppBar } from "@/components/ui/AppBar";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { ActivityRow } from "@/components/plan/ActivityRow";
 import { Toast } from "@/components/ui/Toast";
-import { getActivities } from "@/lib/api";
+import { ActivityRow } from "@/components/plan/ActivityRow";
+import { getMyActivities } from "@/lib/api";
 import { getActivityDestination } from "@/lib/activityNavigation";
 import type { ActivityLog } from "@/lib/api";
 
-export default function ActivityLogPage({ params }: { params: Promise<{ planId: string }> }) {
-  const { planId } = use(params);
+export default function MyActivityPage() {
   const router = useRouter();
   const [activities, setActivities] = useState<ActivityLog[] | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    getActivities(planId).then(setActivities);
-  }, [planId]);
+    getMyActivities().then(setActivities);
+  }, []);
 
   const clearToast = useCallback(() => setToastMessage(null), []);
 
   async function handleClick(activity: ActivityLog) {
-    const destination = await getActivityDestination(planId, activity);
+    const destination = await getActivityDestination(activity.planId, activity);
     if (destination) {
       router.push(destination);
       return;
@@ -33,17 +32,15 @@ export default function ActivityLogPage({ params }: { params: Promise<{ planId: 
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <AppBar title="활동 내역" backHref={`/plans/${planId}`} />
+      <AppBar title="내 활동 내역" backHref="/profile" />
       <div className="flex flex-1 flex-col gap-1 px-4 pb-8">
         {activities?.length === 0 && <EmptyState emoji="🕘" title="아직 활동 내역이 없어요" />}
-        {activities?.map((a) => (
-          <ActivityRow key={a.id} activity={a} onClick={() => handleClick(a)} />
+        {activities?.map((activity) => (
+          <div key={activity.id}>
+            <p className="pt-3 text-[11.5px] font-medium text-gray-500">{activity.planTitle}</p>
+            <ActivityRow activity={activity} onClick={() => handleClick(activity)} />
+          </div>
         ))}
-        {activities && activities.length > 0 && (
-          <p className="pt-2 text-center text-[11.5px] text-gray-500">
-            activity_logs 테이블 기반 · 계획 단위로 최신순 조회
-          </p>
-        )}
       </div>
       <Toast message={toastMessage} onClose={clearToast} />
     </div>

@@ -89,10 +89,15 @@ export interface Schedule {
 
 export interface Comment {
   id: string;
+  planId?: string;
   scheduleId: string;
+  parentCommentId?: string;
+  userId?: string;
   authorName: string;
   authorColor: string;
+  profileImage?: string;
   text: string;
+  deleted?: boolean;
   createdAt: string;
 }
 
@@ -124,21 +129,30 @@ export type ActivityType =
   | "schedule_updated"
   | "schedule_deleted"
   | "vote_created"
+  | "vote_updated"
+  | "vote_deleted"
   | "vote_participated"
   | "vote_closed"
   | "member_joined"
+  | "member_left"
+  | "member_role_changed"
+  | "invitation_created"
+  | "invitation_revoked"
   | "invitation_reissued"
-  | "comment_added";
+  | "comment_added"
+  | "comment_deleted";
 
 export interface ActivityLog {
   id: string;
   planId: string;
+  planTitle?: string;
   actorName: string;
   actorColor: string;
   actorInitial: string;
   type: ActivityType;
   summary: string;
-  targetType?: "schedule" | "vote" | "member";
+  targetType?: "schedule" | "vote" | "member" | "comment" | "invitation";
   targetId?: string;
+  scheduleId?: string;
   createdAt: string; // ISO datetime
 }
