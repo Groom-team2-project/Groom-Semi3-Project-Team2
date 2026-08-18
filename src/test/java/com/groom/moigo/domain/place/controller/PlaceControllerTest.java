@@ -7,6 +7,7 @@ import com.groom.moigo.domain.place.dto.KakaoSearchResponse;
 import com.groom.moigo.domain.place.entity.PlaceEntity;
 import com.groom.moigo.domain.place.repository.PlaceRepository;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -15,7 +16,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -28,12 +28,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Transactional
 class PlaceControllerTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private PlaceRepository placeRepository;
     @Autowired private ObjectMapper objectMapper;
     @MockitoBean private KakaoClient kakaoClient;
+
+    @AfterEach
+    void cleanUp() {
+        placeRepository.deleteAll();
+    }
 
     @Test
     @DisplayName("저장된 장소를 단건 조회한다")

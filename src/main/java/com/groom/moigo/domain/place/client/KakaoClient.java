@@ -4,6 +4,7 @@ import com.groom.moigo.domain.place.dto.KakaoSearchResponse;
 import com.groom.moigo.domain.place.exception.PlaceErrorCode;
 import com.groom.moigo.domain.place.exception.PlaceException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -20,6 +21,7 @@ public class KakaoClient {
         this.restClient = restClient;
     }
 
+    @Autowired
     public KakaoClient(
             RestClient.Builder builder,
             @Value("${kakao.local.rest-api-key}") String apiKey

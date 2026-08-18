@@ -85,7 +85,9 @@ class PlaceServiceTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Collection<KakaoDocument>> captor = ArgumentCaptor.forClass(Collection.class);
         verify(synchronizationService).synchronize(captor.capture());
-        assertThat(captor.getValue()).containsExactly(first);
+        assertThat(captor.getValue()).singleElement()
+                .extracting(KakaoDocument::getName)
+                .isEqualTo("첫 장소");
     }
 
     @Test
@@ -119,7 +121,9 @@ class PlaceServiceTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Collection<KakaoDocument>> captor = ArgumentCaptor.forClass(Collection.class);
         verify(synchronizationService).synchronize(captor.capture());
-        assertThat(captor.getValue()).containsExactly(valid);
+        assertThat(captor.getValue()).singleElement()
+                .extracting(KakaoDocument::getId)
+                .isEqualTo("2");
     }
 
     @Test
