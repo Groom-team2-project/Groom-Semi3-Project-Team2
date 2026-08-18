@@ -58,7 +58,9 @@ public class CommentServiceImpl implements CommentService {
                 ActivityActionType.COMMENT_CREATED,
                 ActivityTargetType.COMMENT,
                 savedComment.getCommentId(),
-                user.getNickname() + "님이 댓글을 남겼어요."
+                request.parentCommentId() == null
+                        ? user.getNickname() + "님이 댓글을 남겼어요."
+                        : user.getNickname() + "님이 댓글에 답글을 남겼어요."
         ));
 
         return CommentResponse.from(savedComment, user);
@@ -139,6 +141,15 @@ public class CommentServiceImpl implements CommentService {
         }
 
         comment.delete();
+        UserEntity user = findUser(userId);
+        activityLogService.record(new ActivityRecordCommand(
+                planId,
+                userId,
+                ActivityActionType.COMMENT_DELETED,
+                ActivityTargetType.COMMENT,
+                commentId,
+                user.getNickname() + "님이 댓글을 삭제했어요."
+        ));
     }
 
     private void validateParentComment(Long parentCommentId, Long scheduleId) {

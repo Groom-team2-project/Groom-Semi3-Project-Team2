@@ -1,16 +1,18 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppBar } from "@/components/ui/AppBar";
 import { Button } from "@/components/ui/Button";
 import { BottomTabBar } from "@/components/ui/BottomTabBar";
 import { ActivityRow } from "@/components/plan/ActivityRow";
+import { Toast } from "@/components/ui/Toast";
 import { PlanNotFound } from "@/components/plan/PlanNotFound";
 import { usePlan } from "@/lib/hooks/usePlan";
 import { useRememberPlan } from "@/lib/lastPlan";
 import { getActivities, getSchedules, getVotes } from "@/lib/api";
+import { getActivityDestination } from "@/lib/activityNavigation";
 import type { ActivityLog, Schedule, Vote } from "@/lib/api";
 import { dateRangeToDayCount, dayIndexToDate, formatDateShort, formatDday, formatDeadline } from "@/lib/utils";
 
@@ -21,6 +23,7 @@ export default function PlanHomePage({ params }: { params: Promise<{ planId: str
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [votes, setVotes] = useState<Vote[]>([]);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useRememberPlan(planId);
 
@@ -29,6 +32,17 @@ export default function PlanHomePage({ params }: { params: Promise<{ planId: str
     getVotes(planId).then(setVotes);
     getActivities(planId, 3).then(setActivities);
   }, [planId]);
+
+  const clearToast = useCallback(() => setToastMessage(null), []);
+
+  async function handleActivityClick(activity: ActivityLog) {
+    const destination = await getActivityDestination(planId, activity);
+    if (destination) {
+      router.push(destination);
+      return;
+    }
+    setToastMessage("삭제되었거나 더 이상 볼 수 없는 활동이에요.");
+  }
 
   if (isLoading) return null;
   if (!plan) return <PlanNotFound />;
@@ -85,10 +99,11 @@ export default function PlanHomePage({ params }: { params: Promise<{ planId: str
         </div>
         {activities.length === 0 && <p className="text-[12.5px] text-gray-500">아직 활동 내역이 없어요</p>}
         {activities.map((a) => (
-          <ActivityRow key={a.id} activity={a} onClick={() => router.push(`/plans/${planId}/activity`)} />
+          <ActivityRow key={a.id} activity={a} onClick={() => handleActivityClick(a)} />
         ))}
       </div>
       <BottomTabBar planId={planId} />
+      <Toast message={toastMessage} onClose={clearToast} />
     </div>
   );
 }
