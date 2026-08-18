@@ -2,11 +2,7 @@ package com.groom.moigo.domain.auth.service;
 
 import com.groom.moigo.domain.auth.client.KakaoOAuthClient;
 import com.groom.moigo.domain.auth.config.KakaoOAuthProperties;
-import com.groom.moigo.domain.auth.dto.KakaoAuthorizeResult;
-import com.groom.moigo.domain.auth.dto.KakaoUserInfo;
-import com.groom.moigo.domain.auth.dto.LoginResponse;
-import com.groom.moigo.domain.auth.dto.OAuthState;
-import com.groom.moigo.domain.auth.dto.TokenReissueResponse;
+import com.groom.moigo.domain.auth.dto.*;
 import com.groom.moigo.domain.user.entity.UserEntity;
 import com.groom.moigo.domain.user.repository.UserRepository;
 import com.groom.moigo.global.error.BusinessException;
@@ -93,9 +89,7 @@ public class AuthService {
         return new KakaoAuthorizeResult(url, oAuthState.state(), oAuthState.nonce());
     }
 
-    public record LoginResult(LoginResponse response, String refreshToken) {
-    }
 
-    public record ReissueResult(TokenReissueResponse response, String refreshToken) {
-    }
+
+
 }

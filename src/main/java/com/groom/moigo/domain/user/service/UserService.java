@@ -1,6 +1,7 @@
 package com.groom.moigo.domain.user.service;
 
-import com.groom.moigo.domain.user.dto.UserMeResponse;
+import com.groom.moigo.domain.user.dto.UserProfileResponse;
+import com.groom.moigo.domain.user.dto.UserProfileUpdateRequest;
 import com.groom.moigo.domain.user.entity.UserEntity;
 import com.groom.moigo.domain.user.repository.UserRepository;
 import com.groom.moigo.global.error.BusinessException;
@@ -15,13 +16,28 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
     private final UserRepository userRepository;
 
-    public UserMeResponse getMe(Long userId) {
-        UserEntity user = userRepository.findById(userId)
+    public UserProfileResponse getMe(Long userId) {
+        UserEntity user = findUser(userId);
+
+        return UserProfileResponse.from(user);
+    }
+
+    @Transactional
+    public UserProfileResponse updateUserProfile(Long userId, UserProfileUpdateRequest request) {
+        UserEntity user = findUser(userId);
+
+        user.updateProfile(
+                request.nickname()
+        );
+
+        return UserProfileResponse.from(user);
+    }
+
+    private UserEntity findUser(Long userId) {
+        return userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.UNAUTHORIZED,
                         "인증된 사용자 정보를 찾을 수 없습니다"
                 ));
-
-        return UserMeResponse.from(user);
     }
 }

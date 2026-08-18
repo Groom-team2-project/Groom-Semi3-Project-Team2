@@ -1,413 +1,438 @@
-# Schedules 도메인 명세
+# Schedule
 
-## 1. 문서 목적
+## 구현 결정 사항
 
-Schedules 도메인은 하나의 여행 계획에 포함된 날짜별 세부 일정을 저장하고 관리한다.
+- 데이터베이스와 API 요청의 기준 모델은 `startAt`, `placeId`, `reservationStatus`를 사용한다.
+- 모든 API 응답은 프로젝트 공통 형식인 `CommonResponse<T>`로 감싼다. 아래 API별 JSON 예시는 `data`에 들어가는 값만 표현한다.
+- 조회는 해당 Plan의 `JOINED` 멤버에게 허용한다.
+- 생성·수정·삭제·순서 변경은 `OWNER`와 `EDITOR`에게만 허용한다. `VIEWER`의 변경 요청은 `PLAN_UPDATE_FORBIDDEN`으로 처리한다.
+- 기존 V1 마이그레이션은 수정하지 않고 신규 마이그레이션에서 새 스키마로 변경한다.
+- 장소가 없는 일정도 지원하므로 `placeId`와 응답의 `place`는 `null`일 수 있다.
 
-장소 투표는 방문할 장소를 결정하는 과정이며, 일정은 결정된 장소를 실제 여행 날짜와 시간에 배치한 결과이다. 따라서 Votes와 Schedules의 책임을 다음과 같이 구분한다.
-
-- Votes: 어디에 갈지 결정한다.
-- Schedules: 결정된 장소에 언제, 어떤 순서로 방문할지 확정한다.
-
-투표가 마감되었다는 이유만으로 일정을 자동 생성하지 않는다. 사용자가 투표 결과를 확인하고 날짜와 시간 등을 입력한 뒤 일정에 추가해야 한다.
-
----
-
-## 2. 현재 개발 범위
-
-현재 개발 범위에서는 다음 기능을 제공한다.
-
-- 계획별 전체 일정 조회
-- 날짜별 일정 조회
-- 일정 상세 조회
-- 일정 생성, 수정, 삭제
-- 장소 검색 결과를 일정에 연결
-- 장소가 없는 일반 일정 등록
-- 날짜별 일정 표시 순서 관리
-- 투표에서 결정된 장소를 일정에 추가
-- 예약 여부 표시
-- 카카오맵 길찾기 링크 제공
-
-다음 기능은 고도화 범위에서 다룬다.
-
-- 위도와 경도를 이용한 이동 거리 계산
-- 실제 이동시간을 고려한 동선 최적화
-- 최적화 결과를 이용한 일정 순서 일괄 변경
-- 일정 사이의 이동수단 및 이동시간 관리
-- 예약번호, 예약자, 결제 상태 등의 예약 상세 관리
-- 일정 시간 충돌 자동 해결
-- 실시간 공동 편집 충돌 처리
-
----
-
-## 3. Schedule 엔티티
-
-### 3.1 필드 정의
-
-| 필드 | 타입 | 필수 | 제약조건 및 설명 |
-|---|---|---:|---|
-| `schedule_id` | BIGINT | Y | PK, 일정 식별자 |
-| `plan_id` | BIGINT | Y | FK, 일정이 속한 여행 계획 |
-| `place_id` | BIGINT | N | FK, 일정과 연결된 장소. 장소 없는 일정은 `null` 허용 |
-| `schedule_date` | DATE | Y | 일정 날짜 |
-| `title` | VARCHAR(200) | Y | 일정 제목 |
-| `start_time` | TIME | N | 일정 시작 시간 |
-| `end_time` | TIME | N | 일정 종료 시간 |
-| `memo` | VARCHAR(1000) | N | 준비물, 예약 안내 등 일정 메모 |
-| `display_order` | INT | Y | 같은 날짜 안에서 일정을 표시하는 순서 |
-| `is_reserved` | BOOLEAN | Y | 예약 완료 여부, 기본값 `false` |
-| `kakao_route_url` | VARCHAR(500) | N | 카카오맵 길찾기 URL |
-| `created_at` | DATETIME(6) | Y | 생성 시각 |
-| `updated_at` | DATETIME(6) | Y | 마지막 수정 시각 |
-
-식별자 이름은 테이블 이름과 관계없이 단수형인 `schedule_id`를 사용한다. 일정 순서 필드도 문서와 구현 전반에서 `display_order`로 통일한다.
-
-> 현재 초기 스키마에는 일정 순서가 `sort_order`로 작성되어 있으므로, 구현 시 `display_order`로 변경하거나 프로젝트 전체에서 하나의 이름으로 통일해야 한다.
-
-### 3.2 엔티티 관계
-
-```text
-Plan 1 ─── N Schedule N ─── 0..1 Place
-```
-
-- 하나의 Plan은 여러 Schedule을 가질 수 있다.
-- 하나의 Schedule은 하나의 Plan에 반드시 속한다.
-- 하나의 Schedule은 하나의 Place를 선택적으로 참조한다.
-- `place_id`가 없는 일정도 허용한다. 예: 자유시간, 숙소 체크아웃, 집합.
-
----
-
-## 4. 필드별 정책
-
-### 4.1 일정 날짜
-
-`schedule_date`는 실제 날짜를 저장한다. `DAY 1`, `DAY 2`와 같은 여행 일차는 Plan의 `start_date`와 `schedule_date`를 이용하여 계산한다.
-
-```text
-day = schedule_date - plan.start_date + 1
-```
-
-일정 날짜는 원칙적으로 Plan의 여행 기간 안에 있어야 한다.
-
-```text
-plan.start_date <= schedule_date <= plan.end_date
-```
-
-### 4.2 시작 및 종료 시간
-
-- 시작 시간과 종료 시간은 선택 입력이다.
-- 종료 시간이 입력된 경우 시작 시간도 입력되어야 한다.
-- 시작 시간과 종료 시간이 모두 입력된 경우 종료 시간은 시작 시간보다 늦어야 한다.
-- 시간이 다른 일정과 겹치더라도 현재 범위에서는 저장을 허용할 수 있다. 사용자에게 경고만 표시하며 자동으로 시간을 변경하지 않는다.
-
-### 4.3 표시 순서
-
-`display_order`는 거리 기반 최적화 결과가 아니라 사용자가 날짜별 일정 화면에서 보는 순서이다.
-
-- 순서는 Plan과 일정 날짜의 조합 안에서 관리한다.
-- 새 일정은 선택한 날짜의 마지막 순서에 추가한다.
-- 해당 날짜에 일정이 없으면 `1`로 지정한다.
-- 순서를 변경하거나 일정을 삭제하면 같은 날짜의 순서를 `1`부터 연속된 값으로 다시 부여한다.
-- 일정 날짜가 변경되면 기존 날짜와 변경된 날짜 양쪽의 순서를 재정렬한다.
-
-새 일정의 순서는 다음과 같이 계산한다.
-
-```text
-display_order = MAX(display_order) + 1
-```
-
-기본 조회 정렬 기준은 다음과 같다.
-
-```sql
-ORDER BY schedule_date ASC, display_order ASC, start_time ASC
-```
-
-현재 범위에서는 사용자가 지정한 순서를 유지하기 위해 `display_order`를 `start_time`보다 우선한다.
-
-### 4.4 예약 여부
-
-`is_reserved`는 장소의 확정 여부가 아니라 식당, 숙소, 체험 등의 실제 예약 완료 여부를 뜻한다.
-
-- `false`: 예약하지 않았거나 예약 전
-- `true`: 예약 완료
-
-예약번호, 결제 상태 등의 세부 정보는 Schedule에 추가하지 않고 고도화 시 별도의 예약 모델 도입을 검토한다.
-
-### 4.5 카카오 길찾기 URL
-
-`kakao_route_url`은 선택값이다. 현재 범위에서는 사용자가 카카오맵 길찾기를 열 수 있는 링크를 제공하는 용도로만 사용한다.
-
-일정 간 출발지, 도착지, 이동수단을 구조적으로 관리하는 기능은 고도화 범위로 분리한다. 장소 좌표로 URL을 생성할 수 있다면 저장하지 않고 응답 시 생성하는 방법도 허용한다.
-
----
-
-## 5. 도메인 규칙
-
-1. 일정은 반드시 하나의 Plan에 속해야 한다.
-2. 일정 작성자는 해당 Plan의 일정 편집 권한을 가져야 한다.
-3. `place_id`가 입력된 경우 존재하는 Place여야 한다.
-4. `schedule_date`는 Plan의 여행 기간 안에 있어야 한다.
-5. `title`은 공백일 수 없다.
-6. 종료 시간이 있으면 시작 시간도 있어야 한다.
-7. 종료 시간은 시작 시간보다 늦어야 한다.
-8. `display_order`는 같은 Plan과 날짜 안에서 관리한다.
-9. 투표 결과는 사용자의 확정 없이 자동으로 일정이 되지 않는다.
-10. 일정을 삭제해도 원본 Place와 투표 결과는 삭제하지 않는다.
-
----
-
-## 6. 투표와 일정의 연결 정책
-
-### 6.1 권장 흐름
-
-```text
-장소 검색
-  → 투표 후보 등록
-  → 투표 생성
-  → 멤버 투표
-  → 투표 마감 및 결과 결정
-  → 결과 화면에서 '일정에 추가' 선택
-  → 날짜·시간·제목·메모 입력
-  → Schedule 생성
-  → 선택한 날짜의 마지막 순서에 배치
-  → 필요하면 사용자가 순서 변경
-```
-
-Votes는 투표 결과로 선택된 `place_id`를 Schedules에 전달한다. Schedules는 날짜, 시간, 제목 등의 일정 정보를 추가로 입력받아 새로운 일정을 생성한다.
-
-투표 결과만으로는 다음 정보를 알 수 없으므로 자동 생성하지 않는다.
-
-- 어느 날짜에 방문하는가
-- 몇 시에 방문하는가
-- 해당 날짜의 몇 번째 일정인가
-- 투표 결과를 실제 일정에 반영할 것인가
-
-현재 범위에서는 Schedule과 Vote 사이에 별도 FK를 두지 않아도 된다. 투표 결과의 장소를 이용하여 일반 일정 생성 API를 호출한다. 투표에서 만들어진 일정을 추적하거나 중복 반영을 제한해야 한다면 고도화 시 `source_vote_id` 또는 별도 연결 테이블을 검토한다.
-
-### 6.2 동률 처리
-
-투표 결과가 동률이면 일정을 자동으로 생성하거나 장소를 임의로 선택하지 않는다.
-
-- 방장 또는 편집자가 최종 장소를 선택한다.
-- 필요하면 결선 투표를 새로 생성한다.
-- 최종 장소가 선택된 후 일정 등록 과정을 진행한다.
-
----
-
-## 7. 사용자 시나리오
-
-### 7.1 투표 없이 장소를 일정에 추가
-
-1. 사용자가 카카오 장소 검색에서 장소를 검색한다.
-2. 검색 결과에서 `일정에 추가`를 선택한다.
-3. 방문 날짜, 시작 시간, 종료 시간, 제목과 메모를 입력한다.
-4. 시스템은 사용자에게 Plan 편집 권한이 있는지 확인한다.
-5. 시스템은 장소를 조회하거나 저장한 후 `place_id`를 얻는다.
-6. 시스템은 일정 정보를 검증한다.
-7. 시스템은 해당 날짜의 마지막 `display_order`로 일정을 생성한다.
-8. 생성된 일정이 날짜별 타임라인에 표시된다.
-
-### 7.2 투표 결과를 일정에 추가
-
-1. 사용자가 여러 장소를 후보로 투표를 생성한다.
-2. Plan 멤버들이 원하는 장소에 투표한다.
-3. 투표가 마감되고 최종 장소가 결정된다.
-4. 방장 또는 편집자가 결과 화면에서 `일정에 추가`를 선택한다.
-5. 시스템은 선택된 장소 정보를 일정 생성 화면에 미리 입력한다.
-6. 사용자가 방문 날짜와 시간을 입력한다.
-7. 시스템은 선택한 날짜의 마지막 순서로 일정을 생성한다.
-8. 사용자는 날짜별 일정 화면에서 방문 순서를 조정할 수 있다.
-
-### 7.3 장소 없는 일정 추가
-
-1. 사용자가 `빈 일정 추가`를 선택한다.
-2. `숙소 체크아웃`과 같은 제목을 입력한다.
-3. 날짜와 시간을 입력하고 장소는 선택하지 않는다.
-4. 시스템은 `place_id`가 없는 일정을 생성한다.
-
-### 7.4 일정 순서 변경
-
-1. 사용자가 특정 날짜의 일정 목록을 조회한다.
-2. 일정 카드를 드래그하거나 순서 이동 버튼을 사용한다.
-3. 시스템은 요청받은 순서대로 해당 날짜의 `display_order`를 다시 부여한다.
-4. 변경된 순서가 모든 Plan 멤버에게 동일하게 표시된다.
-
-### 7.5 일정 날짜 변경
-
-1. 사용자가 일정의 날짜를 다른 여행 날짜로 변경한다.
-2. 시스템은 변경된 날짜가 Plan 기간 안인지 검증한다.
-3. 일정은 변경된 날짜의 마지막 순서로 이동한다.
-4. 시스템은 기존 날짜와 변경된 날짜의 `display_order`를 각각 다시 정리한다.
-
-### 7.6 일정 삭제
-
-1. 사용자가 일정 상세 화면에서 삭제를 선택한다.
-2. 시스템은 삭제 확인을 요청한다.
-3. 사용자가 확인하면 일정을 삭제한다.
-4. 시스템은 같은 날짜에 남은 일정의 `display_order`를 다시 부여한다.
-5. 일정에 연결되어 있던 Place와 투표 데이터는 유지한다.
-
----
-
-## 8. API 초안
-
-### 8.1 날짜별 일정 목록 조회
-
-```http
-GET /api/v1/plans/{planId}/schedules?date=2026-08-15
-```
-
-`date`를 생략하면 Plan의 전체 일정을 날짜와 표시 순서대로 반환한다.
-
-### 8.2 일정 상세 조회
-
-```http
-GET /api/v1/plans/{planId}/schedules/{scheduleId}
-```
-
-### 8.3 일정 생성
-
-```http
-POST /api/v1/plans/{planId}/schedules
-Content-Type: application/json
-```
+### 공통 응답 형식
 
 ```json
 {
-  "placeId": 42,
-  "scheduleDate": "2026-08-15",
-  "title": "점심 식사",
-  "startTime": "12:00",
-  "endTime": "13:30",
-  "memo": "예약 확인",
-  "isReserved": true
+  "success": true,
+  "data": {},
+  "errorCode": null,
+  "message": "일정 조회 성공"
 }
 ```
 
-`displayOrder`는 서버가 해당 날짜의 마지막 순서로 자동 지정한다.
+## Entity
 
-### 8.4 일정 수정
+### 사용자 요청 필드
 
-```http
-PATCH /api/v1/plans/{planId}/schedules/{scheduleId}
-Content-Type: application/json
-```
+| 컬럼 | 타입 | 제약 | 설명 |
+| --- | --- | --- | --- |
+| `schedule_id` | BIGINT | PK, AUTO_INCREMENT | 일정 식별자 |
+| `plan_id` | BIGINT | FK → `plans.plan_id`, NOT NULL | 일정이 속한 여행 계획 |
+| `place_id` | BIGINT | FK → `places.place_id`, NULL | 선택적 참조. `null`이면 자유시간, 숙소 체크아웃 등 장소 없는 일정 가능 |
+| `created_at` | DATETIME(6) | NOT NULL | 생성 시각 |
+| `updated_at` | DATETIME(6) | NOT NULL | 마지막 수정 시각 |
+| `deleted_at` | DATETIME(6) | NULL | 소프트 삭제 시각 |
+| `title` | VARCHAR(200) | NOT NULL | 일정 제목 |
+| `sort_order` | INT | NOT NULL | 같은 여행 계획 내 표시 순서 |
+| `memo` | VARCHAR(1000) | NULL | 일정 메모 |
+| `start_at` | DATETIME | NOT NULL | 일정 시작 일시 |
+| `end_time` | TIME | NULL | 일정 종료 시간 |
+| `reservation_status` | ENUM | NOT NULL, DEFAULT `NOT_REQUIRED` | `NOT_REQUIRED`(예약 불필요), `UNRESERVED`(미예약), `RESERVED`(예약 완료), `CANCELLED`(예약 취소) |
+| `kakao_route_url` | VARCHAR(500) | NULL | 카카오맵 길찾기 딥링크(동선 기능 P2 대체용, API 승인 불필요) |
+
+## API 명세
+
+### POST `/api/v1/plans/{planId}/schedules`
+
+특정 여행 계획에 새로운 일정을 생성한다. `sortOrder`는 서비스에서 해당 여행 계획의 마지막 순서로 자동 지정한다.
+
+`startAt`은 필수이며 날짜와 시간을 포함한 ISO 8601 형식으로 전달한다.
+
+#### Request Body
 
 ```json
 {
-  "scheduleDate": "2026-08-16",
-  "title": "저녁 식사",
-  "startTime": "18:00",
-  "endTime": "19:30",
-  "memo": "10분 전 도착",
-  "isReserved": true
+  "placeId": 15,
+  "title": "성산일출봉 관람",
+  "startAt": "2026-08-15T09:00:00",
+  "endTime": "11:00",
+  "memo": "입장권 확인",
+  "reservationStatus": "NOT_REQUIRED",
+  "kakaoRouteUrl": "https://map.kakao.com/..."
 }
 ```
 
-### 8.5 일정 삭제
-
-```http
-DELETE /api/v1/plans/{planId}/schedules/{scheduleId}
-```
-
-### 8.6 날짜별 일정 순서 변경
-
-```http
-PATCH /api/v1/plans/{planId}/schedules/order
-Content-Type: application/json
-```
+#### Response Body
 
 ```json
 {
-  "scheduleDate": "2026-08-15",
-  "scheduleIds": [301, 305, 302]
-}
-```
-
-서버는 요청된 ID가 모두 같은 Plan과 날짜에 속하는지 확인한 뒤 배열 순서대로 `display_order`를 `1`부터 부여한다.
-
----
-
-## 9. 응답 예시
-
-```json
-{
-  "scheduleId": 301,
-  "planId": 7,
-  "placeId": 42,
-  "scheduleDate": "2026-08-15",
-  "title": "점심 식사",
-  "startTime": "12:00",
-  "endTime": "13:30",
-  "memo": "예약 확인",
-  "displayOrder": 2,
-  "isReserved": true,
-  "kakaoRouteUrl": null,
+  "scheduleId": 31,
+  "planId": 1,
   "place": {
-    "placeId": 42,
-    "placeName": "예시식당 광화문점",
-    "address": "서울 종로구 세종대로 1",
-    "latitude": 37.572,
-    "longitude": 126.976
+    "placeId": 15,
+    "name": "성산일출봉",
+    "address": "제주특별자치도 서귀포시 성산읍 성산리 1번지",
+    "phone": null,
+    "placeUrl": null
   },
-  "createdAt": "2026-08-10T20:00:00",
-  "updatedAt": "2026-08-10T20:00:00"
+  "title": "성산일출봉 관람",
+  "sortOrder": 4,
+  "startAt": "2026-08-15T09:00:00",
+  "endTime": "11:00",
+  "memo": "입장권 확인",
+  "reservationStatus": "NOT_REQUIRED",
+  "kakaoRouteUrl": "https://map.kakao.com/...",
+  "createdAt": "2026-08-11T15:30:00.123456",
+  "updatedAt": "2026-08-11T15:30:00.123456"
 }
 ```
 
----
+성공 상태: `201 Created`
 
-## 10. 오류 응답 기준
+#### Error Code
 
-| 상황 | HTTP 상태 | 오류 코드 예시 |
-|---|---:|---|
-| Plan 또는 Schedule을 찾을 수 없음 | 404 | `SCHEDULE_NOT_FOUND` |
-| Plan 멤버가 아님 | 403 | `PLAN_ACCESS_DENIED` |
-| 일정 편집 권한이 없음 | 403 | `SCHEDULE_EDIT_FORBIDDEN` |
-| Plan 기간 밖의 날짜 | 400 | `INVALID_SCHEDULE_DATE` |
-| 종료 시간이 시작 시간보다 빠름 | 400 | `INVALID_SCHEDULE_TIME` |
-| Place를 찾을 수 없음 | 404 | `PLACE_NOT_FOUND` |
-| 순서 변경 요청에 다른 날짜의 일정이 포함됨 | 400 | `INVALID_SCHEDULE_ORDER` |
+| 상태 | 오류 코드 | 조건 |
+| --- | --- | --- |
+| 400 | `INVALID_REQUEST` | 제목 또는 `startAt`이 누락되었거나 길이·일시 형식이 잘못됨 |
+| 400 | `INVALID_TIME_RANGE` | 종료 시간이 시작 시간과 같거나 빠름 |
+| 400 | `INVALID_RESERVATION_STATUS` | 지원하지 않는 예약 상태 |
+| 403 | `PLAN_ACCESS_DENIED` | 해당 여행 계획에 접근 권한이 없음 |
+| 404 | `PLAN_NOT_FOUND` | Plan이 없거나 삭제됨 |
+| 404 | `PLACE_NOT_FOUND` | Place가 없거나 삭제됨 |
 
----
+### GET `/api/v1/plans/{planId}/schedules`
 
-## 11. 고도화 방향
+특정 여행 계획의 삭제되지 않은 일정 목록을 조회한다.
 
-### 11.1 동선 최적화
+#### Response Body
 
-현재 범위의 `display_order`는 사용자가 정하는 표시 순서이다. 고도화 시 각 Place의 위도와 경도, 이동수단, 예상 체류시간을 이용하여 추천 방문 순서를 계산한다.
+일정이 없는 경우에도 `200 OK`와 빈 배열을 반환한다.
 
-최적화 결과는 즉시 저장하지 않고 사용자에게 먼저 보여준 뒤, 사용자가 적용을 선택했을 때 `display_order`를 변경한다.
-
-### 11.2 이동 구간 관리
-
-일정 하나에 길찾기 URL을 저장하는 대신 일정과 일정 사이의 이동 구간을 별도 모델로 관리할 수 있다.
-
-```text
-Schedule A ─── RouteLeg ─── Schedule B
+```json
+{
+  "planId": 1,
+  "schedules": []
+}
 ```
 
-이동 구간에는 출발 일정, 도착 일정, 이동수단, 예상 거리, 예상 이동시간 및 외부 길찾기 URL을 저장할 수 있다.
+일정이 있는 경우 `sortOrder` 오름차순으로 반환한다.
 
-### 11.3 투표 출처 추적
+```json
+{
+  "planId": 1,
+  "schedules": [
+    {
+      "scheduleId": 30,
+      "place": null,
+      "title": "숙소 체크아웃",
+      "sortOrder": 1,
+      "startAt": "2026-08-15T08:30:00",
+      "endTime": null,
+      "reservationStatus": "NOT_REQUIRED"
+    },
+    {
+      "scheduleId": 31,
+      "place": {
+        "placeId": 15,
+        "name": "성산일출봉",
+        "address": "제주특별자치도 서귀포시 성산읍 성산리 1번지",
+        "phone": null,
+        "placeUrl": null
+      },
+      "title": "성산일출봉 관람",
+      "sortOrder": 2,
+      "startAt": "2026-08-15T09:00:00",
+      "endTime": "11:00",
+      "reservationStatus": "NOT_REQUIRED"
+    }
+  ]
+}
+```
 
-투표 결과로 생성된 일정을 추적할 필요가 생기면 Schedule에 nullable `source_vote_id`를 추가하거나 Vote와 Schedule 사이의 연결 테이블을 도입한다.
+#### Error Code
 
-이를 통해 다음 기능을 지원할 수 있다.
+| 상태 | 오류 코드 | 조건 |
+| --- | --- | --- |
+| 403 | `PLAN_ACCESS_DENIED` | 여행 계획 접근 권한 없음 |
+| 404 | `PLAN_NOT_FOUND` | Plan이 없거나 삭제됨 |
 
-- 동일한 투표 결과의 중복 일정 등록 방지
-- 투표 결과에서 생성된 일정 바로가기
-- 일정에서 원본 투표 결과 확인
+### GET `/api/v1/schedules/{scheduleId}`
 
-### 11.4 예약 상세 관리
+일정을 상세 조회한다. 삭제된 일정까지 조회하려면 `includeDeleted=true`를 전달한다.
 
-예약 상태가 단순한 참/거짓 값을 넘어서는 경우 별도의 Reservation 도메인을 도입한다.
+```http
+GET /api/v1/schedules/31?includeDeleted=true
+```
 
-- 예약 상태
-- 예약자
-- 예약번호
-- 예약 일시
-- 결제 여부
-- 취소 정책
+#### Response Body
 
-Schedule은 Reservation을 직접 포함하지 않고 필요한 경우 연결하여 조회한다.
+```json
+{
+  "scheduleId": 31,
+  "planId": 1,
+  "place": {
+    "placeId": 15,
+    "name": "성산일출봉",
+    "address": "제주특별자치도 서귀포시 성산읍 성산리 1번지",
+    "phone": null,
+    "placeUrl": null
+  },
+  "title": "성산일출봉 관람",
+  "sortOrder": 2,
+  "startAt": "2026-08-15T09:00:00",
+  "endTime": "11:00",
+  "memo": "입장권 확인",
+  "reservationStatus": "NOT_REQUIRED",
+  "kakaoRouteUrl": "https://map.kakao.com/...",
+  "createdAt": "2026-08-11T15:30:00.123456",
+  "updatedAt": "2026-08-11T15:30:00.123456",
+  "deletedAt": null
+}
+```
+
+#### Error Code
+
+| 상태 | 오류 코드 | 조건 |
+| --- | --- | --- |
+| 403 | `PLAN_ACCESS_DENIED` | 여행 계획 접근 권한 없음 |
+| 404 | `SCHEDULE_NOT_FOUND` | 일정이 없거나, 일반 조회에서 삭제된 일정인 경우 |
+
+### PATCH `/api/v1/schedules/{scheduleId}`
+
+전달된 필드만 수정한다. 일정 순서는 이 API에서 변경하지 않는다.
+
+필드 생략과 명시적인 `null`을 안정적으로 구분하기 위해 장소 연결 및 메모 삭제에는 `clearPlace`, `clearMemo`를 사용한다.
+
+#### Request Body
+
+```json
+{
+  "title": "성산일출봉 일출 관람",
+  "startAt": "2026-08-15T06:00:00",
+  "endTime": "08:00",
+  "clearMemo": true,
+  "clearPlace": false,
+  "reservationStatus": "RESERVED"
+}
+```
+
+#### PATCH 필드 처리 규칙
+
+| 요청 | 처리 |
+| --- | --- |
+| 필드 생략 | 기존 값 유지 |
+| `placeId` 전달 | 활성 Place 확인 후 장소 변경 |
+| `clearPlace: true` | 장소 연결 해제 |
+| `memo` 전달 | 메모 변경 |
+| `clearMemo: true` | 메모 삭제 |
+| `placeId`와 `clearPlace: true` 동시 전달 | `INVALID_REQUEST` |
+| `memo`와 `clearMemo: true` 동시 전달 | `INVALID_REQUEST` |
+
+#### Response Body
+
+```json
+{
+  "scheduleId": 31,
+  "planId": 1,
+  "place": {
+    "placeId": 15,
+    "name": "성산일출봉",
+    "address": "제주특별자치도 서귀포시 성산읍 성산리 1번지",
+    "phone": null,
+    "placeUrl": null
+  },
+  "title": "성산일출봉 일출 관람",
+  "sortOrder": 2,
+  "startAt": "2026-08-15T06:00:00",
+  "endTime": "08:00",
+  "memo": null,
+  "reservationStatus": "RESERVED",
+  "kakaoRouteUrl": "https://map.kakao.com/...",
+  "createdAt": "2026-08-11T15:30:00.123456",
+  "updatedAt": "2026-08-11T16:10:00.123456"
+}
+```
+
+#### Error Code
+
+| 상태 | 오류 코드 | 조건 |
+| --- | --- | --- |
+| 400 | `INVALID_REQUEST` | 수정값 검증 실패 |
+| 400 | `INVALID_TIME_RANGE` | 수정 결과의 시간 범위가 잘못됨 |
+| 400 | `INVALID_RESERVATION_STATUS` | 지원하지 않는 예약 상태 |
+| 403 | `PLAN_ACCESS_DENIED` | 여행 계획 접근 권한 없음 |
+| 404 | `SCHEDULE_NOT_FOUND` | 일정이 없거나 삭제됨 |
+| 404 | `PLACE_NOT_FOUND` | 변경할 Place가 없거나 삭제됨 |
+
+### PATCH `/api/v1/plans/{planId}/schedules/order`
+
+여러 일정의 순서를 변경한다. 생성 시에는 서비스가 마지막 순서를 자동 지정하고, 사용자가 순서를 직접 변경할 때 이 API를 사용한다.
+
+#### Request Body
+
+```json
+{
+  "scheduleIds": [33, 31, 32]
+}
+```
+
+#### 검증 규칙
+
+- 요청 배열에는 해당 Plan의 모든 활성 Schedule ID가 한 번씩 포함되어야 한다.
+- 중복된 ID를 포함할 수 없다.
+- 다른 Plan에 속한 Schedule ID를 포함할 수 없다.
+- 삭제된 Schedule ID를 포함할 수 없다.
+
+#### Response Body
+
+```json
+{
+  "planId": 1,
+  "schedules": [
+    {
+      "scheduleId": 33,
+      "sortOrder": 1
+    },
+    {
+      "scheduleId": 31,
+      "sortOrder": 2
+    },
+    {
+      "scheduleId": 32,
+      "sortOrder": 3
+    }
+  ]
+}
+```
+
+#### Error Code
+
+| 상태 | 오류 코드 | 조건 |
+| --- | --- | --- |
+| 400 | `INVALID_SCHEDULE_ORDER` | 누락, 중복 또는 다른 여행 계획의 일정 포함 |
+| 403 | `PLAN_ACCESS_DENIED` | 여행 계획 접근 권한 없음 |
+| 404 | `PLAN_NOT_FOUND` | Plan이 없거나 삭제됨 |
+
+### DELETE `/api/v1/schedules/{scheduleId}`
+
+일정을 소프트 삭제한다. 실제 레코드는 제거하지 않고 `deleted_at`에 삭제 시각을 기록하며, 남은 일정의 `sortOrder`를 서비스에서 재정렬한다.
+
+#### Response Body
+
+성공 상태: `200 OK`
+
+```json
+{
+  "scheduleId": 31,
+  "deletedAt": "2026-08-11T17:00:00.123456"
+}
+```
+
+#### Error Code
+
+| 상태 | 오류 코드 | 조건 |
+| --- | --- | --- |
+| 403 | `PLAN_ACCESS_DENIED` | 여행 계획 접근 권한 없음 |
+| 404 | `SCHEDULE_NOT_FOUND` | 일정이 없거나 이미 삭제됨 |
+
+## Test 시나리오
+
+### 일정 생성
+
+```text
+Given 존재하며 접근 가능한 Plan이 있고
+When 유효한 일정 생성 요청을 보내면
+Then 일정이 마지막 순서로 생성된다.
+```
+
+```text
+Given 존재하는 Plan이 있고
+When placeId 없이 일정을 생성하면
+Then 장소 없는 일정이 정상적으로 생성된다.
+```
+
+```text
+Given 종료 시간이 시작 시간보다 빠른 요청이 있고
+When 일정을 생성하면
+Then INVALID_TIME_RANGE 오류가 발생한다.
+```
+
+```text
+Given startAt이 없는 요청이 있고
+When 일정을 생성하면
+Then INVALID_REQUEST 오류가 발생한다.
+```
+
+### 일정 조회
+
+```text
+Given 활성 일정과 삭제된 일정이 함께 있고
+When Plan의 일정 목록을 조회하면
+Then 삭제되지 않은 일정만 순서대로 반환된다.
+```
+
+```text
+Given Plan에 일정이 없고
+When 목록을 조회하면
+Then 빈 배열과 200 OK를 반환한다.
+```
+
+```text
+Given 삭제된 일정이 있고
+When includeDeleted=true로 단건 조회하면
+Then deletedAt을 포함한 일정 정보를 반환한다.
+```
+
+### 일정 수정
+
+```text
+Given 기존 일정이 있고
+When title만 전달하여 PATCH 요청하면
+Then title만 변경되고 나머지 필드는 유지된다.
+```
+
+```text
+Given 메모가 등록된 일정이 있고
+When clearMemo를 true로 전달하면
+Then 메모가 제거된다.
+```
+
+```text
+Given 장소가 연결된 일정이 있고
+When clearPlace를 true로 전달하면
+Then 장소 연결이 제거된다.
+```
+
+### 순서 변경
+
+```text
+Given 세 개의 일정이 있고
+When 새로운 ID 순서로 변경을 요청하면
+Then 모든 일정의 sortOrder가 요청 순서대로 변경된다.
+```
+
+```text
+Given 다른 Plan의 Schedule ID가 포함되어 있고
+When 순서 변경을 요청하면
+Then 전체 변경이 취소되고 INVALID_SCHEDULE_ORDER가 발생한다.
+```
+
+### 일정 삭제
+
+```text
+Given 활성 일정이 있고
+When 삭제를 요청하면
+Then 200 OK와 scheduleId 및 deletedAt을 반환한다.
+```
+
+```text
+Given 삭제된 일정이 있고
+When 목록 조회를 요청하면
+Then 해당 일정은 조회되지 않는다.
+```
+
+```text
+Given 이미 삭제된 일정이 있고
+When 다시 삭제를 요청하면
+Then SCHEDULE_NOT_FOUND 오류가 발생한다.
+```

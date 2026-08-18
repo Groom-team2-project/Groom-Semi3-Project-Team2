@@ -10,13 +10,13 @@ import { Field, FieldInput } from "@/components/ui/FieldInput";
 import { BottomTabBar } from "@/components/ui/BottomTabBar";
 import { useAuth } from "@/context/AuthContext";
 import { useLastPlanId } from "@/lib/lastPlan";
-import { getPlans, updateMe } from "@/lib/api";
+import { getPlans } from "@/lib/api";
 import type { Plan, Role } from "@/lib/api";
 
 const ROLE_LABEL: Record<Role, string> = { OWNER: "모임장", EDITOR: "편집자", VIEWER: "뷰어" };
 
 export default function ProfilePage() {
-  const { user, isLoading, logout } = useAuth();
+  const { user, isLoading, updateProfile, logout } = useAuth();
   const router = useRouter();
   const lastPlanId = useLastPlanId();
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -45,7 +45,7 @@ export default function ProfilePage() {
 
   async function handleNicknameBlur() {
     if (!user || !nickname.trim() || nickname === user.name) return;
-    await updateMe({ name: nickname.trim() });
+    await updateProfile(nickname.trim());
   }
 
   if (isLoading || !user) return null;
@@ -63,7 +63,12 @@ export default function ProfilePage() {
         </div>
 
         <Field label="닉네임">
-          <FieldInput value={nickname} onChange={(e) => setNickname(e.target.value)} onBlur={handleNicknameBlur} />
+          <FieldInput
+            value={nickname}
+            maxLength={20}
+            onChange={(e) => setNickname(e.target.value)}
+            onBlur={handleNicknameBlur}
+          />
         </Field>
 
         <h3 className="mt-1 text-[13px] text-gray-500">내 계획</h3>

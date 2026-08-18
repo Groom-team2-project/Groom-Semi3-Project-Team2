@@ -32,10 +32,7 @@ public class AuthMemberService {
 
     private UserLookupResult findOrCreateUserInTransaction(Long kakaoId, KakaoUserInfo userInfo) {
         return userRepository.findByKakaoId(kakaoId)
-                .map(user -> {
-                    user.updateProfile(userInfo.email(), userInfo.nickname());
-                    return new UserLookupResult(user, false);
-                })
+                .map(user -> new UserLookupResult(user, false))
                 .orElseGet(() -> createUser(kakaoId, userInfo));
     }
 
@@ -53,7 +50,6 @@ public class AuthMemberService {
                 .orElseThrow(() -> new DataIntegrityViolationException(
                         "Concurrent Kakao user creation recovery failed."
                 ));
-        user.updateProfile(userInfo.email(), userInfo.nickname());
         return new UserLookupResult(user, false);
     }
 
