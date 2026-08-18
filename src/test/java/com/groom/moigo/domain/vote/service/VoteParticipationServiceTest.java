@@ -299,7 +299,7 @@ class VoteParticipationServiceTest {
 		MyVoteResponse response =
 				voteParticipationService.findMyParticipation(planId, id(vote.id()), firstId);
 
-		assertThat(response.memberId()).isEqualTo(String.valueOf(firstId));
+		assertThat(response.userId()).isEqualTo(String.valueOf(firstId));
 		assertThat(response.selectedOptionIds()).containsExactlyInAnyOrderElementsOf(optionIds);
 		assertThat(response.selectedOptionId()).isEqualTo(optionIds.get(0));
 		assertThat(response.participatedAt()).isNotNull();

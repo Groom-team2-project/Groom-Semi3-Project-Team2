@@ -48,7 +48,8 @@ public class VoteParticipationService {
 	public VoteResponse participate(
 			Long planId, Long voteId, Long userId, VoteParticipationRequest request) {
 		planAccessService.requireJoinedMember(planId, userId);
-		Vote vote = findVoteOfPlan(planId, voteId);
+		// 같은 회원의 동시 참여 요청을 줄 세우려고 투표 행에 잠금을 건다.
+		Vote vote = findVoteOfPlan(planId, voteId, true);
 		validateOpen(vote);
 
 		List<Long> optionIds = validateSelection(vote, request.selectedOptionIds());
@@ -143,9 +144,12 @@ public class VoteParticipationService {
 	}
 
 	private Vote findVoteOfPlan(Long planId, Long voteId) {
+		return findVoteOfPlan(planId, voteId, false);
+	}
+
+	private Vote findVoteOfPlan(Long planId, Long voteId, boolean forUpdate) {
 		Vote vote =
-				voteRepository
-						.findById(voteId)
+				(forUpdate ? voteRepository.findByIdForUpdate(voteId) : voteRepository.findById(voteId))
 						.orElseThrow(() -> new VoteException(VoteErrorCode.VOTE_NOT_FOUND));
 		if (!vote.belongsToPlan(planId)) {
 			throw new VoteException(VoteErrorCode.VOTE_NOT_IN_PLAN);
