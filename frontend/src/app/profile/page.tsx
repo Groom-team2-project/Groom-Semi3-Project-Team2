@@ -35,8 +35,9 @@ export default function ProfilePage() {
   }
 
   useEffect(() => {
+    if (!user) return;
     getPlans().then(setPlans);
-  }, []);
+  }, [user]);
 
   async function handleLogout() {
     await logout();
@@ -49,6 +50,10 @@ export default function ProfilePage() {
   }
 
   if (isLoading || !user) return null;
+
+  const tabPlanId = plans.some((plan) => plan.id === lastPlanId)
+    ? lastPlanId
+    : plans[0]?.id ?? null;
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -72,14 +77,14 @@ export default function ProfilePage() {
         </Field>
 
         <h3 className="mt-1 text-[13px] text-gray-500">내 계획</h3>
-        <div>
+        <div className="flex flex-col gap-1">
           {plans.map((p) => {
-            const role = p.members.find((m) => m.userId === user.id)?.role ?? "VIEWER";
+            const role = p.myRole ?? p.members.find((m) => m.userId === user.id)?.role ?? "VIEWER";
             return (
               <Link
                 key={p.id}
                 href={`/plans/${p.id}`}
-                className="flex items-center gap-2.5 border-b border-gray-200 py-2.5 text-[14.5px] font-semibold"
+                className="flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-[14.5px] font-semibold hover:bg-gray-100"
               >
                 <span>{p.emoji ?? "🧳"}</span>
                 <span>{p.title}</span>
@@ -111,7 +116,7 @@ export default function ProfilePage() {
           로그아웃
         </Button>
       </div>
-      <BottomTabBar planId={lastPlanId} />
+      <BottomTabBar planId={tabPlanId} />
     </div>
   );
 }

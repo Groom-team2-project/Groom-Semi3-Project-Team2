@@ -26,7 +26,7 @@ export default function ScheduleDetailPage({
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const { user } = useAuth();
-  const currentUserId = user?.id ?? (USE_MOCK ? store.me.id : undefined);
+  const currentUserId = USE_MOCK ? store.me.id : user?.id;
   const commentsById = new Map(comments.map((comment) => [comment.id, comment]));
   const childComments = new Map<string, Comment[]>();
   const rootComments: Comment[] = [];
