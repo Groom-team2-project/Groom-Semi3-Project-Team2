@@ -96,7 +96,9 @@ public class ActivityLogServiceImpl implements ActivityLogService {
                         log,
                         usersById.get(log.getUserId()),
                         planTitlesById.getOrDefault(log.getPlanId(), "삭제된 계획"),
-                        scheduleIdsByCommentId.get(log.getTargetId())
+                        log.getTargetType() == ActivityTargetType.COMMENT
+                                ? scheduleIdsByCommentId.get(log.getTargetId())
+                                : null
                 ))
                 .toList();
     }
