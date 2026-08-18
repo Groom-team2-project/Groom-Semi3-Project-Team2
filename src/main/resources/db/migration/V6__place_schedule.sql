@@ -41,9 +41,9 @@ ALTER TABLE schedules
 -- 기존 날짜와 시간을 start_at으로 합친다.
 -- start_time이 없던 일정은 해당 날짜의 00:00:00으로 변환한다.
 UPDATE schedules
-SET start_at = TIMESTAMP(
-    schedule_date,
-    COALESCE(start_time, '00:00:00')
+SET start_at = CAST(
+    CONCAT(schedule_date, ' ', COALESCE(start_time, '00:00:00'))
+    AS DATETIME
     );
 
 
@@ -74,8 +74,12 @@ DROP INDEX idx_schedules_plan_date ON schedules;
 
 -- 더 이상 사용하지 않는 기존 컬럼 제거
 ALTER TABLE schedules
-DROP COLUMN schedule_date,
-    DROP COLUMN start_time,
+    DROP COLUMN schedule_date;
+
+ALTER TABLE schedules
+    DROP COLUMN start_time;
+
+ALTER TABLE schedules
     DROP COLUMN is_reserved;
 
 

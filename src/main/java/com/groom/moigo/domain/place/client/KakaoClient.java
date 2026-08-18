@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 import java.math.BigDecimal;
 
@@ -15,13 +16,21 @@ public class KakaoClient {
 
     private final RestClient restClient;
 
+    KakaoClient(RestClient restClient) {
+        this.restClient = restClient;
+    }
+
     public KakaoClient(
             RestClient.Builder builder,
             @Value("${kakao.local.rest-api-key}") String apiKey
     ) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(3_000);
+        requestFactory.setReadTimeout(5_000);
         this.restClient = builder
                 .baseUrl("https://dapi.kakao.com")
                 .defaultHeader("Authorization", "KakaoAK " + apiKey)
+                .requestFactory(requestFactory)
                 .build();
     }
 

@@ -15,4 +15,9 @@ public class PlaceException extends RuntimeException {
         super(errorCode.getMessage(), cause);
         this.errorCode = errorCode;
     }
+
+    public PlaceException(PlaceErrorCode errorCode, String message) {
+        super(message);
+        this.errorCode = errorCode;
+    }
 }

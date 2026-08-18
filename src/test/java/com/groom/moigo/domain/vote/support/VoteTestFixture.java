@@ -101,7 +101,7 @@ public class VoteTestFixture {
 		LocalDateTime now = LocalDateTime.now();
 		Map<String, Object> values = new HashMap<>();
 		values.put("kakao_place_id", "kakao-%d".formatted(unique));
-		values.put("place_name", name);
+		values.put("name", name);
 		values.put("address", "제주 서귀포시 성산읍");
 		values.put("created_at", now);
 		values.put("updated_at", now);
@@ -112,10 +112,10 @@ public class VoteTestFixture {
 		LocalDateTime now = LocalDateTime.now();
 		Map<String, Object> values = new HashMap<>();
 		values.put("plan_id", planId);
-		values.put("schedule_date", LocalDate.now());
 		values.put("title", title);
+		values.put("start_at", LocalDateTime.now());
 		values.put("sort_order", 1);
-		values.put("is_reserved", false);
+		values.put("reservation_status", "NOT_REQUIRED");
 		values.put("created_at", now);
 		values.put("updated_at", now);
 		return scheduleInsert.executeAndReturnKey(values).longValue();
