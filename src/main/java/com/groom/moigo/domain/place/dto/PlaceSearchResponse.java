@@ -27,4 +27,16 @@ public class PlaceSearchResponse {
                 place.getPlaceUrl()
         );
     }
+
+    public static PlaceSearchResponse from(KakaoDocument document) {
+        return new PlaceSearchResponse(
+                null,
+                document.getName(),
+                document.getCategory(),
+                document.getAddress(),
+                document.getRoadAddress(),
+                document.getPhone(),
+                document.getPlaceUrl()
+        );
+    }
 }
