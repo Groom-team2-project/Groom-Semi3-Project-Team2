@@ -7,9 +7,22 @@ import { Button } from "@/components/ui/Button";
 import { CommentItem } from "@/components/plan/CommentItem";
 import { getSchedule, getComments, addComment, deleteComment } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { USE_MOCK } from "@/lib/api/client";
+import { ApiError, USE_MOCK } from "@/lib/api/client";
 import { store } from "@/lib/api/store";
 import type { Comment, Schedule } from "@/lib/api";
+
+function getCommentPostError(error: unknown): string {
+  if (!(error instanceof ApiError)) return "댓글 등록에 실패했어요. 다시 시도해 주세요.";
+
+  if (error.status === 0) return "네트워크 연결을 확인한 뒤 다시 시도해 주세요.";
+  if (error.status === 401) return "로그인이 필요해요. 다시 로그인해 주세요.";
+  if (error.status === 403) return "댓글 작성 권한이 없어요.";
+  if (error.status === 404) return "일정이 삭제되었거나 더 이상 볼 수 없어요.";
+  if (error.status === 400) return "일정 또는 답글 대상이 더 이상 유효하지 않아요.";
+  if (error.status >= 500) return "서버에 문제가 있어요. 잠시 후 다시 시도해 주세요.";
+
+  return "댓글 등록에 실패했어요. 다시 시도해 주세요.";
+}
 
 export default function ScheduleDetailPage({
   params,
@@ -23,6 +36,7 @@ export default function ScheduleDetailPage({
   const [comments, setComments] = useState<Comment[]>([]);
   const [text, setText] = useState("");
   const [posting, setPosting] = useState(false);
+  const [postError, setPostError] = useState("");
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const { user } = useAuth();
@@ -55,12 +69,15 @@ export default function ScheduleDetailPage({
   async function handlePost() {
     if (!text.trim() || text.length > 60 || posting) return;
     setPosting(true);
+    setPostError("");
     try {
       const comment = await addComment(planId, scheduleId, text.trim(), replyTo?.id);
       setComments((prev) => [...prev, comment]);
       setText("");
       setReplyTo(null);
       setIsComposerOpen(false);
+    } catch (error) {
+      setPostError(getCommentPostError(error));
     } finally {
       setPosting(false);
     }
@@ -75,6 +92,7 @@ export default function ScheduleDetailPage({
 
   function openComposer(comment?: Comment) {
     setReplyTo(comment ?? null);
+    setPostError("");
     setIsComposerOpen(true);
   }
 
@@ -82,6 +100,7 @@ export default function ScheduleDetailPage({
     if (posting) return;
     setText("");
     setReplyTo(null);
+    setPostError("");
     setIsComposerOpen(false);
   }
 
@@ -179,6 +198,7 @@ export default function ScheduleDetailPage({
               <p className="text-[12px] text-red">{text.length > 60 && "댓글은 60자까지 남길 수 있어요."}</p>
               <span className={`text-[12px] ${text.length > 60 ? "text-red" : "text-gray-500"}`}>{text.length} / 60</span>
             </div>
+            {postError && <p role="alert" className="mt-1.5 text-[12px] text-red">{postError}</p>}
             <div className="mt-4 flex gap-2">
               <Button variant="ghost" size="sm" onClick={closeComposer} disabled={posting}>취소</Button>
               <Button size="sm" onClick={handlePost} disabled={!text.trim() || text.length > 60 || posting}>
