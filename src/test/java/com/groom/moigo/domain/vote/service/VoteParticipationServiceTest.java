@@ -96,57 +96,24 @@ class VoteParticipationServiceTest {
 		assertThat(result.options().get(0).selectedByMe()).isTrue();
 		assertThat(result.options().get(1).selectedByMe()).isFalse();
 	}
-
 	@Test
-	@DisplayName("투표에 참여하면 활동 이력이 남는다")
-	void participateRecordsActivity() {
+	@DisplayName("참여·재투표·취소는 활동 이력을 남기지 않는다")
+	void participationLeavesNoActivityTrace() {
 		VoteResponse vote = createVote(VoteType.SINGLE);
 
 		voteParticipationService.participate(
 				planId, id(vote.id()), firstId, single(vote.options().get(0).id()));
-
-		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_PARTICIPATED)
-				.singleElement()
-				.satisfies(
-						log -> {
-							assertThat(log.getPlanId()).isEqualTo(planId);
-							assertThat(log.getUserId()).isEqualTo(firstId);
-							assertThat(log.getTargetId()).isEqualTo(Long.valueOf(vote.id()));
-							assertThat(log.getSummary()).isEqualTo("투표에 참여했어요");
-						});
-	}
-
-	@Test
-	@DisplayName("표를 바꾸는 재투표는 활동 이력을 새로 남기지 않는다")
-	void revoteDoesNotRecordActivityAgain() {
-		VoteResponse vote = createVote(VoteType.SINGLE);
-		voteParticipationService.participate(
-				planId, id(vote.id()), firstId, single(vote.options().get(0).id()));
-
 		voteParticipationService.participate(
 				planId, id(vote.id()), firstId, single(vote.options().get(1).id()));
-
-		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_PARTICIPATED)
-				.hasSize(1);
-	}
-
-	@Test
-	@DisplayName("참여를 취소했다가 다시 참여하면 활동 이력이 새로 남는다")
-	void rejoinAfterCancelRecordsActivityAgain() {
-		VoteResponse vote = createVote(VoteType.SINGLE);
-		voteParticipationService.participate(
-				planId, id(vote.id()), firstId, single(vote.options().get(0).id()));
 		voteParticipationService.cancel(planId, id(vote.id()), firstId);
-
 		voteParticipationService.participate(
 				planId, id(vote.id()), firstId, single(vote.options().get(0).id()));
 
-		// 표를 바꾸는 것과 달리 취소 후 재참여는 새로 참여한 것으로 본다.
+		// 누가 무엇을 골랐는지 드러나지 않아야 하므로 참여 관련 이력은 만들지 않는다.
+		// 투표 생성 이력만 남는다.
 		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_PARTICIPATED)
-				.hasSize(2);
+				.extracting(log -> log.getActionType())
+				.containsExactly(ActivityActionType.VOTE_CREATED);
 	}
 
 	@Test

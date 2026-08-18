@@ -1,9 +1,5 @@
 package com.groom.moigo.domain.vote.service;
 
-import com.groom.moigo.domain.activity.dto.ActivityRecordCommand;
-import com.groom.moigo.domain.activity.entity.ActivityActionType;
-import com.groom.moigo.domain.activity.entity.ActivityTargetType;
-import com.groom.moigo.domain.activity.service.ActivityLogService;
 import com.groom.moigo.domain.plan.service.PlanAccessService;
 import com.groom.moigo.domain.vote.dto.request.VoteParticipationRequest;
 import com.groom.moigo.domain.vote.dto.response.MyVoteResponse;
@@ -31,6 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>이미 참여한 회원이 다시 투표하면 기존 선택을 모두 지우고 새 선택으로 교체한다. 프론트엔드 투표 상세 화면의 "표를 바꿀 수 있어요" 동작이 이 규칙을 따른다.
  *
  * <p>계획에 참여 중인 멤버여야 투표할 수 있다. VIEWER도 참여할 수 있게 두었다. 투표는 계획 내용을 고치는 일이 아니라 의견을 남기는 일이라고 봤다.
+ *
+ * <p>참여·재투표·취소는 활동 기록을 남기지 않는다. 누가 무엇을 골랐는지 드러나지 않도록 하는 활동 기록 정책을 따른다.
  */
 @Service
 @RequiredArgsConstructor
@@ -41,7 +39,6 @@ public class VoteParticipationService {
 	private final VoteOptionRepository voteOptionRepository;
 	private final VoteParticipationRepository voteParticipationRepository;
 	private final VoteResponseAssembler assembler;
-	private final ActivityLogService activityLogService;
 	private final PlanAccessService planAccessService;
 
 	@Transactional
@@ -59,7 +56,7 @@ public class VoteParticipationService {
 		}
 
 		// 재투표는 기존 선택을 덮어쓴다.
-		boolean revote = voteParticipationRepository.deleteByVoteIdAndUserId(voteId, userId) > 0;
+		voteParticipationRepository.deleteByVoteIdAndUserId(voteId, userId);
 
 		List<VoteParticipation> participations =
 				options.stream()
@@ -68,19 +65,6 @@ public class VoteParticipationService {
 										VoteParticipation.builder().vote(vote).option(option).userId(userId).build())
 						.toList();
 		voteParticipationRepository.saveAll(participations);
-
-		// 표를 바꾼 경우는 새로 참여한 것이 아니므로 활동 이력을 남기지 않는다.
-		// 참여를 취소했다가 다시 참여하는 것은 새로 참여한 것으로 보고 이력을 남긴다.
-		if (!revote) {
-			activityLogService.record(
-					new ActivityRecordCommand(
-							vote.getPlanId(),
-							userId,
-							ActivityActionType.VOTE_PARTICIPATED,
-							ActivityTargetType.VOTE,
-							vote.getId(),
-							"투표에 참여했어요"));
-		}
 
 		return assembler.toVoteResponse(vote, userId);
 	}
