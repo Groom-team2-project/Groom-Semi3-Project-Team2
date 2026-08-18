@@ -38,6 +38,8 @@ public class ActivityLogServiceImpl implements ActivityLogService {
             ActivityActionType.SCHEDULE_UPDATED,
             ActivityActionType.SCHEDULE_DELETED,
             ActivityActionType.VOTE_CREATED,
+            ActivityActionType.VOTE_UPDATED,
+            ActivityActionType.VOTE_DELETED,
             ActivityActionType.VOTE_CLOSED,
             ActivityActionType.MEMBER_JOINED,
             ActivityActionType.MEMBER_LEFT,

@@ -23,6 +23,8 @@ function mapActivity(response: ActivityApiResponse): ActivityLog {
     SCHEDULE_UPDATED: "schedule_updated",
     SCHEDULE_DELETED: "schedule_deleted",
     VOTE_CREATED: "vote_created",
+    VOTE_UPDATED: "vote_updated",
+    VOTE_DELETED: "vote_deleted",
     VOTE_PARTICIPATED: "vote_participated",
     VOTE_CLOSED: "vote_closed",
     MEMBER_JOINED: "member_joined",
@@ -53,7 +55,7 @@ export async function getActivities(planId: string, limit?: number): Promise<Act
   if (USE_MOCK) {
     await simulateLatency(180);
     const sharedTypes: ActivityLog["type"][] = [
-      "schedule_added", "schedule_updated", "schedule_deleted", "vote_created", "vote_closed", "member_joined", "member_left", "member_role_changed", "comment_added",
+      "schedule_added", "schedule_updated", "schedule_deleted", "vote_created", "vote_updated", "vote_deleted", "vote_closed", "member_joined", "member_left", "member_role_changed", "comment_added",
     ];
     const activities = store.activities
       .filter((activity) => activity.planId === planId)

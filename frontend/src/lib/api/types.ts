@@ -129,6 +129,8 @@ export type ActivityType =
   | "schedule_updated"
   | "schedule_deleted"
   | "vote_created"
+  | "vote_updated"
+  | "vote_deleted"
   | "vote_participated"
   | "vote_closed"
   | "member_joined"
