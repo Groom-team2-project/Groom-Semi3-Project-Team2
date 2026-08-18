@@ -1,9 +1,12 @@
 package com.groom.moigo.domain.place.client;
 
 import com.groom.moigo.domain.place.dto.KakaoSearchResponse;
+import com.groom.moigo.domain.place.exception.PlaceErrorCode;
+import com.groom.moigo.domain.place.exception.PlaceException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import java.math.BigDecimal;
 
@@ -31,7 +34,8 @@ public class KakaoClient {
             BigDecimal longitude,
             Integer radius
     ) {
-        return restClient.get()
+        try {
+            KakaoSearchResponse response = restClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/v2/local/search/keyword.json")
                         .queryParam("query", keyword)
@@ -43,6 +47,13 @@ public class KakaoClient {
                         .queryParamIfPresent("radius", java.util.Optional.ofNullable(radius))
                         .build())
                 .retrieve()
-                .body(KakaoSearchResponse.class);
+                    .body(KakaoSearchResponse.class);
+            if (response == null) {
+                throw new PlaceException(PlaceErrorCode.KAKAO_LOCAL_API_ERROR);
+            }
+            return response;
+        } catch (RestClientException exception) {
+            throw new PlaceException(PlaceErrorCode.KAKAO_LOCAL_API_ERROR, exception);
+        }
     }
 }
