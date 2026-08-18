@@ -1,11 +1,9 @@
 package com.groom.moigo.domain.place.service;
 
-import com.groom.moigo.domain.place.dto.PlaceListResponse;
-import com.groom.moigo.domain.place.dto.PlacePageResponse;
-import com.groom.moigo.domain.place.dto.PlaceResponse;
+import com.groom.moigo.domain.place.client.KakaoClient;
+import com.groom.moigo.domain.place.dto.*;
 import com.groom.moigo.domain.place.entity.PlaceEntity;
 import com.groom.moigo.domain.place.repository.PlaceRepository;
-import lombok.Generated;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -14,12 +12,14 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 
 @Service
 @RequiredArgsConstructor
 public class PlaceService {
     private final PlaceRepository placeRepository;
+    private final KakaoClient kakaoClient;
 
     public PlaceResponse getPlace(Long placeId) {
         PlaceEntity place = placeRepository
@@ -43,6 +43,12 @@ public class PlaceService {
             BigDecimal longitude,
             Integer radius
     ){
-
+        KakaoSearchResponse result = kakaoClient.searchByKeyword(
+                query, page, size, sort, latitude, longitude, radius
+        );
+        List<PlaceSearchResponse> places = result.getDocuments().stream()
+                .map(PlaceSearchResponse::from)
+                .toList();
+        return PlacePageResponse.of(places, page, size, result.getMeta());
     }
 }
