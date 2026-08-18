@@ -93,6 +93,14 @@ export default function ProfilePage() {
           })}
         </div>
 
+        <Link
+          href="/profile/activities"
+          className="flex items-center border-t border-gray-200 pt-4 text-[14.5px] font-semibold text-ink"
+        >
+          내 활동 내역
+          <span className="ml-auto text-gray-500">›</span>
+        </Link>
+
         <div className="h-1" />
         <Button onClick={handleLogout} variant="ghost" size="sm">
           로그아웃
