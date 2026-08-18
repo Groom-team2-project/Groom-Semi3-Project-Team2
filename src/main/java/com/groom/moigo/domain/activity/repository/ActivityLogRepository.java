@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface ActivityLogRepository extends  JpaRepository<ActivityLogEntity, Long> {
     List<ActivityLogEntity> findByPlanIdOrderByCreatedAtDesc(Long planId);
+
+    List<ActivityLogEntity> findByUserIdOrderByCreatedAtDesc(Long userId);
 }

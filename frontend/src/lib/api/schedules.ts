@@ -1,6 +1,43 @@
 import { generateId, dayIndexToDate } from "@/lib/utils";
 import { store, simulateLatency } from "./store";
+import { apiFetch, USE_MOCK } from "./client";
 import type { Comment, Schedule } from "./types";
+
+interface CommonResponse<T> {
+  success: boolean;
+  data: T;
+  errorCode: string | null;
+  message: string;
+}
+
+interface CommentApiResponse {
+  commentId: number;
+  planId: number;
+  scheduleId: number;
+  parentCommentId: number | null;
+  content: string;
+  deleted: boolean;
+  userId: number | null;
+  nickname: string | null;
+  profileImage: string | null;
+  createdAt: string;
+}
+
+function mapComment(response: CommentApiResponse): Comment {
+  return {
+    id: String(response.commentId),
+    planId: String(response.planId),
+    scheduleId: String(response.scheduleId),
+    parentCommentId: response.parentCommentId ? String(response.parentCommentId) : undefined,
+    userId: response.userId ? String(response.userId) : undefined,
+    authorName: response.nickname ?? "삭제된 사용자",
+    authorColor: "#8B95A1",
+    profileImage: response.profileImage ?? undefined,
+    text: response.content,
+    deleted: response.deleted,
+    createdAt: response.createdAt,
+  };
+}
 
 export interface UpsertScheduleInput {
   day: number;
@@ -71,30 +108,81 @@ export async function deleteSchedule(planId: string, scheduleId: string): Promis
   store.schedules = store.schedules.filter((s) => !(s.planId === planId && s.id === scheduleId));
   store.comments = store.comments.filter((c) => c.scheduleId !== scheduleId);
   if (schedule) {
-    store.recordActivity(planId, "schedule_deleted", `'${schedule.placeName}' 일정을 삭제했어요`, "schedule");
+    store.recordActivity(planId, "schedule_deleted", `'${schedule.placeName}' 일정을 삭제했어요`, "schedule", schedule.id);
   }
 }
 
 /** GET /api/v1/plans/{planId}/schedules/{scheduleId}/comments */
-export async function getComments(scheduleId: string): Promise<Comment[]> {
-  await simulateLatency(150);
-  return store.comments
-    .filter((c) => c.scheduleId === scheduleId)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+export async function getComments(planId: string, scheduleId: string): Promise<Comment[]> {
+  if (USE_MOCK) {
+    await simulateLatency(150);
+    return store.comments
+      .filter((comment) => comment.scheduleId === scheduleId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  const response = await apiFetch<CommonResponse<CommentApiResponse[]>>(
+    `/api/v1/plans/${planId}/schedules/${scheduleId}/comments`,
+  );
+  return response.data.map(mapComment);
 }
 
 /** POST /api/v1/plans/{planId}/schedules/{scheduleId}/comments */
-export async function addComment(planId: string, scheduleId: string, text: string): Promise<Comment> {
-  await simulateLatency(220);
-  const comment: Comment = {
-    id: generateId("cmt"),
-    scheduleId,
-    authorName: store.me.name,
-    authorColor: store.me.avatarColor,
-    text,
-    createdAt: new Date().toISOString(),
-  };
-  store.comments.push(comment);
-  store.recordActivity(planId, "comment_added", "댓글을 남겼어요", "schedule", scheduleId);
-  return comment;
+export async function addComment(
+  planId: string,
+  scheduleId: string,
+  content: string,
+  parentCommentId?: string,
+): Promise<Comment> {
+  if (USE_MOCK) {
+    await simulateLatency(220);
+    const comment: Comment = {
+      id: generateId("cmt"),
+      planId,
+      scheduleId,
+      parentCommentId,
+      userId: store.me.id,
+      authorName: store.me.name,
+      authorColor: store.me.avatarColor,
+      text: content,
+      createdAt: new Date().toISOString(),
+    };
+    store.comments.push(comment);
+    store.recordActivity(
+      planId,
+      "comment_added",
+      parentCommentId ? "댓글에 답글을 남겼어요" : "댓글을 남겼어요",
+      "comment",
+      comment.id,
+    );
+    return comment;
+  }
+
+  const response = await apiFetch<CommonResponse<CommentApiResponse>>(
+    `/api/v1/plans/${planId}/schedules/${scheduleId}/comments`,
+    {
+      method: "POST",
+      body: JSON.stringify({ content, parentCommentId: parentCommentId ? Number(parentCommentId) : null }),
+    },
+  );
+  return mapComment(response.data);
+}
+
+/** DELETE /api/v1/plans/{planId}/schedules/{scheduleId}/comments/{commentId} */
+export async function deleteComment(planId: string, scheduleId: string, commentId: string): Promise<void> {
+  if (USE_MOCK) {
+    await simulateLatency(150);
+    const comment = store.comments.find((item) => item.id === commentId && item.scheduleId === scheduleId);
+    if (comment) {
+      comment.deleted = true;
+      comment.text = "삭제된 댓글입니다.";
+      store.recordActivity(planId, "comment_deleted", "댓글을 삭제했어요", "comment", commentId);
+    }
+    return;
+  }
+
+  await apiFetch<CommonResponse<void>>(
+    `/api/v1/plans/${planId}/schedules/${scheduleId}/comments/${commentId}`,
+    { method: "DELETE" },
+  );
 }

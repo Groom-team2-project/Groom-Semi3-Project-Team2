@@ -48,6 +48,12 @@
 - [ ] 여행 계획 공유
 - [ ] 모바일 화면 최적화
 
+## 도메인 문서
+
+- [장소 도메인 명세](docs/places-spec.md)
+- [일정 도메인 명세](docs/schedules-spec.md)
+- [활동 기록 정책](docs/activity-log-spec.md)
+
 ## 개발 로드맵
 
 ### 1. 기반 구성
