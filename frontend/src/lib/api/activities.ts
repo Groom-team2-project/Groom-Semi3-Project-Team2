@@ -18,6 +18,20 @@ interface ActivityApiResponse {
 }
 
 function mapActivity(response: ActivityApiResponse): ActivityLog {
+  const actionTypeMap: Record<string, ActivityLog["type"]> = {
+    SCHEDULE_CREATED: "schedule_added",
+    SCHEDULE_UPDATED: "schedule_updated",
+    SCHEDULE_DELETED: "schedule_deleted",
+    VOTE_CREATED: "vote_created",
+    VOTE_PARTICIPATED: "vote_participated",
+    VOTE_CLOSED: "vote_closed",
+    MEMBER_JOINED: "member_joined",
+    MEMBER_LEFT: "member_left",
+    MEMBER_ROLE_CHANGED: "member_role_changed",
+    COMMENT_CREATED: "comment_added",
+    COMMENT_DELETED: "comment_deleted",
+  };
+
   return {
     id: String(response.logId),
     planId: String(response.planId),
@@ -25,7 +39,7 @@ function mapActivity(response: ActivityApiResponse): ActivityLog {
     actorName: response.nickname,
     actorColor: "#8B95A1",
     actorInitial: response.nickname.slice(0, 1),
-    type: response.actionType.toLowerCase() as ActivityLog["type"],
+    type: actionTypeMap[response.actionType] ?? "comment_added",
     summary: response.summary,
     targetType: response.targetType.toLowerCase() as ActivityLog["targetType"],
     targetId: String(response.targetId),
