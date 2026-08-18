@@ -50,7 +50,13 @@ public class SecurityConfig {
 								SecurityErrorResponseWriter.write(
 										response,
 										ErrorCode.UNAUTHORIZED
-								))))
+								)))
+						.accessDeniedHandler(((request, response, accessDeniedException) ->
+								SecurityErrorResponseWriter.write(
+										response,
+										ErrorCode.ACCESS_DENIED
+								)))
+				)
 				.addFilterBefore(
 						jwtFilter,
 						UsernamePasswordAuthenticationFilter.class

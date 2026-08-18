@@ -76,15 +76,13 @@ class VoteControllerTest {
 	@Test
 	@DisplayName("인증 없이 호출하면 거부된다")
 	void createVoteWithoutAuthentication() throws Exception {
-		// 공통 SecurityConfig에 AuthenticationEntryPoint가 없어 현재는 403으로 떨어진다.
-		// 프론트엔드는 401만 "로그인이 필요합니다"로 처리하므로 공통 설정에서 다룰 문제다.
-		// 여기서는 투표 API가 인증을 요구한다는 사실만 고정한다.
 		mockMvc
 				.perform(
 						post("/api/v1/plans/{planId}/votes", planId)
 								.contentType(MediaType.APPLICATION_JSON)
 								.content(createVotePayload()))
-				.andExpect(status().is4xxClientError());
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
 	}
 
 	@Test

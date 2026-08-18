@@ -33,7 +33,7 @@ public class UserController {
         );
     }
 
-    @PostMapping("/profile")
+    @PatchMapping("/profile")
     public ResponseEntity<CommonResponse<UserProfileResponse>> updateProfile(
             @AuthenticationPrincipal AuthMember authMember,
             @Valid @RequestBody UserProfileUpdateRequest request

@@ -34,7 +34,10 @@ public enum ErrorCode {
     INVITATION_EXPIRED(HttpStatus.CONFLICT, "만료된 초대 링크입니다."),
     INVITATION_REVOKED(HttpStatus.CONFLICT, "취소된 초대 링크입니다."),
     INVITATION_CODE_DUPLICATED(HttpStatus.INTERNAL_SERVER_ERROR, "초대 코드 생성에 실패했습니다. 다시 시도해주세요."),
-    INVALID_INVITATION_ROLE(HttpStatus.BAD_REQUEST, "유효하지 않은 초대 권한입니다.");
+    INVALID_INVITATION_ROLE(HttpStatus.BAD_REQUEST, "유효하지 않은 초대 권한입니다."),
+
+    //Admin
+    ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
 
     private final HttpStatus status;
     private final String message;
