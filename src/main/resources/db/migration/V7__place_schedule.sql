@@ -67,8 +67,12 @@ ALTER TABLE schedules
     'CANCELLED'
     ) NOT NULL DEFAULT 'NOT_REQUIRED';
 
+-- 신규 인덱스를 먼저 생성한다.
+-- plan_id가 첫 번째 컬럼이므로 기존 외래 키 인덱스 역할도 대신한다.
+CREATE INDEX idx_schedules_plan_deleted_sort
+    ON schedules (plan_id, deleted_at, sort_order);
 
--- schedule_date가 포함된 기존 인덱스를 먼저 제거한다.
+-- 대체 인덱스를 만든 다음 기존 인덱스를 제거한다.
 DROP INDEX idx_schedules_plan_date ON schedules;
 
 
