@@ -109,10 +109,10 @@ jobs:
         id: image
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ vars.ECR.REPOSITORY }}
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}-${{ github.run_attempt }}
         run: |
-          set -Eeuo pipefall
+          set -Eeuo pipefail
           
           IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
           docker build --tag "${IMAGE_URI}" .
@@ -126,18 +126,25 @@ jobs:
           INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
           DEPLOY_REGION: ${{ vars.AWS_REGION }}
         run: |
-          set -Eeuo pipefall
+          set -Eeuo pipefail
+          
+          SSM_EXECUTION_TIMEOUT="600"
           
           PARAMETERS="$(
             jq -cn \
               --arg command "sudo /opt/moigo/deploy.sh ${IMAGE_URI} ${DEPLOY_REGION}" \
-              '{commands: [$command]}'
+              --arg execution_timeout "${SSM_EXECUTION_TIMEOUT}" \
+              '{
+                commands: [$command],
+                executionTimeout: [$execution_timeout]
+              }'
           )"
 
           COMMAND_ID="$(
             aws ssm send-command \
               --instance-ids "${INSTANCE_ID}" \
               --document-name "AWS-RunShellScript" \
+              --timeout-seconds 120 \
               --comment "Deploy moigo backend ${GITHUB_SHA}" \
               --parameters "${PARAMETERS}" \
               --query "Command.CommandId" \
@@ -147,8 +154,10 @@ jobs:
           echo "SSM command: ${COMMAND_ID}"
 
           STATUS="Pending"
+          
+          POLL_ATTEMPTS=150
 
-          for attempt in $(seq 1 90); do
+          for attempt in $(seq 1 "${POLL_ATTEMPTS}"); do
             STATUS="$(
               aws ssm get-command-invocation \
                 --command-id "${COMMAND_ID}" \
@@ -157,7 +166,7 @@ jobs:
                 --output text 2>/dev/null || true
             )"
 
-            echo "Deployment ${attempt}/90: ${STATUS:-Pending}"
+            echo "Deployment ${attempt}/${POLL_ATTEMPTS}: ${STATUS:-Pending}"
 
             case "${STATUS}" in
               Success|Failed|Cancelled|TimedOut|Cancelling)
