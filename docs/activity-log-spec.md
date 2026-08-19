@@ -46,6 +46,7 @@ GET /api/v1/plans/{planId}/activities
 - 2절에서 계획 최근 활동이 `O`인 항목만 최신순으로 반환한다.
 - 일정 수정은 시간·장소·날짜 변경만 공유 활동으로 기록한다. 제목·메모·표시 순서 변경은 내 활동에만 기록한다.
 - 계획 홈의 최근 활동과 전체 활동 화면에서 사용한다.
+- `size`(기본 20, 최대 100)와 `cursorCreatedAt`, `cursorLogId`를 함께 사용해 다음 페이지를 조회한다.
 
 ### 3.2 내 활동
 
@@ -57,6 +58,18 @@ GET /api/v1/users/me/activities
 - 수정·삭제를 포함한다.
 - 응답에는 이동을 위해 `planId`, `planTitle`, `targetType`, `targetId`를 포함한다.
 - 프로필의 **내 활동 내역** 화면에서 사용한다.
+- `size`(기본 20, 최대 100)와 `cursorCreatedAt`, `cursorLogId`를 함께 사용해 다음 페이지를 조회한다.
+
+두 API 모두 다음 형태로 응답한다. 같은 시각에 생성된 로그도 누락·중복 없이 이어서 조회할 수 있도록 `createdAt`과 `logId`를 복합 커서로 사용한다.
+
+```json
+{
+  "activities": [],
+  "nextCursorCreatedAt": "2026-08-19T20:00:00",
+  "nextCursorLogId": 123,
+  "hasNext": true
+}
+```
 
 ---
 
