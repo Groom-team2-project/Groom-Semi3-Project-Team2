@@ -85,8 +85,3 @@ ALTER TABLE schedules
 
 ALTER TABLE schedules
     DROP COLUMN is_reserved;
-
-
--- 활성 일정 목록과 정렬 순서 조회를 위한 인덱스
-CREATE INDEX idx_schedules_plan_deleted_sort
-    ON schedules (plan_id, deleted_at, sort_order);
