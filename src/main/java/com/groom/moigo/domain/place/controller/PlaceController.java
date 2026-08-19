@@ -31,9 +31,11 @@ public class PlaceController {
     @GetMapping
     public ResponseEntity<CommonResponse<PlaceListResponse>> getPlaces(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "createdAt,desc") String sort
     ) {
-        PlaceListResponse response = placeService.getPlaces(page, size);
+        PlaceListResponse response = placeService.getPlaces(page, size, keyword, sort);
 
         return ResponseEntity.ok(
                 CommonResponse.success(response, "장소 목록 조회 성공")
