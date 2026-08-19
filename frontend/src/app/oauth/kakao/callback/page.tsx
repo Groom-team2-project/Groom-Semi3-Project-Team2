@@ -6,12 +6,12 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function KakaoCallbackPage() {
   const router = useRouter();
-  const { completeKakaoLogin } = useAuth();
+  const { completeKakaoLogin, isLoading } = useAuth();
   const requested = useRef(false);
   const [message, setMessage] = useState("카카오 로그인 처리 중입니다.");
 
   useEffect(() => {
-    if (requested.current) return;
+    if (isLoading || requested.current) return;
     requested.current = true;
 
     const params = new URLSearchParams(window.location.search);
@@ -26,7 +26,7 @@ export default function KakaoCallbackPage() {
     completeKakaoLogin(code, state)
       .then(() => router.replace("/plans"))
       .catch(() => setMessage("카카오 로그인에 실패했습니다. 다시 시도해 주세요."));
-  }, [completeKakaoLogin, router]);
+  }, [completeKakaoLogin, isLoading, router]);
 
   return (
     <main className="flex min-h-dvh items-center justify-center px-6 text-center">
