@@ -29,6 +29,8 @@ app:
     cookie-secure: ${OAUTH_COOKIE_SECURE:false}
 
 kakao:
+  local:
+    rest-api-key: ${KAKAO_LOCAL_REST_API_KEY:dummy-kakao-local-rest-api-key}
   oauth:
     client-id: ${KAKAO_CLIENT_ID:dummy-kakao-client-id}
     client-secret: ${KAKAO_CLIENT_SECRET:dummy-kakao-client-secret}
