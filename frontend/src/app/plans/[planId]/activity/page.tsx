@@ -8,16 +8,23 @@ import { ActivityRow } from "@/components/plan/ActivityRow";
 import { Toast } from "@/components/ui/Toast";
 import { getActivities } from "@/lib/api";
 import { getActivityDestination } from "@/lib/activityNavigation";
-import type { ActivityLog } from "@/lib/api";
+import type { ActivityCursor, ActivityLog } from "@/lib/api";
 
 export default function ActivityLogPage({ params }: { params: Promise<{ planId: string }> }) {
   const { planId } = use(params);
   const router = useRouter();
   const [activities, setActivities] = useState<ActivityLog[] | null>(null);
+  const [nextCursor, setNextCursor] = useState<ActivityCursor | undefined>();
+  const [hasNext, setHasNext] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    getActivities(planId).then(setActivities);
+    getActivities(planId).then((page) => {
+      setActivities(page.activities);
+      setNextCursor(page.nextCursor);
+      setHasNext(page.hasNext);
+    });
   }, [planId]);
 
   const clearToast = useCallback(() => setToastMessage(null), []);
@@ -31,6 +38,21 @@ export default function ActivityLogPage({ params }: { params: Promise<{ planId: 
     setToastMessage("삭제되었거나 더 이상 볼 수 없는 활동이에요.");
   }
 
+  async function loadMore() {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await getActivities(planId, { cursor: nextCursor });
+      setActivities((previous) => [...(previous ?? []), ...page.activities]);
+      setNextCursor(page.nextCursor);
+      setHasNext(page.hasNext);
+    } catch {
+      setToastMessage("활동을 더 불러오지 못했어요. 다시 시도해 주세요.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   return (
     <div className="flex min-h-dvh flex-col">
       <AppBar title="활동 내역" backHref={`/plans/${planId}`} />
@@ -41,8 +63,18 @@ export default function ActivityLogPage({ params }: { params: Promise<{ planId: 
         ))}
         {activities && activities.length > 0 && (
           <p className="pt-2 text-center text-[11.5px] text-gray-500">
-            activity_logs 테이블 기반 · 계획 단위로 최신순 조회
+            활동을 최신순으로 불러오고 있어요
           </p>
+        )}
+        {hasNext && (
+          <button
+            type="button"
+            className="mt-2 rounded-xl bg-gray-100 py-2.5 text-[13px] font-bold text-gray-700 disabled:opacity-50"
+            onClick={loadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? "불러오는 중..." : "더 보기"}
+          </button>
         )}
       </div>
       <Toast message={toastMessage} onClose={clearToast} />

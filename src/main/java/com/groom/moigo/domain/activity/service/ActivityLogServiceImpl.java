@@ -1,6 +1,7 @@
 package com.groom.moigo.domain.activity.service;
 
 import com.groom.moigo.domain.activity.dto.ActivityRecordCommand;
+import com.groom.moigo.domain.activity.dto.ActivityPageResponse;
 import com.groom.moigo.domain.activity.dto.ActivityResponse;
 import com.groom.moigo.domain.activity.entity.ActivityLogEntity;
 import com.groom.moigo.domain.activity.entity.ActivityActionType;
@@ -13,10 +14,14 @@ import com.groom.moigo.domain.user.repository.UserRepository;
 import com.groom.moigo.domain.plan.service.PlanAccessService;
 import com.groom.moigo.domain.plan.entity.PlanEntity;
 import com.groom.moigo.domain.plan.repository.PlanRepository;
+import com.groom.moigo.global.error.BusinessException;
+import com.groom.moigo.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -63,17 +68,64 @@ public class ActivityLogServiceImpl implements ActivityLogService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ActivityResponse> getActivities(Long planId, Long userId) {
+    public ActivityPageResponse getActivities(
+            Long planId,
+            Long userId,
+            int size,
+            LocalDateTime cursorCreatedAt,
+            Long cursorLogId
+    ) {
         planAccessService.requireJoinedMember(planId, userId);
-        List<ActivityLogEntity> logs = activityLogRepository.findByPlanIdOrderByCreatedAtDesc(planId)
-                .stream().filter(log -> SHARED_ACTIONS.contains(log.getActionType())).toList();
-        return toResponses(logs);
+        validateCursor(cursorCreatedAt, cursorLogId);
+        List<ActivityLogEntity> logs = activityLogRepository.findSharedActivitiesByCursor(
+                planId,
+                List.copyOf(SHARED_ACTIONS),
+                cursorCreatedAt,
+                cursorLogId,
+                PageRequest.of(0, size + 1)
+        );
+        return toPageResponse(logs, size);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<ActivityResponse> getMyActivities(Long userId) {
-        return toResponses(activityLogRepository.findByUserIdOrderByCreatedAtDesc(userId));
+    public ActivityPageResponse getMyActivities(
+            Long userId,
+            int size,
+            LocalDateTime cursorCreatedAt,
+            Long cursorLogId
+    ) {
+        validateCursor(cursorCreatedAt, cursorLogId);
+        List<ActivityLogEntity> logs = activityLogRepository.findMyActivitiesByCursor(
+                userId,
+                cursorCreatedAt,
+                cursorLogId,
+                PageRequest.of(0, size + 1)
+        );
+        return toPageResponse(logs, size);
+    }
+
+    private void validateCursor(LocalDateTime cursorCreatedAt, Long cursorLogId) {
+        if ((cursorCreatedAt == null) != (cursorLogId == null)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "활동 기록 커서는 생성 시각과 로그 ID를 함께 전달해야 합니다."
+            );
+        }
+    }
+
+    private ActivityPageResponse toPageResponse(List<ActivityLogEntity> logs, int size) {
+        boolean hasNext = logs.size() > size;
+        List<ActivityLogEntity> pageLogs = hasNext ? logs.subList(0, size) : logs;
+        List<ActivityResponse> activities = toResponses(pageLogs);
+        ActivityLogEntity lastLog = hasNext ? pageLogs.getLast() : null;
+
+        return new ActivityPageResponse(
+                activities,
+                lastLog == null ? null : lastLog.getCreatedAt(),
+                lastLog == null ? null : lastLog.getLogId(),
+                hasNext
+        );
     }
 
     private List<ActivityResponse> toResponses(List<ActivityLogEntity> logs) {

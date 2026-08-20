@@ -30,7 +30,7 @@ export default function PlanHomePage({ params }: { params: Promise<{ planId: str
   useEffect(() => {
     getSchedules(planId).then(setSchedules);
     getVotes(planId).then(setVotes);
-    getActivities(planId, 3).then(setActivities);
+    getActivities(planId, { size: 3 }).then((page) => setActivities(page.activities));
   }, [planId]);
 
   const clearToast = useCallback(() => setToastMessage(null), []);
@@ -92,15 +92,19 @@ export default function PlanHomePage({ params }: { params: Promise<{ planId: str
 
         <div className="mt-2.5 flex items-baseline">
           <h3 className="text-[15px] font-bold">최근 활동</h3>
-          <div className="flex-1" />
-          <Link href={`/plans/${planId}/activity`} className="text-[12px] font-bold text-primary">
-            전체보기 ›
-          </Link>
         </div>
         {activities.length === 0 && <p className="text-[12.5px] text-gray-500">아직 활동 내역이 없어요</p>}
         {activities.map((a) => (
           <ActivityRow key={a.id} activity={a} onClick={() => handleActivityClick(a)} />
         ))}
+        {activities.length > 0 && (
+          <Link
+            href={`/plans/${planId}/activity`}
+            className="mt-1 flex min-h-11 items-center justify-center rounded-xl bg-gray-100 text-[13px] font-bold text-gray-700"
+          >
+            활동 전체보기
+          </Link>
+        )}
       </div>
       <BottomTabBar planId={planId} />
       <Toast message={toastMessage} onClose={clearToast} />
