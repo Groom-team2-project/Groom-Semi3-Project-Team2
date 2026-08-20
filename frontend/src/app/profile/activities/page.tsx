@@ -45,6 +45,8 @@ export default function MyActivityPage() {
       setActivities((previous) => [...(previous ?? []), ...page.activities]);
       setNextCursor(page.nextCursor);
       setHasNext(page.hasNext);
+    } catch {
+      setToastMessage("활동을 더 불러오지 못했어요. 다시 시도해 주세요.");
     } finally {
       setLoadingMore(false);
     }
