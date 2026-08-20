@@ -17,6 +17,29 @@ interface ActivityApiResponse {
   createdAt: string;
 }
 
+interface ActivityPageApiResponse {
+  activities: ActivityApiResponse[];
+  nextCursorCreatedAt: string | null;
+  nextCursorLogId: number | null;
+  hasNext: boolean;
+}
+
+export interface ActivityCursor {
+  createdAt: string;
+  logId: string;
+}
+
+export interface ActivityPage {
+  activities: ActivityLog[];
+  nextCursor?: ActivityCursor;
+  hasNext: boolean;
+}
+
+interface ActivityQuery {
+  size?: number;
+  cursor?: ActivityCursor;
+}
+
 function mapActivity(response: ActivityApiResponse): ActivityLog {
   const actionTypeMap: Record<string, ActivityLog["type"]> = {
     SCHEDULE_CREATED: "schedule_added",
@@ -50,8 +73,26 @@ function mapActivity(response: ActivityApiResponse): ActivityLog {
   };
 }
 
-/** GET /api/v1/plans/{planId}/activities — activity_logs 테이블 기반, 계획 단위 최신순 조회 */
-export async function getActivities(planId: string, limit?: number): Promise<ActivityLog[]> {
+function toMockPage(activities: ActivityLog[], query: ActivityQuery): ActivityPage {
+  const size = query.size ?? 20;
+  const startIndex = query.cursor
+    ? activities.findIndex((activity) => activity.id === query.cursor?.logId) + 1
+    : 0;
+  const pageActivities = activities.slice(Math.max(startIndex, 0), startIndex + size);
+  const hasNext = startIndex + size < activities.length;
+  const lastActivity = pageActivities.at(-1);
+
+  return {
+    activities: pageActivities,
+    nextCursor: hasNext && lastActivity
+      ? { createdAt: lastActivity.createdAt, logId: lastActivity.id }
+      : undefined,
+    hasNext,
+  };
+}
+
+/** GET /api/v1/plans/{planId}/activities — activity_logs 테이블 기반, 커서 기준 최신순 조회 */
+export async function getActivities(planId: string, query: ActivityQuery = {}): Promise<ActivityPage> {
   if (USE_MOCK) {
     await simulateLatency(180);
     const sharedTypes: ActivityLog["type"][] = [
@@ -66,27 +107,49 @@ export async function getActivities(planId: string, limit?: number): Promise<Act
         const comment = store.comments.find((item) => item.id === activity.targetId);
         return { ...activity, scheduleId: comment?.scheduleId };
       });
-    return typeof limit === "number" ? activities.slice(0, limit) : activities;
+    return toMockPage(activities, query);
   }
 
-  const response = await apiFetch<CommonResponse<ActivityApiResponse[]>>(`/api/v1/plans/${planId}/activities`);
-  const activities = response.data.map(mapActivity);
-  return typeof limit === "number" ? activities.slice(0, limit) : activities;
+  const params = new URLSearchParams({ size: String(query.size ?? 20) });
+  if (query.cursor) {
+    params.set("cursorCreatedAt", query.cursor.createdAt);
+    params.set("cursorLogId", query.cursor.logId);
+  }
+  const response = await apiFetch<CommonResponse<ActivityPageApiResponse>>(`/api/v1/plans/${planId}/activities?${params}`);
+  return {
+    activities: response.data.activities.map(mapActivity),
+    nextCursor: response.data.hasNext && response.data.nextCursorCreatedAt && response.data.nextCursorLogId
+      ? { createdAt: response.data.nextCursorCreatedAt, logId: String(response.data.nextCursorLogId) }
+      : undefined,
+    hasNext: response.data.hasNext,
+  };
 }
 
 /** GET /api/v1/users/me/activities — 내 수정·삭제를 포함한 전체 활동 조회 */
-export async function getMyActivities(): Promise<ActivityLog[]> {
+export async function getMyActivities(query: ActivityQuery = {}): Promise<ActivityPage> {
   if (USE_MOCK) {
     await simulateLatency(180);
-    return store.activities
+    const activities = store.activities
       .filter((activity) => activity.actorName === store.me.name)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map((activity) => ({
         ...activity,
         planTitle: store.getPlan(activity.planId)?.title ?? "삭제된 계획",
       }));
+    return toMockPage(activities, query);
   }
 
-  const response = await apiFetch<CommonResponse<ActivityApiResponse[]>>("/api/v1/users/me/activities");
-  return response.data.map(mapActivity);
+  const params = new URLSearchParams({ size: String(query.size ?? 20) });
+  if (query.cursor) {
+    params.set("cursorCreatedAt", query.cursor.createdAt);
+    params.set("cursorLogId", query.cursor.logId);
+  }
+  const response = await apiFetch<CommonResponse<ActivityPageApiResponse>>(`/api/v1/users/me/activities?${params}`);
+  return {
+    activities: response.data.activities.map(mapActivity),
+    nextCursor: response.data.hasNext && response.data.nextCursorCreatedAt && response.data.nextCursorLogId
+      ? { createdAt: response.data.nextCursorCreatedAt, logId: String(response.data.nextCursorLogId) }
+      : undefined,
+    hasNext: response.data.hasNext,
+  };
 }
