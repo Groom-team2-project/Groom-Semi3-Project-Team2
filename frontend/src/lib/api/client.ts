@@ -43,7 +43,7 @@ export async function apiFetch<T>(
   const fullUrl = API_BASE_URL + path;
   const headers = new Headers(init?.headers);
 
-  if (!headers.has("Content-Type")) {
+  if (!headers.has("Content-Type") && !(init?.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
   if (accessToken && !headers.has("Authorization")) {
