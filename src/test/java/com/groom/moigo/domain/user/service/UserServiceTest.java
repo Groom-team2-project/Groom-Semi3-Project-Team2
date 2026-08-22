@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -37,11 +38,14 @@ class UserServiceTest {
     @Mock
     private S3Client s3Client;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private UserService userService;
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, s3Client);
+        userService = new UserService(userRepository, s3Client, eventPublisher);
         ReflectionTestUtils.setField(userService, "bucketName", "moigo-images");
         ReflectionTestUtils.setField(userService, "s3PublicUrl", "https://images.example.com/");
     }
