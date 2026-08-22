@@ -35,11 +35,15 @@ npm run lint
 cp .env.example .env.local
 ```
 
-지금은 `.env.local`의 `NEXT_PUBLIC_API_BASE_URL`을 **비워둔 채로 두면 됩니다.** 이 값이 비어있는 동안
-`src/lib/api/*`의 모든 함수는 실제 fetch 대신 mock 데이터를 리턴합니다 (`src/lib/api/client.ts`의
-`USE_MOCK`은 `!API_BASE_URL`로 자동 계산돼서, 이 값을 채우면 따로 코드를 안 고쳐도 자동으로 꺼집니다).
-백엔드가 준비되면 이 값에 API 서버 주소를 채우고, `src/lib/api/*` 내부 구현만 함수 단위로 하나씩 fetch로
-바꾸면 됩니다.
+`BACKEND_URL`에는 Next.js rewrite가 요청을 전달할 Spring Boot 서버 주소를 설정합니다. 로컬에서는
+`http://localhost:8080`을 사용하고, 배포 환경에서는 배포된 백엔드 주소를 사용합니다.
+
+`NEXT_PUBLIC_API_BASE_URL`은 비워 둡니다. 브라우저는 같은 출처의 `/api`로 요청하고, Next.js rewrite가
+`BACKEND_URL`로 요청을 전달합니다.
+
+목 데이터는 `NEXT_PUBLIC_USE_MOCK=true`일 때만 사용합니다. 기본값은 `false`이며, 실제 API가 준비된 도메인은
+로그인한 사용자의 토큰으로 데이터를 조회합니다. 백엔드 미구현 영역은 API 계약이 준비된 뒤
+`src/lib/api/*`에서 실제 연동으로 전환합니다.
 
 ## 브랜치 전략
 
