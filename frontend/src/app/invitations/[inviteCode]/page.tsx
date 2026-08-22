@@ -7,10 +7,12 @@ import {
     joinByInviteCode,
 } from "@/lib/api/invitations";
 import type { Invitation } from "@/lib/api/types";
+import { useAuth } from "@/context/AuthContext";
 
 export default function InvitationPage() {
     const params = useParams();
     const router = useRouter();
+    const { loginWithKakao } = useAuth();
 
     const inviteCode = params.inviteCode as string;
 
@@ -60,12 +62,15 @@ export default function InvitationPage() {
         void loadInvitation();
     }, [inviteCode]);
 
-    const handleLogin = () => {
-        const redirect = `/invitations/${inviteCode}`;
-
-        router.push(
-            `/login?redirect=${encodeURIComponent(redirect)}`,
+    const handleLogin = async () => {
+        // 로그인 후 돌아올 초대 페이지 저장
+        sessionStorage.setItem(
+            "postLoginRedirect",
+            `/invitations/${inviteCode}`,
         );
+
+        // 로그인 페이지를 거치지 않고 바로 카카오 로그인 실행
+        await loginWithKakao();
     };
 
     const handleJoin = async () => {
