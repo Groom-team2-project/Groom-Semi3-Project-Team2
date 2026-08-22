@@ -1,7 +1,8 @@
 # 모이Go 프론트엔드
 
 모이Go(여행 계획 공동 작성 서비스)의 프론트엔드입니다. **Next.js(App Router) + TypeScript + Tailwind CSS**로 만들어졌고,
-아직 백엔드 API가 없어 `src/lib/api/*`가 mock 데이터를 리턴하는 구조로 전체 화면이 동작합니다.
+기본적으로 실제 백엔드 API를 사용합니다. 백엔드 연동이 아직 준비되지 않은 도메인만 `src/lib/api/*`에서
+mock 데이터로 동작합니다.
 
 ## 로컬 실행
 
