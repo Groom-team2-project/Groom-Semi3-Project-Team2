@@ -1,5 +1,8 @@
 package com.groom.moigo.domain.place.entity;
 
+import com.groom.moigo.domain.place.dto.KakaoDocument;
+import com.groom.moigo.domain.place.exception.PlaceErrorCode;
+import com.groom.moigo.domain.place.exception.PlaceException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -68,6 +71,58 @@ public class PlaceEntity {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    public static PlaceEntity create(KakaoDocument document) {
+        validate(document);
+        PlaceEntity place = new PlaceEntity();
+        place.kakaoPlaceId = document.getId().trim();
+        place.updateKakaoInfo(document);
+        return place;
+    }
+
+    public void updateKakaoInfo(KakaoDocument document) {
+        validate(document);
+        if (!kakaoPlaceId.equals(document.getId().trim())) {
+            throw new PlaceException(PlaceErrorCode.INVALID_KAKAO_PLACE_DATA);
+        }
+        this.name = document.getName().trim();
+        this.category = normalize(document.getCategory());
+        this.address = normalize(document.getAddress());
+        this.roadAddress = normalize(document.getRoadAddress());
+        this.longitude = document.getX();
+        this.latitude = document.getY();
+        this.phone = normalize(document.getPhone());
+        this.placeUrl = normalize(document.getPlaceUrl());
+    }
+
+    public void softDelete() {
+        if (deletedAt == null) {
+            deletedAt = LocalDateTime.now();
+        }
+    }
+
+    public void restore() {
+        deletedAt = null;
+    }
+
+    private static void validate(KakaoDocument document) {
+        if (document == null || isBlank(document.getId()) || isBlank(document.getName())
+                || document.getX() == null || document.getY() == null
+                || document.getX().compareTo(BigDecimal.valueOf(-180)) < 0
+                || document.getX().compareTo(BigDecimal.valueOf(180)) > 0
+                || document.getY().compareTo(BigDecimal.valueOf(-90)) < 0
+                || document.getY().compareTo(BigDecimal.valueOf(90)) > 0) {
+            throw new PlaceException(PlaceErrorCode.INVALID_KAKAO_PLACE_DATA);
+        }
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private static String normalize(String value) {
+        return isBlank(value) ? null : value.trim();
+    }
 
     @PrePersist
     private void prePersist() {

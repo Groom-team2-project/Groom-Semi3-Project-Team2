@@ -8,15 +8,22 @@ import { Toast } from "@/components/ui/Toast";
 import { ActivityRow } from "@/components/plan/ActivityRow";
 import { getMyActivities } from "@/lib/api";
 import { getActivityDestination } from "@/lib/activityNavigation";
-import type { ActivityLog } from "@/lib/api";
+import type { ActivityCursor, ActivityLog } from "@/lib/api";
 
 export default function MyActivityPage() {
   const router = useRouter();
   const [activities, setActivities] = useState<ActivityLog[] | null>(null);
+  const [nextCursor, setNextCursor] = useState<ActivityCursor | undefined>();
+  const [hasNext, setHasNext] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    getMyActivities().then(setActivities);
+    getMyActivities().then((page) => {
+      setActivities(page.activities);
+      setNextCursor(page.nextCursor);
+      setHasNext(page.hasNext);
+    });
   }, []);
 
   const clearToast = useCallback(() => setToastMessage(null), []);
@@ -30,6 +37,19 @@ export default function MyActivityPage() {
     setToastMessage("삭제되었거나 더 이상 볼 수 없는 활동이에요.");
   }
 
+  async function loadMore() {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await getMyActivities({ cursor: nextCursor });
+      setActivities((previous) => [...(previous ?? []), ...page.activities]);
+      setNextCursor(page.nextCursor);
+      setHasNext(page.hasNext);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   return (
     <div className="flex min-h-dvh flex-col">
       <AppBar title="내 활동 내역" backHref="/profile" />
@@ -41,6 +61,16 @@ export default function MyActivityPage() {
             <ActivityRow activity={activity} onClick={() => handleClick(activity)} />
           </div>
         ))}
+        {hasNext && (
+          <button
+            type="button"
+            className="mt-2 rounded-xl bg-gray-100 py-2.5 text-[13px] font-bold text-gray-700 disabled:opacity-50"
+            onClick={loadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? "불러오는 중..." : "더 보기"}
+          </button>
+        )}
       </div>
       <Toast message={toastMessage} onClose={clearToast} />
     </div>

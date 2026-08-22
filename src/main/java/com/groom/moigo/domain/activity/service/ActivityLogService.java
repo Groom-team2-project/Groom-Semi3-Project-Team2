@@ -1,14 +1,14 @@
 package com.groom.moigo.domain.activity.service;
 
 import com.groom.moigo.domain.activity.dto.ActivityRecordCommand;
-import com.groom.moigo.domain.activity.dto.ActivityResponse;
+import com.groom.moigo.domain.activity.dto.ActivityPageResponse;
 
-import java.util.List;
+import java.time.LocalDateTime;
 
 public interface ActivityLogService {
     void record(ActivityRecordCommand command);
 
-    List<ActivityResponse> getActivities(Long planId, Long userId);
+    ActivityPageResponse getActivities(Long planId, Long userId, int size, LocalDateTime cursorCreatedAt, Long cursorLogId);
 
-    List<ActivityResponse> getMyActivities(Long userId);
+    ActivityPageResponse getMyActivities(Long userId, int size, LocalDateTime cursorCreatedAt, Long cursorLogId);
 }

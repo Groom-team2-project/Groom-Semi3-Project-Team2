@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   completeKakaoLogin as completeKakaoLoginRequest,
   loginWithKakao,
@@ -23,14 +24,27 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
+  const [shouldRestoreOnMount] = useState(
+    () => pathname !== "/oauth/kakao/callback",
+  );
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(shouldRestoreOnMount);
 
   useEffect(() => {
     let active = true;
+
     const unsubscribe = subscribeAuthenticationCleared(() => {
       if (active) setUser(null);
     });
+
+    if (!shouldRestoreOnMount) {
+      return () => {
+        active = false;
+        unsubscribe();
+      };
+    }
 
     async function initializeAuth() {
       try {
@@ -49,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       active = false;
       unsubscribe();
     };
-  }, []);
+  }, [shouldRestoreOnMount]);
 
   const login = useCallback(async () => {
     await loginWithKakao();
