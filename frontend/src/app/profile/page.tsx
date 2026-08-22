@@ -37,9 +37,13 @@ function ProfileContent({ user }: { user: User }) {
 
   useEffect(() => {
     let active = true;
-    void getPlans().then((nextPlans) => {
-      if (active) setPlans(nextPlans);
-    });
+    void getPlans()
+      .then((nextPlans) => {
+        if (active) setPlans(nextPlans);
+      })
+      .catch(() => {
+        if (active) setPlans([]);
+      });
     return () => {
       active = false;
     };
