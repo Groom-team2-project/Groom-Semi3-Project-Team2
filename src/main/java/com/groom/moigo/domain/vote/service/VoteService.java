@@ -14,11 +14,11 @@ import com.groom.moigo.domain.vote.dto.response.VoteOptionResponse;
 import com.groom.moigo.domain.vote.dto.response.VoteResponse;
 import com.groom.moigo.domain.vote.entity.Vote;
 import com.groom.moigo.domain.vote.entity.VoteOption;
-import com.groom.moigo.domain.vote.exception.VoteErrorCode;
-import com.groom.moigo.domain.vote.exception.VoteException;
 import com.groom.moigo.domain.vote.repository.VoteOptionRepository;
 import com.groom.moigo.domain.vote.repository.VoteParticipationRepository;
 import com.groom.moigo.domain.vote.repository.VoteRepository;
+import com.groom.moigo.global.error.BusinessException;
+import com.groom.moigo.global.error.ErrorCode;
 import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -207,7 +207,7 @@ public class VoteService {
 
 		VoteOption option = findOptionOf(vote, optionId);
 		if (!vote.canRemoveOption()) {
-			throw new VoteException(VoteErrorCode.OPTION_BELOW_MINIMUM);
+			throw new BusinessException(ErrorCode.OPTION_BELOW_MINIMUM);
 		}
 
 		// 선택지에 걸린 참여 기록을 먼저 지워야 FK 제약에 걸리지 않는다.
@@ -232,7 +232,7 @@ public class VoteService {
 		requireEditor(planId, userId);
 		Vote vote = findVoteOfPlan(planId, voteId);
 		if (!vote.isCreatedBy(userId)) {
-			throw new VoteException(VoteErrorCode.NOT_VOTE_CREATOR);
+			throw new BusinessException(ErrorCode.NOT_VOTE_CREATOR);
 		}
 		return vote;
 	}
@@ -261,9 +261,9 @@ public class VoteService {
 		Vote vote =
 				voteRepository
 						.findById(voteId)
-						.orElseThrow(() -> new VoteException(VoteErrorCode.VOTE_NOT_FOUND));
+						.orElseThrow(() -> new BusinessException(ErrorCode.VOTE_NOT_FOUND));
 		if (!vote.belongsToPlan(planId)) {
-			throw new VoteException(VoteErrorCode.VOTE_NOT_IN_PLAN);
+			throw new BusinessException(ErrorCode.VOTE_NOT_IN_PLAN);
 		}
 		return vote;
 	}
@@ -272,23 +272,23 @@ public class VoteService {
 		VoteOption option =
 				voteOptionRepository
 						.findById(optionId)
-						.orElseThrow(() -> new VoteException(VoteErrorCode.VOTE_OPTION_NOT_FOUND));
+						.orElseThrow(() -> new BusinessException(ErrorCode.VOTE_OPTION_NOT_FOUND));
 		if (!option.belongsTo(vote.getId())) {
-			throw new VoteException(VoteErrorCode.OPTION_NOT_IN_VOTE);
+			throw new BusinessException(ErrorCode.OPTION_NOT_IN_VOTE);
 		}
 		return option;
 	}
 
 	private void validateOpen(Vote vote) {
 		if (vote.isClosed(Instant.now())) {
-			throw new VoteException(VoteErrorCode.VOTE_ALREADY_CLOSED);
+			throw new BusinessException(ErrorCode.VOTE_ALREADY_CLOSED);
 		}
 	}
 
 	/** 수정 요청은 마감 일시를 생략할 수 있다. 보냈다면 미래여야 한다. */
 	private void validateDeadline(Instant deadline) {
 		if (deadline != null && !deadline.isAfter(Instant.now())) {
-			throw new VoteException(VoteErrorCode.INVALID_DEADLINE);
+			throw new BusinessException(ErrorCode.INVALID_DEADLINE);
 		}
 	}
 
@@ -302,14 +302,14 @@ public class VoteService {
 			return;
 		}
 		if (!scheduleLinkReader.existsInPlan(scheduleId, planId)) {
-			throw new VoteException(VoteErrorCode.SCHEDULE_NOT_IN_PLAN);
+			throw new BusinessException(ErrorCode.SCHEDULE_NOT_IN_PLAN);
 		}
 	}
 
 	/** 생성 요청의 마감 일시는 스키마상 필수(votes.end_datetime NOT NULL)다. */
 	private void validateRequiredDeadline(Instant deadline) {
 		if (deadline == null) {
-			throw new VoteException(VoteErrorCode.INVALID_DEADLINE);
+			throw new BusinessException(ErrorCode.INVALID_DEADLINE);
 		}
 		validateDeadline(deadline);
 	}

@@ -14,8 +14,6 @@ import com.groom.moigo.domain.vote.dto.response.VoteOptionResponse;
 import com.groom.moigo.domain.vote.dto.response.VoteResponse;
 import com.groom.moigo.domain.vote.dto.response.VoteResultResponse;
 import com.groom.moigo.domain.vote.entity.VoteType;
-import com.groom.moigo.domain.vote.exception.VoteErrorCode;
-import com.groom.moigo.domain.vote.exception.VoteException;
 import com.groom.moigo.domain.vote.support.VoteTestFixture;
 import com.groom.moigo.global.error.BusinessException;
 import com.groom.moigo.global.error.ErrorCode;
@@ -124,9 +122,9 @@ class VoteParticipationServiceTest {
 
 		assertThatThrownBy(
 						() -> voteParticipationService.participate(planId, id(vote.id()), firstId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.SINGLE_CHOICE_ONLY);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.SINGLE_CHOICE_ONLY);
 	}
 
 	@Test
@@ -150,9 +148,9 @@ class VoteParticipationServiceTest {
 
 		assertThatThrownBy(
 						() -> voteParticipationService.participate(planId, id(vote.id()), firstId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.OPTION_NOT_SELECTED);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.OPTION_NOT_SELECTED);
 	}
 
 	@Test
@@ -165,9 +163,9 @@ class VoteParticipationServiceTest {
 
 		assertThatThrownBy(
 						() -> voteParticipationService.participate(planId, id(vote.id()), firstId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.DUPLICATED_OPTION_SELECTED);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.DUPLICATED_OPTION_SELECTED);
 	}
 
 	@Test
@@ -179,9 +177,9 @@ class VoteParticipationServiceTest {
 
 		assertThatThrownBy(
 						() -> voteParticipationService.participate(planId, id(vote.id()), firstId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.OPTION_NOT_IN_VOTE);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.OPTION_NOT_IN_VOTE);
 	}
 
 	@Test
@@ -195,9 +193,9 @@ class VoteParticipationServiceTest {
 		assertThatThrownBy(
 						() ->
 								voteParticipationService.participate(otherPlanId, id(vote.id()), firstId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.VOTE_NOT_IN_PLAN);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.VOTE_NOT_IN_PLAN);
 	}
 
 	@Test
@@ -226,9 +224,9 @@ class VoteParticipationServiceTest {
 
 		assertThatThrownBy(
 						() -> voteParticipationService.participate(planId, id(vote.id()), firstId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.VOTE_ALREADY_CLOSED);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.VOTE_ALREADY_CLOSED);
 	}
 
 	@Test
@@ -251,9 +249,9 @@ class VoteParticipationServiceTest {
 		VoteResponse vote = createVote(VoteType.SINGLE);
 
 		assertThatThrownBy(() -> voteParticipationService.cancel(planId, id(vote.id()), firstId))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.VOTE_PARTICIPATION_NOT_FOUND);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.VOTE_PARTICIPATION_NOT_FOUND);
 	}
 
 	@Test

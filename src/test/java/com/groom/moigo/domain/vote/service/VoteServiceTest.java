@@ -15,8 +15,6 @@ import com.groom.moigo.domain.vote.dto.response.VoteOptionResponse;
 import com.groom.moigo.domain.vote.dto.response.VoteResponse;
 import com.groom.moigo.domain.vote.entity.VoteStatus;
 import com.groom.moigo.domain.vote.entity.VoteType;
-import com.groom.moigo.domain.vote.exception.VoteErrorCode;
-import com.groom.moigo.domain.vote.exception.VoteException;
 import com.groom.moigo.domain.vote.repository.VoteRepository;
 import com.groom.moigo.domain.vote.support.VoteTestFixture;
 import com.groom.moigo.global.error.BusinessException;
@@ -198,9 +196,9 @@ class VoteServiceTest {
 								new VoteOptionCreateRequest("협재해수욕장", null, null, null)));
 
 		assertThatThrownBy(() -> voteService.create(planId, creatorId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.INVALID_DEADLINE);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.INVALID_DEADLINE);
 	}
 
 	@Test
@@ -218,9 +216,9 @@ class VoteServiceTest {
 								new VoteOptionCreateRequest("협재해수욕장", null, null, null)));
 
 		assertThatThrownBy(() -> voteService.create(planId, creatorId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.INVALID_DEADLINE);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.INVALID_DEADLINE);
 	}
 
 	@Test
@@ -261,9 +259,9 @@ class VoteServiceTest {
 		Long otherPlanId = fixture.createPlan(creatorId, "부산 당일치기");
 
 		assertThatThrownBy(() -> voteService.findById(otherPlanId, id(vote.id()), creatorId))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.VOTE_NOT_IN_PLAN);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.VOTE_NOT_IN_PLAN);
 	}
 
 	@Test
@@ -273,9 +271,9 @@ class VoteServiceTest {
 		VoteUpdateRequest request = new VoteUpdateRequest("변경", null, null, null);
 
 		assertThatThrownBy(() -> voteService.update(planId, id(vote.id()), participantId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.NOT_VOTE_CREATOR);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.NOT_VOTE_CREATOR);
 	}
 
 	@Test
@@ -298,9 +296,9 @@ class VoteServiceTest {
 
 		VoteUpdateRequest request = new VoteUpdateRequest("변경", null, null, null);
 		assertThatThrownBy(() -> voteService.update(planId, id(vote.id()), creatorId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.VOTE_ALREADY_CLOSED);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.VOTE_ALREADY_CLOSED);
 	}
 
 	@Test
@@ -435,9 +433,9 @@ class VoteServiceTest {
 								new VoteOptionCreateRequest("제주바다", null, null, null)));
 
 		assertThatThrownBy(() -> voteService.create(planId, creatorId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.SCHEDULE_NOT_IN_PLAN);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.SCHEDULE_NOT_IN_PLAN);
 	}
 
 	@Test
@@ -449,9 +447,9 @@ class VoteServiceTest {
 		VoteUpdateRequest request = new VoteUpdateRequest(null, null, null, foreignScheduleId);
 
 		assertThatThrownBy(() -> voteService.update(planId, id(vote.id()), creatorId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.SCHEDULE_NOT_IN_PLAN);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.SCHEDULE_NOT_IN_PLAN);
 	}
 
 	@Test
@@ -462,9 +460,9 @@ class VoteServiceTest {
 
 		assertThatThrownBy(
 						() -> voteService.deleteOption(planId, id(vote.id()), id(optionId), creatorId))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.OPTION_BELOW_MINIMUM);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.OPTION_BELOW_MINIMUM);
 	}
 
 	@Test
@@ -499,9 +497,9 @@ class VoteServiceTest {
 										id(foreignOptionId),
 										creatorId,
 										new VoteOptionUpdateRequest("우도", null, null, null, false)))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.OPTION_NOT_IN_VOTE);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.OPTION_NOT_IN_VOTE);
 	}
 
 	@Test

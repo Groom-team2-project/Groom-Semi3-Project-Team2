@@ -8,11 +8,11 @@ import com.groom.moigo.domain.vote.dto.response.VoteResultResponse;
 import com.groom.moigo.domain.vote.entity.Vote;
 import com.groom.moigo.domain.vote.entity.VoteOption;
 import com.groom.moigo.domain.vote.entity.VoteParticipation;
-import com.groom.moigo.domain.vote.exception.VoteErrorCode;
-import com.groom.moigo.domain.vote.exception.VoteException;
 import com.groom.moigo.domain.vote.repository.VoteOptionRepository;
 import com.groom.moigo.domain.vote.repository.VoteParticipationRepository;
 import com.groom.moigo.domain.vote.repository.VoteRepository;
+import com.groom.moigo.global.error.BusinessException;
+import com.groom.moigo.global.error.ErrorCode;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
@@ -52,7 +52,7 @@ public class VoteParticipationService {
 		List<Long> optionIds = validateSelection(vote, request.selectedOptionIds());
 		List<VoteOption> options = voteOptionRepository.findByVoteIdAndIdIn(voteId, optionIds);
 		if (options.size() != optionIds.size()) {
-			throw new VoteException(VoteErrorCode.OPTION_NOT_IN_VOTE);
+			throw new BusinessException(ErrorCode.OPTION_NOT_IN_VOTE);
 		}
 
 		// 재투표는 기존 선택을 덮어쓴다.
@@ -77,7 +77,7 @@ public class VoteParticipationService {
 
 		int deleted = voteParticipationRepository.deleteByVoteIdAndUserId(voteId, userId);
 		if (deleted == 0) {
-			throw new VoteException(VoteErrorCode.VOTE_PARTICIPATION_NOT_FOUND);
+			throw new BusinessException(ErrorCode.VOTE_PARTICIPATION_NOT_FOUND);
 		}
 	}
 
@@ -88,7 +88,7 @@ public class VoteParticipationService {
 		List<VoteParticipation> participations =
 				voteParticipationRepository.findByVoteIdAndUserIdOrderByIdAsc(voteId, userId);
 		if (participations.isEmpty()) {
-			throw new VoteException(VoteErrorCode.VOTE_PARTICIPATION_NOT_FOUND);
+			throw new BusinessException(ErrorCode.VOTE_PARTICIPATION_NOT_FOUND);
 		}
 
 		List<String> selectedOptionIds =
@@ -109,20 +109,20 @@ public class VoteParticipationService {
 
 	private void validateOpen(Vote vote) {
 		if (vote.isClosed(Instant.now())) {
-			throw new VoteException(VoteErrorCode.VOTE_ALREADY_CLOSED);
+			throw new BusinessException(ErrorCode.VOTE_ALREADY_CLOSED);
 		}
 	}
 
 	private List<Long> validateSelection(Vote vote, List<Long> optionIds) {
 		if (optionIds.isEmpty()) {
-			throw new VoteException(VoteErrorCode.OPTION_NOT_SELECTED);
+			throw new BusinessException(ErrorCode.OPTION_NOT_SELECTED);
 		}
 		Set<Long> distinct = new HashSet<>(optionIds);
 		if (distinct.size() != optionIds.size()) {
-			throw new VoteException(VoteErrorCode.DUPLICATED_OPTION_SELECTED);
+			throw new BusinessException(ErrorCode.DUPLICATED_OPTION_SELECTED);
 		}
 		if (!vote.getType().allowsMultipleSelection() && optionIds.size() > 1) {
-			throw new VoteException(VoteErrorCode.SINGLE_CHOICE_ONLY);
+			throw new BusinessException(ErrorCode.SINGLE_CHOICE_ONLY);
 		}
 		return optionIds;
 	}
@@ -134,9 +134,9 @@ public class VoteParticipationService {
 	private Vote findVoteOfPlan(Long planId, Long voteId, boolean forUpdate) {
 		Vote vote =
 				(forUpdate ? voteRepository.findByIdForUpdate(voteId) : voteRepository.findById(voteId))
-						.orElseThrow(() -> new VoteException(VoteErrorCode.VOTE_NOT_FOUND));
+						.orElseThrow(() -> new BusinessException(ErrorCode.VOTE_NOT_FOUND));
 		if (!vote.belongsToPlan(planId)) {
-			throw new VoteException(VoteErrorCode.VOTE_NOT_IN_PLAN);
+			throw new BusinessException(ErrorCode.VOTE_NOT_IN_PLAN);
 		}
 		return vote;
 	}
