@@ -2,6 +2,7 @@ package com.groom.moigo.domain.schedule.dto;
 
 import com.groom.moigo.domain.place.dto.PlaceResponse;
 import com.groom.moigo.domain.schedule.entity.ReservationStatus;
+import com.groom.moigo.domain.schedule.entity.ScheduleEntity;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -24,4 +25,22 @@ public class ScheduleResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime deletedAt;
+
+    public static ScheduleResponse from(ScheduleEntity schedule) {
+        return new ScheduleResponse(
+                schedule.getScheduleId(),
+                schedule.getPlanId(),
+                null,
+                schedule.getTitle(),
+                schedule.getMemo(),
+                schedule.getStartAt(),
+                schedule.getEndAt(),
+                schedule.getReservationStatus(),
+                schedule.getSortOrder(),
+                schedule.getKakaoRouteUrl(),
+                schedule.getCreatedAt(),
+                schedule.getUpdatedAt(),
+                schedule.getDeletedAt()
+        );
+    }
 }

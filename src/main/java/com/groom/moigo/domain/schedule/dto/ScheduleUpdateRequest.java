@@ -26,6 +26,7 @@ public class ScheduleUpdateRequest {
     // @Size(max = 500)
     // String = kakaoRouteUrl
 
-    // Boolean clearPlace;
-    // Boolean clearMemo;
+    private Boolean clearPlace;
+    private Boolean clearMemo;
+    private Boolean clearEndAt;
 }
