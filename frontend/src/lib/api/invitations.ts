@@ -30,7 +30,7 @@ function mapInvitation(res: InvitationApiResponse): Invitation {
         (typeof window !== "undefined" ? window.location.origin : "");
     return {
         code: res.inviteCode,
-        url: `${appUrl}/api/v1/invitations/${res.inviteCode}`,
+        url: `${appUrl}/invitations/${res.inviteCode}`,
         expiresAt: res.expiresAt,
         status: res.status,
         invitationId: String(res.invitationId),
