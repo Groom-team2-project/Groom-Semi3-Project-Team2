@@ -54,8 +54,12 @@ public class UserEntity {
         return user;
     }
 
-    public void updateProfile(String nickname) {
+    public void updateNickname(String nickname) {
         this.nickname = nickname;
+    }
+
+    public void updateProfileImage(String profileImage) {
+        this.profileImage = profileImage;
     }
 
     @PrePersist

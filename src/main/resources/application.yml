@@ -4,6 +4,10 @@
 spring:
   application:
     name: moigo
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
   datasource:
     url: ${DB_URL:jdbc:h2:mem:moigo;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
     username: ${DB_USERNAME:sa}
@@ -19,6 +23,10 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION:ap-northeast-2}
 
 app:
   jwt:
@@ -27,6 +35,10 @@ app:
     refresh-token-expiration-seconds: ${JWT_REFRESH_EXPIRATION:1209600}
   oauth:
     cookie-secure: ${OAUTH_COOKIE_SECURE:false}
+  aws:
+    s3:
+      bucket: ${S3_BUCKET_NAME:moigo-local}
+      public-url: ${S3_PUBLIC_URL:http://localhost:4566/moigo-local}
 
 kakao:
   local:
@@ -77,6 +89,10 @@ app:
     secret: ${JWT_SECRET}
   oauth:
     cookie-secure: ${OAUTH_COOKIE_SECURE:true}
+  aws:
+    s3:
+      bucket: ${S3_BUCKET_NAME}
+      public-url: ${S3_PUBLIC_URL}
 
 kakao:
   oauth:
@@ -117,6 +133,11 @@ spring:
   config:
     activate:
       on-profile: test
+  cloud:
+    aws:
+      credentials:
+        access-key: test
+        secret-key: test
   datasource:
     url: jdbc:h2:mem:moigo;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     username: sa
@@ -126,3 +147,27 @@ spring:
   jpa:
     hibernate:
       ddl-auto: none
+
+---
+# ===================================================================
+# 5. 로컬 Docker 개발 환경(MySQL & LocalStack) 설정
+# ===================================================================
+spring:
+  config:
+    activate:
+      on-profile: local
+  cloud:
+    aws:
+      credentials:
+        access-key: test
+        secret-key: test
+      region:
+        static: ${AWS_REGION:us-east-1}
+      s3:
+        endpoint: http://localhost:4566
+        path-style-access-enabled: true
+
+app:
+  aws:
+    s3:
+      bucket: moigo-local

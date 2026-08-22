@@ -10,6 +10,20 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(S3Exception.class)
+    public ResponseEntity<CommonResponse<Void>> handleS3Exception(
+            S3Exception exception
+    ) {
+        ErrorCode errorCode = exception.getErrorCode();
+
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(CommonResponse.error(
+                        errorCode.name(),
+                        exception.getMessage()
+                ));
+    }
+
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<CommonResponse<Void>> handleBusinessException(
         BusinessException exception
