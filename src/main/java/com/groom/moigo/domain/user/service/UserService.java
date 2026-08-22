@@ -1,12 +1,8 @@
 package com.groom.moigo.domain.user.service;
 
-import lombok.extern.slf4j.Slf4j;
+import com.groom.moigo.domain.user.event.ProfileImageChangedEvent;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.core.sync.RequestBody;
 import com.groom.moigo.domain.user.dto.UserProfileResponse;
@@ -24,8 +20,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
@@ -33,8 +32,10 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-@Slf4j
 public class UserService {
+    private static final int MAX_IMAGE_WIDTH = 4096;
+    private static final int MAX_IMAGE_HEIGHT = 4096;
+    private static final long MAX_IMAGE_PIXELS = 16_000_000L;
     private static final long MAX_PROFILE_IMAGE_SIZE = 10L * 1024 * 1024;
 
     private final UserRepository userRepository;
@@ -82,9 +83,34 @@ public class UserService {
             default -> throw new S3Exception(ErrorCode.INVALID_FILE_EXTENSION);
         };
 
-        try (InputStream inputStream = image.getInputStream()) {
-            if (ImageIO.read(inputStream) == null) {
+        try (InputStream inputStream = image.getInputStream();
+             ImageInputStream imageInputStream = ImageIO.createImageInputStream(inputStream)) {
+
+            if (imageInputStream == null) {
                 throw new S3Exception(ErrorCode.INVALID_IMAGE_FILE);
+            }
+
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(imageInputStream);
+            if (!readers.hasNext()) {
+                throw new S3Exception(ErrorCode.INVALID_IMAGE_FILE);
+            }
+
+            ImageReader reader = readers.next();
+
+            try {
+                reader.setInput(imageInputStream, true, true);
+
+                int width = reader.getWidth(0);
+                int height = reader.getHeight(0);
+                long pixels = (long) width * height;
+
+                if (width > MAX_IMAGE_WIDTH
+                        || height > MAX_IMAGE_HEIGHT
+                        || pixels > MAX_IMAGE_PIXELS) {
+                    throw new S3Exception(ErrorCode.IMAGE_PIXELS_TOO_LARGE);
+                }
+            } finally {
+                reader.dispose();
             }
         } catch (IOException exception) {
             throw new S3Exception(ErrorCode.IO_EXCEPTION_ON_IMAGE_UPLOAD, exception);
@@ -100,11 +126,11 @@ public class UserService {
         UserEntity user = findUser(userId);
         String prevImgUrl = user.getProfileImage();
 
-        String s3FileName = userId + "/" + UUID.randomUUID() + extension;
+        String newKey = userId + "/" + UUID.randomUUID() + extension;
 
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(bucketName)
-                .key(s3FileName)
+                .key(newKey)
                 .contentType(image.getContentType())
                 .contentLength(image.getSize())
                 .build();
@@ -120,33 +146,26 @@ public class UserService {
             throw new S3Exception(ErrorCode.PUT_OBJECT_EXCEPTION);
         }
         String prefix = s3PublicUrl.replaceAll("/+$", "") + "/";
-        String imgUrl = prefix + s3FileName;
 
+        String prevKey = extractPreviousKey(prevImgUrl, prefix);
+        eventPublisher.publishEvent(new ProfileImageChangedEvent(newKey, prevKey));
 
+        String imgUrl = prefix + newKey;
         user.updateProfileImage(imgUrl);
-        eventPublisher.publishEvent(new PrevProfileImageDeleteEvent(prevImgUrl, prefix));
+
         return UserProfileResponse.from(user);
     }
 
-    private record PrevProfileImageDeleteEvent(
-            String prevImgUrl, String prefix
-    ) {}
-
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    void deletePrevImage(PrevProfileImageDeleteEvent event) {
-        if (event.prevImgUrl != null && event.prevImgUrl.startsWith(event.prefix)) {
-            String prevKey = event.prevImgUrl.substring(event.prefix.length());
-            try {
-                DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
-                        .bucket(bucketName)
-                        .key(prevKey)
-                        .build();
-                s3Client.deleteObject(deleteObjectRequest);
-            } catch (Exception e) {
-                log.warn("기존 프로필 이미지 삭제 실패. key={}", prevKey, e);
-            }
+    private String extractPreviousKey(
+            String prevImgUrl,
+            String prefix
+    ) {
+        if (prevImgUrl == null
+                || !prevImgUrl.startsWith(prefix)) {
+            return null;
         }
+
+        return prevImgUrl.substring(prefix.length());
     }
 
     private UserEntity findUser(Long userId) {

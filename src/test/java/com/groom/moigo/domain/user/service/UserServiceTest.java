@@ -103,8 +103,27 @@ class UserServiceTest {
                 );
     }
 
+    @Test
+    void rejectsImageWhoseResolutionExceedsLimit() throws IOException {
+        MockMultipartFile image = new MockMultipartFile(
+                "image",
+                "profile.jpg",
+                "image/jpeg",
+                jpegBytes(4097, 1)
+        );
+
+        assertThatThrownBy(() -> userService.updateUserProfileImage(1L, image))
+                .isInstanceOfSatisfying(S3Exception.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.IMAGE_PIXELS_TOO_LARGE)
+                );
+    }
+
     private byte[] jpegBytes() throws IOException {
-        BufferedImage image = new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB);
+        return jpegBytes(2, 2);
+    }
+
+    private byte[] jpegBytes(int width, int height) throws IOException {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         ImageIO.write(image, "jpg", output);
         return output.toByteArray();

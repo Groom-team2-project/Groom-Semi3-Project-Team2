@@ -45,6 +45,7 @@ public enum ErrorCode {
     INVALID_FILE_EXTENSION(HttpStatus.BAD_REQUEST, "올바른 형식의 파일을 선택해주세요."),
     INVALID_IMAGE_FILE(HttpStatus.BAD_REQUEST, "유효한 이미지 파일이 아닙니다."),
     IMAGE_FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "이미지 파일은 10MB 이하여야 합니다."),
+    IMAGE_PIXELS_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "이미지 파일의 해상도가 너무 큽니다."),
     PUT_OBJECT_EXCEPTION(HttpStatus.INTERNAL_SERVER_ERROR, "파일 업로드 중 문제가 발생했습니다.");
 
     private final HttpStatus status;
