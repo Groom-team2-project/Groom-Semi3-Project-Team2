@@ -47,6 +47,7 @@ export interface Invitation {
   expiresAt: string;
   status?: "ACTIVE" | "EXPIRED" | "REVOKED";
   invitationId?: string;
+  planId?: number;
 }
 
 export type PlaceUsage = "schedule" | "vote_candidate" | "saved";

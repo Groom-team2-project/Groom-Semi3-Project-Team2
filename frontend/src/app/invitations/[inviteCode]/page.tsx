@@ -21,6 +21,7 @@ export default function InvitationPage() {
     const [joining, setJoining] = useState(false);
     const [requiresLogin, setRequiresLogin] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [alreadyJoined, setAlreadyJoined] = useState(false);
 
     useEffect(() => {
         if (!inviteCode) {
@@ -97,6 +98,15 @@ export default function InvitationPage() {
                 apiError.errorCode === "UNAUTHORIZED"
             ) {
                 setRequiresLogin(true);
+                return;
+            }
+
+            // 이미 참여 중인 계획
+            if (
+                apiError.status === 409 ||
+                apiError.errorCode === "MEMBER_ALREADY_JOINED"
+            ) {
+                setAlreadyJoined(true);
                 return;
             }
 
@@ -228,6 +238,43 @@ export default function InvitationPage() {
                     >
                         홈으로 이동
                     </button>
+                </div>
+            </main>
+        );
+    }
+// 이미 참여 중인 계획
+    if (alreadyJoined && invitation?.planId) {
+        return (
+            <main className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[#f8faf9] px-4 py-12">
+                <div className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                    <div className="px-7 py-8 text-center">
+
+                        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-2xl font-bold text-emerald-600">
+                            ✓
+                        </div>
+
+                        <p className="text-sm font-semibold text-emerald-600">
+                            MOIGO 초대
+                        </p>
+
+                        <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
+                            이미 참여 중인 계획입니다
+                        </h1>
+
+                        <p className="mt-3 text-sm leading-6 text-gray-500">
+                            이미 이 계획의 멤버로 참여하고 있습니다.
+                        </p>
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                router.replace(`/plans/${invitation.planId}`)
+                            }
+                            className="mt-6 w-full rounded-xl bg-emerald-600 px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                        >
+                            계획으로 바로가기
+                        </button>
+                    </div>
                 </div>
             </main>
         );
