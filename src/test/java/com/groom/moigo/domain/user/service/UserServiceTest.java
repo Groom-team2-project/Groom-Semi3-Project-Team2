@@ -70,6 +70,7 @@ class UserServiceTest {
                 .endsWith(".jpg")
                 .doesNotContain("//1/");
         verify(s3Client).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+        verify(eventPublisher).publishEvent(any(Object.class));
     }
 
     @Test
