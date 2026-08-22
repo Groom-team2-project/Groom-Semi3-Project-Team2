@@ -3,6 +3,7 @@ import type { Invitation, Role } from "./types";
 
 interface CommonResponse<T> {
     success: boolean;
+    planId: number;
     data: T;
     errorCode: string | null;
     message: string;
@@ -10,6 +11,7 @@ interface CommonResponse<T> {
 
 // [삭제] role 제거
 interface InvitationApiResponse {
+    planId?: number;
     invitationId: number;
     inviteCode: string;
     status: "ACTIVE" | "EXPIRED" | "REVOKED";
@@ -26,14 +28,16 @@ interface JoinResponse {
 
 function mapInvitation(res: InvitationApiResponse): Invitation {
     const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-        (typeof window !== "undefined" ? window.location.origin : "");
+        (process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+            (typeof window !== "undefined" ? window.location.origin : "")
+        ).replace(/\/+$/, "");
     return {
         code: res.inviteCode,
         url: `${appUrl}/invitations/${res.inviteCode}`,
         expiresAt: res.expiresAt,
         status: res.status,
         invitationId: String(res.invitationId),
+        planId: res.planId,
     };
 }
 
