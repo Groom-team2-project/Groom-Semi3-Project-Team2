@@ -46,7 +46,12 @@ public enum ErrorCode {
     INVALID_IMAGE_FILE(HttpStatus.BAD_REQUEST, "유효한 이미지 파일이 아닙니다."),
     IMAGE_FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "이미지 파일은 10MB 이하여야 합니다."),
     IMAGE_PIXELS_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "이미지 파일의 해상도가 너무 큽니다."),
-    PUT_OBJECT_EXCEPTION(HttpStatus.INTERNAL_SERVER_ERROR, "파일 업로드 중 문제가 발생했습니다.");
+    PUT_OBJECT_EXCEPTION(HttpStatus.INTERNAL_SERVER_ERROR, "파일 업로드 중 문제가 발생했습니다."),
+
+    //Schedule
+    SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "일정을 찾을 수 없습니다."),
+    INVALID_SCHEDULE_ORDER(HttpStatus.BAD_REQUEST, "일정 순서 정보가 올바르지 않습니다."),
+    DUPLICATE_SCHEDULE_ORDER(HttpStatus.CONFLICT, "이미 사용 중인 일정 순서입니다.");
 
     private final HttpStatus status;
     private final String message;
