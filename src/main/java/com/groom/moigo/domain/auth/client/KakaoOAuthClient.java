@@ -46,13 +46,6 @@ public class KakaoOAuthClient {
         String email = idToken.getClaimAsString("email");
         String nickname = idToken.getClaimAsString("nickname");
 
-        if(!StringUtils.hasText(email)) {
-            throw new BusinessException(
-                    ErrorCode.INVALID_INPUT_VALUE,
-                    "카카오 계정의 이메일 제공 동의가 필요합니다."
-            );
-        }
-
         if(!StringUtils.hasText(nickname)) {
             throw new BusinessException(
                     ErrorCode.INVALID_INPUT_VALUE,
