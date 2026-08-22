@@ -24,8 +24,6 @@ export default function InvitationPage() {
 
     useEffect(() => {
         if (!inviteCode) {
-            setError("초대 코드를 확인할 수 없습니다.");
-            setLoading(false);
             return;
         }
 
@@ -110,6 +108,31 @@ export default function InvitationPage() {
             setJoining(false);
         }
     };
+
+    // 초대 코드가 없는 경우
+    if (!inviteCode) {
+        return (
+            <main className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[#f8faf9] px-4 py-12">
+                <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-xl font-bold text-red-500">
+                        !
+                    </div>
+
+                    <p className="text-sm font-semibold text-gray-400">
+                        MOIGO 초대
+                    </p>
+
+                    <h1 className="mt-2 text-xl font-bold text-gray-900">
+                        초대 링크를 확인해주세요
+                    </h1>
+
+                    <p className="mt-3 text-sm leading-6 text-gray-500">
+                        초대 코드를 확인할 수 없습니다.
+                    </p>
+                </div>
+            </main>
+        );
+    }
 
     // 초대 정보 확인 중
     if (loading) {
