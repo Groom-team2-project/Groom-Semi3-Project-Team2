@@ -49,6 +49,35 @@ public class UserService {
     @Value("${app.aws.s3.public-url}")
     private String s3PublicUrl;
 
+    private enum ProfileImageFormat {
+        JPEG("image/jpeg", ".jpg"),
+        PNG("image/png", ".png");
+
+        private final String contentType;
+        private final String extension;
+
+        ProfileImageFormat(String contentType, String extension) {
+            this.contentType = contentType;
+            this.extension = extension;
+        }
+
+        private static ProfileImageFormat fromContentType(String contentType) {
+            return switch (contentType.toLowerCase(Locale.ROOT)) {
+                case "image/jpeg", "image/jpg", "image/pjpeg" -> JPEG;
+                case "image/png" -> PNG;
+                default -> throw new S3Exception(ErrorCode.INVALID_FILE_EXTENSION);
+            };
+        }
+
+        private static ProfileImageFormat fromReaderFormat(String formatName) {
+            return switch (formatName.toUpperCase(Locale.ROOT)) {
+                case "JPEG", "JPG" -> JPEG;
+                case "PNG" -> PNG;
+                default -> throw new S3Exception(ErrorCode.INVALID_IMAGE_FILE);
+            };
+        }
+    }
+
     public UserProfileResponse getMe(Long userId) {
         UserEntity user = findUser(userId);
 
@@ -66,7 +95,7 @@ public class UserService {
         return UserProfileResponse.from(user);
     }
 
-    private String validateImage(MultipartFile image) {
+    private ProfileImageFormat validateImage(MultipartFile image) {
         if (image.isEmpty() || Objects.isNull(image.getOriginalFilename())) {
             throw new S3Exception(ErrorCode.EMPTY_FILE_EXCEPTION);
         }
@@ -75,13 +104,9 @@ public class UserService {
             throw new S3Exception(ErrorCode.IMAGE_FILE_TOO_LARGE);
         }
 
-        String contentType = Objects.toString(image.getContentType(), "")
-                .toLowerCase(Locale.ROOT);
-        String extension = switch (contentType) {
-            case "image/jpeg" -> ".jpg";
-            case "image/png" -> ".png";
-            default -> throw new S3Exception(ErrorCode.INVALID_FILE_EXTENSION);
-        };
+        ProfileImageFormat requestedFormat = ProfileImageFormat.fromContentType(
+                Objects.toString(image.getContentType(), "")
+        );
 
         try (InputStream inputStream = image.getInputStream();
              ImageInputStream imageInputStream = ImageIO.createImageInputStream(inputStream)) {
@@ -100,6 +125,13 @@ public class UserService {
             try {
                 reader.setInput(imageInputStream, true, true);
 
+                ProfileImageFormat detectedFormat = ProfileImageFormat.fromReaderFormat(
+                        reader.getFormatName()
+                );
+                if (requestedFormat != detectedFormat) {
+                    throw new S3Exception(ErrorCode.IMAGE_FORMAT_MISMATCH);
+                }
+
                 int width = reader.getWidth(0);
                 int height = reader.getHeight(0);
                 long pixels = (long) width * height;
@@ -109,29 +141,31 @@ public class UserService {
                         || pixels > MAX_IMAGE_PIXELS) {
                     throw new S3Exception(ErrorCode.IMAGE_PIXELS_TOO_LARGE);
                 }
+
+                reader.read(0);
             } finally {
                 reader.dispose();
             }
         } catch (IOException exception) {
-            throw new S3Exception(ErrorCode.IO_EXCEPTION_ON_IMAGE_UPLOAD, exception);
+            throw new S3Exception(ErrorCode.INVALID_IMAGE_FILE, exception);
         }
 
-        return extension;
+        return requestedFormat;
     }
 
     @Transactional
     public UserProfileResponse updateUserProfileImage(Long userId, MultipartFile image) {
-        String extension = validateImage(image);
+        ProfileImageFormat imageFormat = validateImage(image);
 
         UserEntity user = findUser(userId);
         String prevImgUrl = user.getProfileImage();
 
-        String newKey = userId + "/" + UUID.randomUUID() + extension;
+        String newKey = userId + "/" + UUID.randomUUID() + imageFormat.extension;
 
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(bucketName)
                 .key(newKey)
-                .contentType(image.getContentType())
+                .contentType(imageFormat.contentType)
                 .contentLength(image.getSize())
                 .build();
 

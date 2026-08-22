@@ -21,6 +21,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -115,6 +116,38 @@ class UserServiceTest {
         assertThatThrownBy(() -> userService.updateUserProfileImage(1L, image))
                 .isInstanceOfSatisfying(S3Exception.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.IMAGE_PIXELS_TOO_LARGE)
+                );
+    }
+
+    @Test
+    void rejectsImageWhoseDeclaredFormatDiffersFromActualContent() throws IOException {
+        MockMultipartFile image = new MockMultipartFile(
+                "image",
+                "profile.png",
+                "image/png",
+                jpegBytes()
+        );
+
+        assertThatThrownBy(() -> userService.updateUserProfileImage(1L, image))
+                .isInstanceOfSatisfying(S3Exception.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.IMAGE_FORMAT_MISMATCH)
+                );
+    }
+
+    @Test
+    void rejectsImageWhosePixelDataIsCorrupted() throws IOException {
+        byte[] validImage = jpegBytes(100, 100);
+        byte[] corruptedImage = Arrays.copyOf(validImage, validImage.length / 2);
+        MockMultipartFile image = new MockMultipartFile(
+                "image",
+                "profile.jpg",
+                "image/jpeg",
+                corruptedImage
+        );
+
+        assertThatThrownBy(() -> userService.updateUserProfileImage(1L, image))
+                .isInstanceOfSatisfying(S3Exception.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_IMAGE_FILE)
                 );
     }
 
