@@ -8,6 +8,9 @@ const accessTokens = (__ENV.ACCESS_TOKENS || required("ACCESS_TOKEN"))
   .split(",")
   .map((token) => token.trim())
   .filter(Boolean);
+if (accessTokens.length === 0) {
+  throw new Error("ACCESS_TOKEN 또는 ACCESS_TOKENS 환경 변수가 필요합니다.");
+}
 const pageSize = Number(__ENV.PAGE_SIZE || 20);
 const sleepSeconds = Number(__ENV.SLEEP_SECONDS || 1);
 
