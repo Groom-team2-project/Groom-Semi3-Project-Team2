@@ -2,15 +2,16 @@ package com.groom.moigo.domain.user.controller;
 
 import com.groom.moigo.domain.auth.security.AuthMember;
 import com.groom.moigo.domain.user.dto.UserProfileResponse;
-import com.groom.moigo.domain.user.dto.UserProfileUpdateRequest;
+import com.groom.moigo.domain.user.dto.NicknameUpdateRequest;
 import com.groom.moigo.domain.user.service.UserService;
 import com.groom.moigo.global.response.CommonResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.hibernate.annotations.Struct;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequiredArgsConstructor
@@ -34,12 +35,12 @@ public class UserController {
     }
 
     @PatchMapping("/profile")
-    public ResponseEntity<CommonResponse<UserProfileResponse>> updateProfile(
+    public ResponseEntity<CommonResponse<UserProfileResponse>> updateNickname(
             @AuthenticationPrincipal AuthMember authMember,
-            @Valid @RequestBody UserProfileUpdateRequest request
+            @Valid @RequestBody NicknameUpdateRequest request
             ) {
         UserProfileResponse response =
-                userService.updateUserProfile(
+                userService.updateUserNickname(
                         authMember.userId(),
                         request
                 );
@@ -47,7 +48,22 @@ public class UserController {
         return ResponseEntity.ok(
                 CommonResponse.success(
                         response,
-                        "사용자 프로필 수정 성공"
+                        "사용자 닉네임 수정 성공"
+                )
+        );
+    }
+
+    @PatchMapping(value = "/profile/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CommonResponse<UserProfileResponse>> updateProfileImage(
+            @AuthenticationPrincipal AuthMember authMember,
+            @RequestPart("image") MultipartFile image
+            ) {
+        UserProfileResponse response = userService.updateUserProfileImage(authMember.userId(), image);
+
+        return ResponseEntity.ok(
+                CommonResponse.success(
+                        response,
+                        "사용자 프로필 이미지 수정 성공"
                 )
         );
     }
