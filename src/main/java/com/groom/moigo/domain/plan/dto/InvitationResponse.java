@@ -19,7 +19,7 @@ public record InvitationResponse(
         return new InvitationResponse(
                 invitation.getInvitationId(),
                 invitation.getInviteCode(),
-                invitation.getInvitationId(),
+                invitation.getPlan().getPlanId(),
                 invitation.getStatus(),
                 invitation.getExpiresAt()
         );
