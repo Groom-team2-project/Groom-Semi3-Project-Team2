@@ -519,6 +519,63 @@ class VoteServiceTest {
 		assertThat(voteRepository.findById(id(vote.id()))).isEmpty();
 	}
 
+
+	@Test
+	@DisplayName("투표를 수정하면 활동 이력이 남는다")
+	void updateVoteRecordsActivity() {
+		VoteResponse vote = voteService.create(planId, creatorId, createRequest());
+
+		voteService.update(
+				planId, id(vote.id()), creatorId, new VoteUpdateRequest("바뀐 제목", null, null, null));
+
+		assertThat(activityLogRepository.findAll())
+				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_UPDATED)
+				.singleElement()
+				.satisfies(log -> assertThat(log.getSummary()).isEqualTo("'바뀐 제목' 투표를 수정했어요"));
+	}
+
+	@Test
+	@DisplayName("투표를 삭제하면 활동 이력이 남는다")
+	void deleteVoteRecordsActivity() {
+		VoteResponse vote = voteService.create(planId, creatorId, createRequest());
+
+		voteService.delete(planId, id(vote.id()), creatorId);
+
+		assertThat(activityLogRepository.findAll())
+				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_DELETED)
+				.singleElement()
+				.satisfies(
+						log -> {
+							assertThat(log.getPlanId()).isEqualTo(planId);
+							assertThat(log.getTargetId()).isEqualTo(Long.valueOf(vote.id()));
+							assertThat(log.getSummary()).isEqualTo("'첫날 어디 갈까요' 투표를 삭제했어요");
+						});
+	}
+
+	@Test
+	@DisplayName("선택지를 추가·수정·삭제하면 투표 수정 활동으로 기록된다")
+	void optionChangesRecordVoteUpdatedActivity() {
+		VoteResponse vote = voteService.create(planId, creatorId, createRequest());
+		long voteId = id(vote.id());
+
+		voteService.addOption(
+				planId, voteId, creatorId, new VoteOptionCreateRequest("우도", null, null, null));
+		voteService.updateOption(
+				planId,
+				voteId,
+				id(vote.options().get(0).id()),
+				creatorId,
+				new VoteOptionUpdateRequest("성산", null, null, null, false));
+		voteService.deleteOption(planId, voteId, id(vote.options().get(1).id()), creatorId);
+
+		assertThat(activityLogRepository.findAll())
+				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_UPDATED)
+				.extracting(log -> log.getSummary())
+				.containsExactly(
+						"'첫날 어디 갈까요' 투표에 후보를 추가했어요",
+						"'첫날 어디 갈까요' 투표의 후보를 수정했어요",
+						"'첫날 어디 갈까요' 투표에서 후보를 뺐어요");
+	}
 	private VoteCreateRequest createRequest() {
 		return new VoteCreateRequest(
 				"첫날 어디 갈까요",

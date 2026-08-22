@@ -117,15 +117,28 @@ public class VoteService {
 		if (request.scheduleId() != null) {
 			vote.linkTo(request.scheduleId());
 		}
+		recordActivity(
+				vote, userId, ActivityActionType.VOTE_UPDATED,
+				"'%s' 투표를 수정했어요".formatted(vote.getTitle()));
+
 		return assembler.toVoteResponse(vote, userId);
 	}
 
 	@Transactional
 	public void delete(Long planId, Long voteId, Long userId) {
-		findEditableVote(planId, voteId, userId);
+		Vote vote = findEditableVote(planId, voteId, userId);
+		// 아래 삭제가 영속성 컨텍스트를 비우므로 기록에 쓸 제목을 먼저 담아 둔다.
+		String deletedTitle = vote.getTitle();
 
 		voteParticipationRepository.deleteByVoteId(voteId);
 		voteRepository.deleteById(voteId);
+
+		recordActivity(
+				planId,
+				voteId,
+				userId,
+				ActivityActionType.VOTE_DELETED,
+				"'%s' 투표를 삭제했어요".formatted(deletedTitle));
 	}
 
 	@Transactional
@@ -159,6 +172,10 @@ public class VoteService {
 		vote.addOption(option);
 		voteOptionRepository.save(option);
 
+		recordActivity(
+				vote, userId, ActivityActionType.VOTE_UPDATED,
+				"'%s' 투표에 후보를 추가했어요".formatted(vote.getTitle()));
+
 		return assembler.toOptionResponse(option, userId);
 	}
 
@@ -176,6 +193,10 @@ public class VoteService {
 				request.placeId(),
 				request.clearPlace());
 
+		recordActivity(
+				vote, userId, ActivityActionType.VOTE_UPDATED,
+				"'%s' 투표의 후보를 수정했어요".formatted(vote.getTitle()));
+
 		return assembler.toOptionResponse(option, userId);
 	}
 
@@ -192,8 +213,18 @@ public class VoteService {
 		// 선택지에 걸린 참여 기록을 먼저 지워야 FK 제약에 걸리지 않는다.
 		// 이 호출로 영속성 컨텍스트가 비워지므로 Vote의 cascade가 삭제를 되돌리지 않는다.
 		Long targetId = option.getId();
+		// 아래 삭제가 영속성 컨텍스트를 비우므로 기록에 쓸 값을 먼저 담아 둔다.
+		String removedFrom = vote.getTitle();
+		Long ownerPlanId = vote.getPlanId();
 		voteParticipationRepository.deleteByOptionId(targetId);
 		voteOptionRepository.deleteById(targetId);
+
+		recordActivity(
+				ownerPlanId,
+				voteId,
+				userId,
+				ActivityActionType.VOTE_UPDATED,
+				"'%s' 투표에서 후보를 뺐어요".formatted(removedFrom));
 	}
 
 	/** 이미 만들어진 투표를 고치기 위한 공통 검증. 계획을 편집할 수 있으면서 그 투표를 만든 사람이어야 한다. */
@@ -210,6 +241,13 @@ public class VoteService {
 	private void requireEditor(Long planId, Long userId) {
 		MemberEntity member = planAccessService.requireJoinedMember(planId, userId);
 		planAccessService.requireEditable(member);
+	}
+
+	private void recordActivity(
+			Long planId, Long voteId, Long userId, ActivityActionType actionType, String summary) {
+		activityLogService.record(
+				new ActivityRecordCommand(
+						planId, userId, actionType, ActivityTargetType.VOTE, voteId, summary));
 	}
 
 	private void recordActivity(
