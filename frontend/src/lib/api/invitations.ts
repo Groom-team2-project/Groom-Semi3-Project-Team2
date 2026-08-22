@@ -25,13 +25,12 @@ interface JoinResponse {
 }
 
 function mapInvitation(res: InvitationApiResponse): Invitation {
-    //const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
     const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL ??
+        process.env.NEXT_PUBLIC_APP_URL?.trim() ||
         (typeof window !== "undefined" ? window.location.origin : "");
     return {
         code: res.inviteCode,
-        url: `${appUrl}/j/${res.inviteCode}`,
+        url: `${appUrl}/invitations/${res.inviteCode}`,
         expiresAt: res.expiresAt,
         status: res.status,
         invitationId: String(res.invitationId),

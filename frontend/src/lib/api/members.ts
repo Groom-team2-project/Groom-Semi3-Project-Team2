@@ -1,4 +1,3 @@
-//import { store, simulateLatency } from "./store";
 import { apiFetch } from "./client";
 import type { Invitation, Member, Role } from "./types";
 
@@ -75,7 +74,7 @@ function mapInvitation(res: InvitationApiResponse): Invitation {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   return {
     code: res.inviteCode,
-    url: `${appUrl}/j/${res.inviteCode}`,
+    url: `${appUrl}/api/v1/invitations/${res.inviteCode}`,
     expiresAt: res.expiresAt,
     status: res.status,
     invitationId: String(res.invitationId)
