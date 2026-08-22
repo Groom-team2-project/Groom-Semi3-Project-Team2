@@ -14,7 +14,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 여러 명(팀원 + AI 에이전트)이 동시에 `/frontend`를 건드리게 됩니다. 이 문서는 "어디를 고쳐야 하는지"와
 "어떻게 고쳐야 기존 화면들과 톤이 안 흐트러지는지"를 정리한 것입니다. 화면/컴포넌트 작업을 시작하기 전에
-반드시 읽어주세요.
+작업 전 아래 기준을 확인합니다.
 
 ## UI 일관성 규칙
 
@@ -23,21 +23,24 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - 필요한 스타일이 기존 컴포넌트에 없다면, **새 컴포넌트를 새로 만들지 말고 기존 컴포넌트에 variant/prop을
   추가**하는 방식으로 확장하세요. (예: `Button`에 새 색상이 필요하면 `Button.tsx`의 `Variant` 타입과
   `VARIANT_CLASS`에 항목을 추가 — 새 `MyButton.tsx`를 만들지 않기)
-- 색·폰트·여백은 **하드코딩 금지**, 아래 "디자인 토큰" 표에 있는 값만 Tailwind 클래스로 사용하세요.
-  (`bg-[#3182F6]` 같은 임의값 대신 `bg-primary`)
+- 색·폰트·여백은 아래 "디자인 토큰" 표의 Tailwind 클래스를 우선 사용합니다.
+  (`bg-[#3182F6]` 대신 `bg-primary`)
 - 새 페이지는 기존 페이지의 레이아웃 패턴을 그대로 따르세요:
   - 계획 상세 하위 화면: `<div className="flex min-h-dvh flex-col"><AppBar .../><div className="flex flex-1 flex-col gap-3 px-4 pb-8">...내용...</div></div>`
   - 하단 탭바가 필요한 화면(홈/일정/투표/내정보 4개)만 `<BottomTabBar planId={...} />`를 맨 아래에 추가
   - 리스트류 화면은 `gap-3`, 폼 화면은 `Field` + `FieldInput`/`FieldTextarea` 조합 사용
 - `"use client"`는 브라우저 상태(useState/useEffect)·세션·토큰·클릭 같은 이벤트가 실제로 필요한 페이지에만
-  붙이세요. 이 프로젝트는 지금 전부 mock API를 클라이언트에서 `useEffect`로 호출하는 구조라 모든
-  `src/app/plans/[planId]/**/page.tsx`가 `"use client"` + `use(params)` / `use(searchParams)` 패턴을
-  쓰고 있지만(params/searchParams가 Promise로 오는 Next 16 App Router 컨벤션), 서버에서 미리 데이터를
-  내려줘도 되는 순수 목록/정적 페이지를 새로 만든다면 서버 컴포넌트로 두고 `await params` /
-  `await searchParams`를 쓰는 것도 고려하세요. 클라이언트 번들이 줄어듭니다.
+  붙이세요. 현재 계획·댓글·활동 기록 화면은 클라이언트에서 `src/lib/api`를 호출하므로
+  `"use client"` + `use(params)` / `use(searchParams)` 패턴을 사용합니다. params/searchParams가 Promise로
+  오는 Next 16 App Router 컨벤션을 지키세요. 순수 목록·정적 페이지는 서버 컴포넌트로 두고 `await params` /
+  `await searchParams`를 쓰는 것도 고려하세요.
 - `<Link>`/`Button href=...`는 내부적으로 `<a>` 태그입니다. 전역 기본 링크색(`globals.css`의
   `@layer base { a { color: var(--color-gray-500); } }`)이 있으니, 강조가 필요한 링크는 반드시
   `text-primary` 등 명시적 색상 클래스를 직접 줘야 합니다 (기본값에 기대지 말 것).
+- API 호출로 화면 상태가 바뀌는 생성·수정·삭제 UI에는 반드시 `pending` 상태와 실패 안내를 함께 구현하세요.
+  오류는 `ApiError.status`를 기준으로 구분하고, 페이지 이동 대신 현재 화면에서 `Toast`로 안내하는 것을 기본으로
+  합니다. 인증 필요(401), 권한 없음(403), 삭제·미존재(404), 입력 오류(400), 서버 오류(5xx)를 하나의 메시지로
+  뭉뚱그리지 마세요.
 
 ## 디자인 토큰 (`src/app/globals.css` 기준 실제 값)
 
@@ -134,9 +137,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ### 활동 이력 (activity log)
 - 화면: `src/app/plans/[planId]/activity/page.tsx` (계획 홈의 "최근 활동" 섹션도 같은 API 사용)
 - 컴포넌트: `src/components/plan/ActivityRow.tsx`
-- API: `src/lib/api/activities.ts` (`getActivities`)
-- 활동 기록 생성: `src/lib/api/store.ts`의 `store.recordActivity(...)` — 다른 도메인 API(일정/투표/멤버)에서
-  변경이 생길 때 이 메서드를 호출해서 로그를 남김 (예: `schedules.ts`의 `createSchedule` 참고)
+- API: `src/lib/api/activities.ts` (`getActivities`, `getMyActivities`)
+- 목록은 `createdAt + logId` 복합 커서와 `hasNext`를 사용합니다. 다음 페이지 요청은 반드시 두 커서를 함께
+  전달하고, 기존 목록 뒤에 append하세요. 페이지 번호·OFFSET 방식으로 바꾸지 마세요.
+- 활동 기록 생성은 백엔드 각 도메인에서 `ActivityLogService.record()`를 호출해 처리합니다. 프론트는
+  `store.recordActivity()` 대신 조회 API 응답을 기준으로 화면을 갱신합니다.
 - 타입: `ActivityLog`
 
 ### 계획 자체 (plans) / 인증
@@ -147,14 +152,17 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - 계획 상세 공통 로딩: `src/lib/hooks/usePlan.ts` (`usePlan(planId)` — `{ plan, isLoading, refresh }`)
 - 마지막으로 본 계획 기억(프로필 등에서 하단 탭바 동작용): `src/lib/lastPlan.ts`
 
-## mock 데이터 패턴 (`src/lib/api/*`)
+## API·mock 전환 규칙 (`src/lib/api/*`)
 
-- 모든 API 함수는 **`async function`이고 `Promise`를 리턴**합니다. 실제 백엔드가 붙기 전까지는 내부에서
-  `simulateLatency()`(`store.ts`)로 약간의 지연만 흉내내고, `store`(인메모리 mock DB)를 읽고 씁니다.
-- `store.ts`의 `store` 객체가 유일한 "DB"입니다. `store.plans`, `store.schedules`, `store.votes`,
-  `store.places`, `store.comments`, `store.activities`, `store.me` 배열/객체를 직접 조작합니다.
-- 초기 시드 데이터는 `mockData.ts`에 있습니다. 화면에 보여줄 예시 데이터를 늘리고 싶으면 이 파일에 추가하세요.
-- 실제 함수 시그니처 예시 (이 패턴을 그대로 따라서 새 함수를 추가하면 됩니다):
+- API 함수는 **`async function`이고 `Promise`를 리턴**하며, 페이지·컴포넌트에서는 직접 `fetch`하지 않습니다.
+  서버 연동은 `src/lib/api/*.ts`의 함수 내부에서 `apiFetch`로 수행하고, 응답 DTO는 그 안에서 화면 타입으로 매핑하세요.
+- 기본 실행은 실제 API입니다. `API_BASE_URL`이 빈 문자열이면 Netlify rewrite를 통한 같은 출처 `/api` 호출을
+  의미할 수 있습니다.
+- 목 데이터는 `NEXT_PUBLIC_USE_MOCK=true`일 때만 사용합니다. 목 분기를 새로 추가하거나 유지할 때도 이 플래그를
+  기준으로 판단합니다.
+- 목 구현은 화면 초기 개발 또는 백엔드 미구현 영역을 위한 임시 수단입니다. 실제 API가 준비된 도메인은 서버 응답을
+  화면에 반영합니다.
+- 함수 시그니처는 백엔드 전환 전후에도 유지합니다. 예시는 다음과 같습니다.
 
   ```ts
   // src/lib/api/votes.ts
@@ -164,33 +172,21 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   export async function castVote(planId: string, voteId: string, optionId: string): Promise<Vote>
   ```
 
-- 목록 조회는 `getXxx(planId)`, 단건 조회는 `getXxx(planId, id)` (없으면 `null` 리턴, throw 하지 않음),
+- 목록 조회는 `getXxx(planId)`, 단건 조회는 `getXxx(planId, id)` (404는 `null`로 변환할 수 있음),
   생성은 `createXxx(planId, input)`, 수정은 `updateXxx(planId, id, input)`, 삭제는
   `deleteXxx(planId, id): Promise<void>` 컨벤션을 따릅니다.
 
-## mock → 실제 API 전환 규칙
+`apiFetch`는 인증 토큰을 요청 헤더에 자동 첨부하고, 401이면 토큰 재발급을 한 번 시도한 뒤 `ApiError`를
+던집니다. 토큰 저장·재발급은 `apiFetch`의 공통 흐름으로 관리합니다.
 
-- `src/lib/api/*.ts`의 **함수 시그니처(이름/파라미터/리턴 타입)는 그대로 유지**하고, 함수 **내부 구현만**
-  mock(`store` 조작)에서 실제 `fetch`/`apiFetch`(`client.ts`)로 교체하세요. 컴포넌트·페이지 쪽 코드는
-  건드릴 필요가 없습니다 — 이미 `await getPlans()`, `await createSchedule(...)` 처럼 함수 호출만으로 되어
-  있기 때문입니다.
-- 공통 fetch 헬퍼는 `src/lib/api/client.ts`의 `apiFetch<T>(path, init)`와 `API_BASE_URL`
-  (`process.env.NEXT_PUBLIC_API_BASE_URL`)을 사용하세요. `USE_MOCK`은 `API_BASE_URL`이 비어있는지로
-  자동 계산되는 값이라(`!API_BASE_URL`), `.env.local`에 주소를 채우면 따로 코드를 안 고쳐도 자동으로
-  `false`가 됩니다. 실제 전환은 이 플래그를 코드에서 분기하는 게 아니라, `src/lib/api/*.ts`의 함수를
-  **하나씩** mock → `apiFetch` 호출로 바꿔나가는 방식으로 점진적으로 진행하면 됩니다.
-- 새로 API를 연동할 때도 반드시 **`src/lib/api` 안에 함수로 분리**해서 추가하세요. 컴포넌트/페이지에서
-  직접 `fetch`를 호출하지 마세요.
-- 타입은 `src/lib/api/types.ts` 기준으로 맞추고, 백엔드 응답 필드명이 다르면 API 함수 내부에서 매핑하세요
-  (타입 자체를 함수마다 다르게 만들지 말 것).
-- `apiFetch`는 아래를 이미 알아서 처리해줍니다. 도메인 API 함수에서 따로 구현하지 마세요.
-  - **인증 토큰 자동 첨부**: `localStorage`의 `tripmate_access_token`이 있으면 모든 요청에
-    `Authorization: Bearer <토큰>` 헤더를 자동으로 실어 보냅니다. (로그인 API가 실제로 붙으면, 로그인
-    성공 시 이 키로 토큰을 저장하도록 구현하면 됩니다)
-  - **401 자동 처리**: 응답이 401이면 `/login`으로 강제 이동시키고 `ApiError`를 던집니다.
-  - **에러 타입**: 실패하면 항상 `ApiError`(`status`, `message` 포함)를 던집니다. 도메인 함수에서 상태
-    코드별로 다르게 처리하고 싶으면 `catch (e) { if (e instanceof ApiError && e.status === 404) ... }`
-    형태로 잡으세요.
+## 도메인 경계와 협업 규칙
+
+- 담당 도메인이 아닌 백엔드 API·엔티티·DB 마이그레이션은 담당자와 API 계약을 합의한 뒤 반영합니다. 화면에서
+  문제가 보이면 재현 조건과 필요한 API 계약을 담당자에게 공유합니다.
+- 도메인 간 연결이 필요하면 프론트 타입·API 함수의 입력/응답 형식, 권한, 삭제된 대상 처리 방식을 먼저 합의하세요.
+  예를 들어 댓글은 일정이 존재하는지 백엔드에서 검증하고, 활동 기록은 변경이 성공한 뒤 백엔드가 남깁니다.
+- 다른 도메인 화면은 공용 UI 컴포넌트·레이아웃·오류 표현처럼 프론트 공통 범위에서 개선합니다. 도메인 데이터
+  저장 방식은 담당자와 합의한 API 계약을 기준으로 유지합니다.
 
 ## 작업 전 체크리스트
 
@@ -198,4 +194,5 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 2. 담당 도메인 폴더(위 "폴더/라우트 지도" 참고)의 기존 화면 1~2개를 열어서 레이아웃 패턴 확인
 3. 관련 `src/lib/api/*.ts`의 기존 함수 시그니처/네이밍 컨벤션을 확인하고 동일한 스타일로 추가
 4. 색상/여백은 위 "디자인 토큰" 표에 있는 Tailwind 클래스만 사용 (임의값·인라인 style 지양)
-5. 작업 후 `npm run build`, `npm run lint` 통과 확인
+5. 작업 후 `npx tsc --noEmit`, `npm run lint` 통과 확인. 환경상 `npm run build`가 실패하면 코드 오류와
+   Turbopack/실행 환경 오류를 구분해 보고하세요.

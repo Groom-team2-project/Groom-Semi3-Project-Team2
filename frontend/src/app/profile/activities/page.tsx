@@ -8,6 +8,7 @@ import { Toast } from "@/components/ui/Toast";
 import { ActivityRow } from "@/components/plan/ActivityRow";
 import { getMyActivities } from "@/lib/api";
 import { getActivityDestination } from "@/lib/activityNavigation";
+import { getActivityErrorMessage } from "@/lib/activityError";
 import type { ActivityCursor, ActivityLog } from "@/lib/api";
 
 export default function MyActivityPage() {
@@ -19,22 +20,31 @@ export default function MyActivityPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    getMyActivities().then((page) => {
-      setActivities(page.activities);
-      setNextCursor(page.nextCursor);
-      setHasNext(page.hasNext);
-    });
+    getMyActivities()
+      .then((page) => {
+        setActivities(page.activities);
+        setNextCursor(page.nextCursor);
+        setHasNext(page.hasNext);
+      })
+      .catch((error) => {
+        setActivities([]);
+        setToastMessage(getActivityErrorMessage(error));
+      });
   }, []);
 
   const clearToast = useCallback(() => setToastMessage(null), []);
 
   async function handleClick(activity: ActivityLog) {
-    const destination = await getActivityDestination(activity.planId, activity);
-    if (destination) {
-      router.push(destination);
-      return;
+    try {
+      const destination = await getActivityDestination(activity.planId, activity);
+      if (destination) {
+        router.push(destination);
+        return;
+      }
+      setToastMessage("삭제되었거나 더 이상 볼 수 없는 활동이에요.");
+    } catch (error) {
+      setToastMessage(getActivityErrorMessage(error));
     }
-    setToastMessage("삭제되었거나 더 이상 볼 수 없는 활동이에요.");
   }
 
   async function loadMore() {
@@ -45,6 +55,8 @@ export default function MyActivityPage() {
       setActivities((previous) => [...(previous ?? []), ...page.activities]);
       setNextCursor(page.nextCursor);
       setHasNext(page.hasNext);
+    } catch (error) {
+      setToastMessage(getActivityErrorMessage(error));
     } finally {
       setLoadingMore(false);
     }
