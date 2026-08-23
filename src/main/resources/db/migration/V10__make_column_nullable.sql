@@ -1,2 +1,2 @@
 ALTER TABLE users
-MODIFY nickname NULL;
+MODIFY COLUMN nickname VARCHAR(50) NULL;
