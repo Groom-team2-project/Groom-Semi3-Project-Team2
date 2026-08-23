@@ -34,7 +34,7 @@ public class UserEntity {
     @Column(name = "email", length = 255, unique = true, nullable = false)
     private String email;
 
-    @Column(name = "nickname", nullable = false, length = 50)
+    @Column(name = "nickname", nullable = true, length = 50)
     private String nickname;
 
     @Column(name = "profile_image", length = 500)
