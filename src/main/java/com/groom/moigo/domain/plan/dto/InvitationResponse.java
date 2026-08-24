@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 public record InvitationResponse(
         Long invitationId,
         String inviteCode,
+        Long planId,
         InvitationStatus status,
         LocalDateTime expiresAt
 ) {
@@ -18,6 +19,7 @@ public record InvitationResponse(
         return new InvitationResponse(
                 invitation.getInvitationId(),
                 invitation.getInviteCode(),
+                invitation.getPlan().getPlanId(),
                 invitation.getStatus(),
                 invitation.getExpiresAt()
         );

@@ -85,6 +85,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
 
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     permissions:
       contents: read
@@ -100,6 +101,79 @@ jobs:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
           role-session-name: ${{ github.run_id }}
+
+      - name: Sync and validate EC2 deployment files
+        env:
+          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          DEPLOY_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -Eeuo pipefail
+
+          COMPOSE_B64="$(base64 -w 0 deploy/compose.yml)"
+          DEPLOY_SCRIPT_B64="$(base64 -w 0 deploy/deploy.sh)"
+
+          REMOTE_COMMAND="$(cat <<EOF
+          set -Eeuo pipefail
+          sudo mkdir -p /opt/moigo
+          echo '${COMPOSE_B64}' | base64 --decode | sudo tee /opt/moigo/compose.yml.tmp >/dev/null
+          echo '${DEPLOY_SCRIPT_B64}' | base64 --decode | sudo tee /opt/moigo/deploy.sh.tmp >/dev/null
+          sudo chmod 0755 /opt/moigo/deploy.sh.tmp
+          sudo bash -n /opt/moigo/deploy.sh.tmp
+          sudo env BACKEND_IMAGE='preflight.invalid/moigo:check' AWS_REGION='${DEPLOY_REGION}' docker compose --env-file /opt/moigo/.env -f /opt/moigo/compose.yml.tmp config --quiet
+          sudo install -m 0644 /opt/moigo/compose.yml.tmp /opt/moigo/compose.yml
+          sudo install -m 0755 /opt/moigo/deploy.sh.tmp /opt/moigo/deploy.sh
+          sudo rm -f /opt/moigo/compose.yml.tmp /opt/moigo/deploy.sh.tmp
+          EOF
+          )"
+
+          PARAMETERS="$(
+            jq -cn \
+              --arg command "${REMOTE_COMMAND}" \
+              '{commands: [$command], executionTimeout: ["300"]}'
+          )"
+
+          COMMAND_ID="$(
+            aws ssm send-command \
+              --instance-ids "${INSTANCE_ID}" \
+              --document-name "AWS-RunShellScript" \
+              --timeout-seconds 120 \
+              --comment "Validate moigo deployment files ${GITHUB_SHA}" \
+              --parameters "${PARAMETERS}" \
+              --query "Command.CommandId" \
+              --output text
+          )"
+
+          STATUS="Pending"
+          for attempt in $(seq 1 60); do
+            STATUS="$(
+              aws ssm get-command-invocation \
+                --command-id "${COMMAND_ID}" \
+                --instance-id "${INSTANCE_ID}" \
+                --query "Status" \
+                --output text 2>/dev/null || true
+            )"
+
+            echo "Deployment preflight ${attempt}/60: ${STATUS:-Pending}"
+
+            case "${STATUS}" in
+              Success|Failed|Cancelled|TimedOut|Cancelling)
+                break
+                ;;
+            esac
+
+            sleep 5
+          done
+
+          aws ssm get-command-invocation \
+            --command-id "${COMMAND_ID}" \
+            --instance-id "${INSTANCE_ID}" \
+            --query '{Status: Status, StandardOutput: StandardOutputContent, StandardError: StandardErrorContent}' \
+            --output json
+
+          if [[ "${STATUS}" != "Success" ]]; then
+            echo "EC2 deployment preflight failed: ${STATUS}"
+            exit 1
+          fi
 
       - name: Login to Amazon ECR
         id: ecr
@@ -132,7 +206,7 @@ jobs:
           
           PARAMETERS="$(
             jq -cn \
-              --arg command "sudo /opt/moigo/deploy.sh ${IMAGE_URI} ${DEPLOY_REGION}" \
+              --arg command "sudo /opt/moigo/deploy.sh '${IMAGE_URI}' '${DEPLOY_REGION}'" \
               --arg execution_timeout "${SSM_EXECUTION_TIMEOUT}" \
               '{
                 commands: [$command],

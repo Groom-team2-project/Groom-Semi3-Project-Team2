@@ -37,7 +37,22 @@ public enum ErrorCode {
     INVALID_INVITATION_ROLE(HttpStatus.BAD_REQUEST, "유효하지 않은 초대 권한입니다."),
 
     //Admin
-    ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.");
+    ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
+
+    //S3
+    EMPTY_FILE_EXCEPTION(HttpStatus.BAD_REQUEST, "파일을 선택해주세요."),
+    IO_EXCEPTION_ON_IMAGE_UPLOAD(HttpStatus.BAD_REQUEST, "파일을 읽는 중 문제가 발생했습니다."),
+    INVALID_FILE_EXTENSION(HttpStatus.BAD_REQUEST, "올바른 형식의 파일을 선택해주세요."),
+    INVALID_IMAGE_FILE(HttpStatus.BAD_REQUEST, "유효한 이미지 파일이 아닙니다."),
+    IMAGE_FORMAT_MISMATCH(HttpStatus.BAD_REQUEST, "요청한 이미지 형식과 실제 파일 형식이 일치하지 않습니다."),
+    IMAGE_FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "이미지 파일은 10MB 이하여야 합니다."),
+    IMAGE_PIXELS_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "이미지 파일의 해상도가 너무 큽니다."),
+    PUT_OBJECT_EXCEPTION(HttpStatus.INTERNAL_SERVER_ERROR, "파일 업로드 중 문제가 발생했습니다."),
+
+    //Schedule
+    SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "일정을 찾을 수 없습니다."),
+    INVALID_SCHEDULE_ORDER(HttpStatus.BAD_REQUEST, "일정 순서 정보가 올바르지 않습니다."),
+    DUPLICATE_SCHEDULE_ORDER(HttpStatus.CONFLICT, "이미 사용 중인 일정 순서입니다.");
 
     private final HttpStatus status;
     private final String message;

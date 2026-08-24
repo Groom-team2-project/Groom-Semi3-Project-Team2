@@ -24,21 +24,21 @@
 
 ### 사용자 요청 필드
 
-| 컬럼 | 타입 | 제약 | 설명 |
-| --- | --- | --- | --- |
-| `schedule_id` | BIGINT | PK, AUTO_INCREMENT | 일정 식별자 |
-| `plan_id` | BIGINT | FK → `plans.plan_id`, NOT NULL | 일정이 속한 여행 계획 |
-| `place_id` | BIGINT | FK → `places.place_id`, NULL | 선택적 참조. `null`이면 자유시간, 숙소 체크아웃 등 장소 없는 일정 가능 |
-| `created_at` | DATETIME(6) | NOT NULL | 생성 시각 |
-| `updated_at` | DATETIME(6) | NOT NULL | 마지막 수정 시각 |
-| `deleted_at` | DATETIME(6) | NULL | 소프트 삭제 시각 |
-| `title` | VARCHAR(200) | NOT NULL | 일정 제목 |
-| `sort_order` | INT | NOT NULL | 같은 여행 계획 내 표시 순서 |
-| `memo` | VARCHAR(1000) | NULL | 일정 메모 |
-| `start_at` | DATETIME | NOT NULL | 일정 시작 일시 |
-| `end_time` | TIME | NULL | 일정 종료 시간 |
+| 컬럼                   | 타입 | 제약 | 설명 |
+|----------------------| --- | --- | --- |
+| `schedule_id`        | BIGINT | PK, AUTO_INCREMENT | 일정 식별자 |
+| `plan_id`            | BIGINT | FK → `plans.plan_id`, NOT NULL | 일정이 속한 여행 계획 |
+| `place_id`           | BIGINT | FK → `places.place_id`, NULL | 선택적 참조. `null`이면 자유시간, 숙소 체크아웃 등 장소 없는 일정 가능 |
+| `created_at`         | DATETIME(6) | NOT NULL | 생성 시각 |
+| `updated_at`         | DATETIME(6) | NOT NULL | 마지막 수정 시각 |
+| `deleted_at`         | DATETIME(6) | NULL | 소프트 삭제 시각 |
+| `title`              | VARCHAR(200) | NOT NULL | 일정 제목 |
+| `sort_order`         | INT | NOT NULL | 같은 여행 계획 내 표시 순서 |
+| `memo`               | VARCHAR(1000) | NULL | 일정 메모 |
+| `start_at`           | DATETIME | NOT NULL | 일정 시작 일시 |
+| `end_at`              | DATETIME | NULL | 일정 종료 시간 |
 | `reservation_status` | ENUM | NOT NULL, DEFAULT `NOT_REQUIRED` | `NOT_REQUIRED`(예약 불필요), `UNRESERVED`(미예약), `RESERVED`(예약 완료), `CANCELLED`(예약 취소) |
-| `kakao_route_url` | VARCHAR(500) | NULL | 카카오맵 길찾기 딥링크(동선 기능 P2 대체용, API 승인 불필요) |
+| `kakao_route_url`    | VARCHAR(500) | NULL | 카카오맵 길찾기 딥링크(동선 기능 P2 대체용, API 승인 불필요) |
 
 ## API 명세
 
@@ -156,7 +156,7 @@
 | 403 | `PLAN_ACCESS_DENIED` | 여행 계획 접근 권한 없음 |
 | 404 | `PLAN_NOT_FOUND` | Plan이 없거나 삭제됨 |
 
-### GET `/api/v1/schedules/{scheduleId}`
+### GET `/api/v1/plans/{planId}/schedules/{scheduleId}`
 
 일정을 상세 조회한다. 삭제된 일정까지 조회하려면 `includeDeleted=true`를 전달한다.
 
@@ -197,7 +197,7 @@ GET /api/v1/schedules/31?includeDeleted=true
 | 403 | `PLAN_ACCESS_DENIED` | 여행 계획 접근 권한 없음 |
 | 404 | `SCHEDULE_NOT_FOUND` | 일정이 없거나, 일반 조회에서 삭제된 일정인 경우 |
 
-### PATCH `/api/v1/schedules/{scheduleId}`
+### PATCH `/api/v1/plans/{planId}/schedules/{scheduleId}`
 
 전달된 필드만 수정한다. 일정 순서는 이 API에서 변경하지 않는다.
 
@@ -313,7 +313,7 @@ GET /api/v1/schedules/31?includeDeleted=true
 | 403 | `PLAN_ACCESS_DENIED` | 여행 계획 접근 권한 없음 |
 | 404 | `PLAN_NOT_FOUND` | Plan이 없거나 삭제됨 |
 
-### DELETE `/api/v1/schedules/{scheduleId}`
+### DELETE `/api/v1/plans/{planId}/schedules/{scheduleId}`
 
 일정을 소프트 삭제한다. 실제 레코드는 제거하지 않고 `deleted_at`에 삭제 시각을 기록하며, 남은 일정의 `sortOrder`를 서비스에서 재정렬한다.
 
