@@ -26,6 +26,10 @@ services:
       KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET:?KAKAO_CLIENT_SECRET is required}
       KAKAO_REDIRECT_URI: ${KAKAO_REDIRECT_URI:?KAKAO_REDIRECT_URI is required}
 
+      AWS_REGION: ${AWS_REGION:?AWS_REGION is required}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:?S3_BUCKET_NAME is required}
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL:?S3_PUBLIC_URL is required}
+
       TZ: Asia/Seoul
     ports:
       - "${APP_PORT:-8080}:8080"

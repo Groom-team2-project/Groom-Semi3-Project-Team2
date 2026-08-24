@@ -1,0 +1,107 @@
+name: moigo-local
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: moigo-backend-local:${IMAGE_TAG:-latest}
+    container_name: moigo-backend-local
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SERVER_PORT: 8080
+
+      DB_URL: jdbc:mysql://mysql:3306/moigo?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      DB_USERNAME: ${DB_USERNAME:-moigo}
+      DB_PASSWORD: ${DB_PASSWORD:-moigo-local}
+      JPA_DDL_AUTO: validate
+
+      JWT_SECRET: ${JWT_SECRET:-local-development-secret-key-change-me}
+      JWT_ACCESS_EXPIRATION: ${JWT_ACCESS_EXPIRATION:-3600}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-1209600}
+
+      OAUTH_COOKIE_SECURE: "false"
+      KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID:-dummy-kakao-client-id}
+      KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET:-dummy-kakao-client-secret}
+      KAKAO_REDIRECT_URI: ${KAKAO_REDIRECT_URI:-http://localhost:3000/oauth/kakao/callback}
+
+      AWS_REGION: us-east-1
+      S3_BUCKET_NAME: moigo-local
+      SPRING_CLOUD_AWS_S3_ENDPOINT: http://localstack:4566
+      S3_PUBLIC_URL: http://localhost:4566/moigo-local
+
+
+      TZ: Asia/Seoul
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    networks:
+      - moigo-local-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  mysql:
+    image: mysql:8.4
+    container_name: moigo-mysql-local
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: moigo
+      MYSQL_USER: ${DB_USERNAME:-moigo}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-moigo-local}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-moigo-local-root}
+      TZ: Asia/Seoul
+    expose:
+      - "3306"
+    volumes:
+      - moigo_local_mysql_data:/var/lib/mysql
+    networks:
+      - moigo-local-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  localstack:
+    image: localstack/localstack:4.4.0
+    container_name: moigo-localstack
+    restart: unless-stopped
+    environment:
+      SERVICES: s3
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      PERSISTENCE: "1"
+    ports:
+      - "4566:4566"
+    volumes:
+      - ./.local/localstack:/var/lib/localstack
+    networks:
+      - moigo-local-network
+    healthcheck:
+      test: ["CMD-SHELL", "awslocal s3api head-bucket --bucket moigo-local >/dev/null 2>&1 || awslocal s3 mb s3://moigo-local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  moigo_local_mysql_data:
+
+networks:
+  moigo-local-network:
+    driver: bridge

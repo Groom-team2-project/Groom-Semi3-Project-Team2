@@ -50,9 +50,14 @@
 
 ## 도메인 문서
 
+- [계획 도메인 명세](docs/plan-spec.md)
 - [장소 도메인 명세](docs/places-spec.md)
 - [일정 도메인 명세](docs/schedules-spec.md)
 - [활동 기록 정책](docs/activity-log-spec.md)
+
+## 성능 검증
+
+- [활동 기록 조회 성능 설계 및 검증](docs/performance/activity-log-benchmark.md)
 
 ## 개발 로드맵
 

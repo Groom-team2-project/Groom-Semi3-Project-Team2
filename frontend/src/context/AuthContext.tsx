@@ -9,6 +9,7 @@ import {
   restoreAuthentication,
   subscribeAuthenticationCleared,
   updateProfile as updateProfileRequest,
+  updateProfileImage as updateProfileImageRequest,
 } from "@/lib/api";
 import type { User } from "@/lib/api";
 
@@ -18,6 +19,7 @@ interface AuthContextValue {
   loginWithKakao: () => Promise<void>;
   completeKakaoLogin: (code: string, state: string) => Promise<void>;
   updateProfile: (nickname: string) => Promise<void>;
+  updateProfileImage: (image: Blob) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -79,6 +81,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(profile);
   }, []);
 
+  const updateProfileImage = useCallback(async (image: Blob) => {
+    const profile = await updateProfileImageRequest(image);
+    setUser(profile);
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await apiLogout();
@@ -94,9 +101,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loginWithKakao: login,
       completeKakaoLogin: completeLogin,
       updateProfile,
+      updateProfileImage,
       logout,
     }),
-    [user, isLoading, login, completeLogin, updateProfile, logout],
+    [user, isLoading, login, completeLogin, updateProfile, updateProfileImage, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
