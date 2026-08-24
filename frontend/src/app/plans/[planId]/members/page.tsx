@@ -7,25 +7,25 @@ import { Field } from "@/components/ui/FieldInput";
 import { MemberRow } from "@/components/plan/MemberRow";
 import { PlanNotFound } from "@/components/plan/PlanNotFound";
 import { usePlan } from "@/lib/hooks/usePlan";
-import { useAuth } from "@/context/AuthContext";
-import { getInvitation, updateMemberRole } from "@/lib/api";
-import type { Invitation, Role } from "@/lib/api";
+import { getInvitation, getMembers, updateMemberRole } from "@/lib/api";
+import type { Invitation, Member, Role } from "@/lib/api";
 
 export default function MembersPage({ params }: { params: Promise<{ planId: string }> }) {
   const { planId } = use(params);
-  const { plan, isLoading, refresh } = usePlan(planId);
-  const { user } = useAuth();
+  const { plan, isLoading } = usePlan(planId);
   const [invitation, setInvitation] = useState<Invitation | null>(null);
   const [copied, setCopied] = useState(false);
+  const [members, setMembers] = useState<Member[]>([]);
 
   useEffect(() => {
     getInvitation(planId).then(setInvitation);
+    getMembers(planId).then(setMembers);
   }, [planId]);
 
   if (isLoading) return null;
   if (!plan) return <PlanNotFound />;
 
-  const isOwner = plan.members.some((m) => m.userId === user?.id && m.role === "OWNER");
+  const isOwner = plan.myRole === "OWNER";
 
   async function handleCopy() {
     if (!invitation) return;
@@ -40,7 +40,8 @@ export default function MembersPage({ params }: { params: Promise<{ planId: stri
 
   async function handleRoleChange(memberId: string, role: Role) {
     await updateMemberRole(planId, memberId, role);
-    refresh();
+    const updatedMembers = await getMembers(planId);
+    setMembers(updatedMembers);
   }
 
   return (
@@ -58,9 +59,9 @@ export default function MembersPage({ params }: { params: Promise<{ planId: stri
         </Field>
         <Button variant="kakao">카카오톡으로 초대하기</Button>
 
-        <h3 className="mt-1 text-[13px] text-gray-500">참여 멤버 ({plan.members.length}명)</h3>
+        <h3 className="mt-1 text-[13px] text-gray-500">참여 멤버 ({members.length}명)</h3>
         <div>
-          {plan.members.map((m) => (
+          {members.map((m) => (
             <MemberRow
               key={m.id}
               member={m}

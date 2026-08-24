@@ -65,18 +65,25 @@ export async function leavePlan(planId: string): Promise<void> {
 
 interface InvitationApiResponse {
   invitationId: number;
+  planId: number;
   inviteCode: string;
   status: "ACTIVE" | "EXPIRED" | "REVOKED";
   expiresAt: string;
 }
 
 function mapInvitation(res: InvitationApiResponse): Invitation {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const appUrl =
+      (typeof window !== "undefined"
+              ? window.location.origin
+              : process.env.NEXT_PUBLIC_APP_URL?.trim() ?? ""
+      ).replace(/\/+$/, "");
+
   return {
     code: res.inviteCode,
-    url: `${appUrl}/api/v1/invitations/${res.inviteCode}`,
+    url: `${appUrl}/invitations/${res.inviteCode}`,
     expiresAt: res.expiresAt,
     status: res.status,
+    planId: res.planId,
     invitationId: String(res.invitationId)
   };
 }
