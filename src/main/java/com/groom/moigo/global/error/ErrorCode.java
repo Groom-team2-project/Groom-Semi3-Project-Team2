@@ -52,7 +52,8 @@ public enum ErrorCode {
     SINGLE_CHOICE_ONLY(HttpStatus.BAD_REQUEST, "단일 선택 투표는 선택지를 하나만 고를 수 있습니다."),
     DUPLICATED_OPTION_SELECTED(HttpStatus.BAD_REQUEST, "같은 선택지를 중복으로 선택할 수 없습니다."),
     INVALID_DEADLINE(HttpStatus.BAD_REQUEST, "마감 일시는 현재 시각 이후여야 합니다."),
-    NOT_VOTE_CREATOR(HttpStatus.FORBIDDEN, "투표 생성자만 수행할 수 있는 작업입니다.");
+    NOT_VOTE_CREATOR(HttpStatus.FORBIDDEN, "투표 생성자만 수행할 수 있는 작업입니다."),
+
     //S3
     EMPTY_FILE_EXCEPTION(HttpStatus.BAD_REQUEST, "파일을 선택해주세요."),
     IO_EXCEPTION_ON_IMAGE_UPLOAD(HttpStatus.BAD_REQUEST, "파일을 읽는 중 문제가 발생했습니다."),
