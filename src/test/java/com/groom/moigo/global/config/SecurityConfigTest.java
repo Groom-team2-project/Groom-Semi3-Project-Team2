@@ -53,4 +53,22 @@ class SecurityConfigTest {
                 .andExpect(jsonPath("$.errorCode").value("INVALID_TOKEN"))
                 .andExpect(jsonPath("$.message").value("Refresh Token이 필요합니다."));
     }
+
+    @Test
+    @DisplayName("초대 정보는 인증 없이 조회할 수 있다")
+    void invitationCanBeReadWithoutAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/invitations/UNKNOWN"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("INVITATION_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("초대 참여는 인증이 필요하다")
+    void invitationJoinRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/v1/invitations/UNKNOWN/join"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+    }
 }
