@@ -3,22 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-
-const DEFAULT_POST_LOGIN_REDIRECT = "/plans";
-const POST_LOGIN_REDIRECT_KEY = "postLoginRedirect";
-
-function consumePostLoginRedirect(): string {
-  const redirect = sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY);
-  sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
-
-  // Next Router에 외부 URL이나 실행 가능한 스킴이 전달되지 않도록
-  // 현재 앱의 절대 경로만 로그인 후 이동 경로로 허용합니다.
-  if (redirect?.startsWith("/") && !redirect.startsWith("//")) {
-    return redirect;
-  }
-
-  return DEFAULT_POST_LOGIN_REDIRECT;
-}
+import { consumePostLoginRedirect } from "@/lib/postLoginRedirect";
 
 export default function KakaoCallbackPage() {
   const router = useRouter();
