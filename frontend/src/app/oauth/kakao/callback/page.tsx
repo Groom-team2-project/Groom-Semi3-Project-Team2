@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { consumePostLoginRedirect } from "@/lib/postLoginRedirect";
 
 export default function KakaoCallbackPage() {
   const router = useRouter();
@@ -31,7 +32,7 @@ export default function KakaoCallbackPage() {
     loginTask.current ??= completeKakaoLogin(code, state);
     void loginTask.current
       .then(() => {
-        if (active) router.replace("/plans");
+        if (active) router.replace(consumePostLoginRedirect());
       })
       .catch(() => {
         if (active) setMessage("카카오 로그인에 실패했습니다. 다시 시도해 주세요.");
