@@ -14,6 +14,10 @@ public class KakaoDocument {
     private String placeName;
     @JsonProperty("category_name")
     private String categoryName;
+    @JsonProperty("category_group_code")
+    private String categoryGroupCode;
+    @JsonProperty("category_group_name")
+    private String categoryGroupName;
     @JsonProperty("road_address_name")
     private String roadAddressName;
     @JsonProperty("address_name")

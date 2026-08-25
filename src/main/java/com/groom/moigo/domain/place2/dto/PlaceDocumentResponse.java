@@ -13,6 +13,8 @@ public class PlaceDocumentResponse {
     private final String kakaoPlaceId; //저장되지 않은 장소라서 카카오id를 사용
     private final String name;
     private final String category;
+    private final String categoryGroupCode;
+    private final String categoryGroupName;
     private final String address;
     private final String roadAddress;
     private final BigDecimal longitude;
@@ -25,6 +27,8 @@ public class PlaceDocumentResponse {
                 document.getId(),
                 document.getPlaceName(),
                 document.getCategoryName(),
+                document.getCategoryGroupCode(),
+                document.getCategoryGroupName(),
                 document.getAddressName(),
                 document.getRoadAddressName(),
                 document.getX(),

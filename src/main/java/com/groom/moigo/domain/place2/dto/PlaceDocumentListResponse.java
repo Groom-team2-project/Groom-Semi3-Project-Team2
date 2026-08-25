@@ -11,12 +11,14 @@ import java.util.List;
 public class PlaceDocumentListResponse {
 
     private final List<PlaceDocumentResponse> places;
-    private final int pageable_count;
-    private final boolean is_end;
+    private final int totalCount;
+    private final int pageableCount;
+    private final boolean isEnd;
 
     public static PlaceDocumentListResponse of(List<PlaceDocumentResponse> places, KakaoMeta meta) {
         return new PlaceDocumentListResponse(
                 places,
+                meta.getTotalCount(),
                 meta.getPageableCount(),
                 meta.isEnd()
         );

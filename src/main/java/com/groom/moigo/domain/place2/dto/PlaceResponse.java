@@ -11,6 +11,8 @@ public class PlaceResponse {
     private String kakaoPlaceId;
     private String name;
     private String category;
+    private String categoryCode;
+    private String categoryName;
     private String address;
     private String roadAddress;
     private BigDecimal longitude;

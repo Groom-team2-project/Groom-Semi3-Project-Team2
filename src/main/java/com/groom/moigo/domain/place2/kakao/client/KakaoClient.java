@@ -63,8 +63,41 @@ public class KakaoClient {
             }
             return response;
         } catch (RestClientException exception) {
-            throw new BusinessException(ErrorCode.KAKAO_LOCAL_API_ERROR);
+            throw new BusinessException(ErrorCode.KAKAO_LOCAL_API_ERROR, exception);
         }
     }
 
+    public KakaoSearchResponse searchByCategory(
+            String categoryGroupCode,
+            String rect,
+            int page,
+            int size
+    ) {
+        try {
+            KakaoSearchResponse response =
+                    restClient.get()
+                            .uri(uriBuilder -> uriBuilder
+                                    .path("/v2/local/search/category.json")
+                                    .queryParam("category_group_code", categoryGroupCode)
+                                    .queryParam("rect", rect)
+                                    .queryParam("page", page)
+                                    .queryParam("size", size)
+                                    .build())
+                            .retrieve()
+                            .body(KakaoSearchResponse.class);
+
+            if (response == null) {
+                throw new BusinessException(
+                        ErrorCode.KAKAO_LOCAL_API_ERROR
+                );
+            }
+
+            return response;
+        } catch (RestClientException exception) {
+            throw new BusinessException(
+                    ErrorCode.KAKAO_LOCAL_API_ERROR,
+                    exception
+            );
+        }
+    }
 }

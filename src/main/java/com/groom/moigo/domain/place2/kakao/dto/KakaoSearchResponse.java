@@ -9,6 +9,5 @@ import java.util.List;
 public class KakaoSearchResponse {
 
     private KakaoMeta meta;
-
     private List<KakaoDocument> documents;
 }
