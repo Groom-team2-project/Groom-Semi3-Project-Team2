@@ -6,3 +6,4 @@ export * from "./schedules";
 export * from "./places";
 export * from "./votes";
 export * from "./activities";
+export * from "./invitations";

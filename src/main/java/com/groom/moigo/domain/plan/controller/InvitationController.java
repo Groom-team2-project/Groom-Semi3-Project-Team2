@@ -19,6 +19,15 @@ public class InvitationController {
 
     private final InvitationService invitationService;
 
+    @GetMapping("plans/{planId}/invitations")
+    public ResponseEntity<CommonResponse<InvitationResponse>> getCurrent(
+            @AuthenticationPrincipal AuthMember authMember,
+            @PathVariable Long planId
+    ) {
+        InvitationResponse response = invitationService.getCurrentInvitation(authMember.userId(), planId);
+        return ResponseEntity.ok(CommonResponse.success(response, "초대 링크 조회 성공"));
+    }
+
     @PostMapping("plans/{planId}/invitations")
     public ResponseEntity<CommonResponse<InvitationResponse>> create(
             @AuthenticationPrincipal AuthMember authMember,
