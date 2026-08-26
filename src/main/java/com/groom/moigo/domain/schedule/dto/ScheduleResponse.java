@@ -1,6 +1,6 @@
 package com.groom.moigo.domain.schedule.dto;
 
-import com.groom.moigo.domain.place.dto.PlaceResponse;
+import com.groom.moigo.domain.place.dto.SchedulePlaceResponse;
 import com.groom.moigo.domain.schedule.entity.ReservationStatus;
 import com.groom.moigo.domain.schedule.entity.ScheduleEntity;
 import lombok.AllArgsConstructor;
@@ -14,7 +14,7 @@ public class ScheduleResponse {
 
     private Long scheduleId;
     private Long planId;
-    private PlaceResponse place;
+    private SchedulePlaceResponse place;
     private String title;
     private String memo;
     private LocalDateTime startAt;
@@ -26,11 +26,11 @@ public class ScheduleResponse {
     private LocalDateTime updatedAt;
     private LocalDateTime deletedAt;
 
-    public static ScheduleResponse from(ScheduleEntity schedule) {
+    public static ScheduleResponse from(ScheduleEntity schedule, SchedulePlaceResponse place) {
         return new ScheduleResponse(
                 schedule.getScheduleId(),
                 schedule.getPlanId(),
-                null,
+                place,
                 schedule.getTitle(),
                 schedule.getMemo(),
                 schedule.getStartAt(),
