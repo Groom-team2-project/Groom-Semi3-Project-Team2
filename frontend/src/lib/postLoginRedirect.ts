@@ -1,7 +1,19 @@
 const DEFAULT_POST_LOGIN_REDIRECT = "/plans";
 const POST_LOGIN_REDIRECT_KEY = "postLoginRedirect";
 
-type RedirectStorage = Pick<Storage, "getItem" | "removeItem">;
+type RedirectStorage = Pick<Storage, "getItem" | "removeItem" | "setItem">;
+
+export function savePostLoginRedirect(
+  redirect: string,
+  getStorage: () => RedirectStorage = () => window.sessionStorage,
+): boolean {
+  try {
+    getStorage().setItem(POST_LOGIN_REDIRECT_KEY, redirect);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export function consumePostLoginRedirect(
   getStorage: () => RedirectStorage = () => window.sessionStorage,
