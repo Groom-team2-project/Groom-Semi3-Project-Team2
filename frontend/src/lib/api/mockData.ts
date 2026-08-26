@@ -104,6 +104,7 @@ export const INITIAL_VOTES: Vote[] = [
   {
     id: "vote_1",
     planId: "plan_jeju",
+    creatorId: "user_jieun",
     title: "둘째날 저녁 뭐 먹지?",
     status: "OPEN",
     deadline: hoursFromNow(3),
@@ -117,6 +118,7 @@ export const INITIAL_VOTES: Vote[] = [
   {
     id: "vote_2",
     planId: "plan_jeju",
+    creatorId: "user_jieun",
     title: "숙소 어디로 할까?",
     status: "CLOSED",
     deadline: minutesAgo(60 * 24),
