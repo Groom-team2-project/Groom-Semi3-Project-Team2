@@ -55,3 +55,11 @@ export async function joinByInviteCode(inviteCode: string): Promise<JoinResponse
     );
     return response.data;
 }
+
+export async function getCurrentInvitation(planId: string): Promise<Invitation> {
+    const response = await apiFetch<CommonResponse<InvitationApiResponse>>(
+        `/api/v1/plans/${planId}/invitations`,
+        { method: "GET" },
+    );
+    return mapInvitation(response.data);
+}
