@@ -97,6 +97,7 @@ function toUser(response: UserProfileResponse): User {
     id: String(response.userId),
     name,
     email: response.email ?? "",
+    profileImage: response.profileImage ?? undefined,
     avatarColor: "#FEE500",
     avatarInitial: name.slice(0, 1),
   };
@@ -195,6 +196,18 @@ export async function updateProfile(nickname: string): Promise<User> {
       method: "PATCH",
       body: JSON.stringify({ nickname }),
     },
+  );
+
+  return toUser(response.data);
+}
+
+export async function updateProfileImage(image: Blob): Promise<User> {
+  const formData = new FormData();
+  formData.append("image", image, "profile.jpg");
+
+  const response = await apiFetch<CommonResponse<UserProfileResponse>>(
+    "/api/v1/users/profile/image",
+    { method: "PATCH", body: formData },
   );
 
   return toUser(response.data);

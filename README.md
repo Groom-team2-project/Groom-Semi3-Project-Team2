@@ -50,9 +50,14 @@
 
 ## 도메인 문서
 
+- [계획 도메인 명세](docs/plan-spec.md)
 - [장소 도메인 명세](docs/places-spec.md)
 - [일정 도메인 명세](docs/schedules-spec.md)
 - [활동 기록 정책](docs/activity-log-spec.md)
+
+## 성능 검증
+
+- [활동 기록 조회 성능 설계 및 검증](docs/performance/activity-log-benchmark.md)
 
 ## 개발 로드맵
 
@@ -166,6 +171,24 @@ APP_PORT=9090:                    http://EC2주소:9090/actuator/health
 컨테이너 내부 애플리케이션 포트와 Docker 헬스체크는 항상 `8080`을 사용하고, `APP_PORT`는 EC2 외부에
 공개하는 포트만 변경합니다.
 
+### GitHub Actions 자동 배포
+
+`develop` 브랜치에 push하면 GitHub Actions가 백엔드 이미지를 ECR에 올린 뒤 다음 배포 파일을 SSM으로
+EC2의 `/opt/moigo`에 자동 동기화합니다.
+
+```text
+deploy/compose.yml  → /opt/moigo/compose.yml
+deploy/deploy.sh    → /opt/moigo/deploy.sh
+```
+
+EC2의 `/opt/moigo/.env`는 비밀번호와 환경별 실제 값을 포함하므로 Git에서 관리하거나 자동으로 덮어쓰지
+않습니다. 새로운 필수 환경변수를 추가할 때는 `deploy/compose.yml`과 `.env.example`을 수정하고,
+EC2의 `/opt/moigo/.env`에도 실제 값을 한 번 등록해야 합니다.
+
+배포 과정은 임시 Compose 파일의 문법과 환경변수를 먼저 검증한 후 실제 파일을 교체합니다. 새 백엔드가
+헬스체크를 통과한 경우에만 `unless-stopped` 재시작 정책을 활성화하며, 시작 실패나 시간 초과가 발생하면
+재시작 정책을 끄고 실패한 백엔드 컨테이너를 중지합니다.
+
 ### 향후 RDS 전환
 
 RDS 전환은 현재 첫 배포 범위에 포함하지 않습니다. 실제 전환 시에는 환경변수 두 개만 바꾸는 것으로 끝내지
@@ -209,6 +232,9 @@ COMPOSE_DB_URL=jdbc:mysql://RDS엔드포인트:3306/moigo?serverTimezone=Asia/Se
 │   │       └── application.yml
 │   └── test/                       # 테스트
 ├── .env.example                    # 환경 변수 예시
+├── deploy/
+│   ├── compose.yml                 # EC2 자동 배포용 Compose 원본
+│   └── deploy.sh                   # ECR pull, 실행, 헬스체크 및 실패 정리
 ├── Dockerfile                      # 백엔드 멀티 스테이지 이미지 빌드
 ├── docker-compose.yml              # 백엔드 + 선택형 MySQL 배포 구성
 ├── build.gradle

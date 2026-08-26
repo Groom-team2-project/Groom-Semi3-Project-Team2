@@ -1,6 +1,8 @@
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
-export const USE_MOCK = !API_BASE_URL;
+// 빈 base URL은 Netlify rewrite처럼 같은 출처의 /api를 호출한다는 뜻이다.
+// 목 데이터 사용은 개발 환경에서만 명시적으로 켠다.
+export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === "true";
 
 export class ApiError extends Error {
   status: number;
@@ -41,7 +43,7 @@ export async function apiFetch<T>(
   const fullUrl = API_BASE_URL + path;
   const headers = new Headers(init?.headers);
 
-  if (!headers.has("Content-Type")) {
+  if (!headers.has("Content-Type") && !(init?.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
   if (accessToken && !headers.has("Authorization")) {

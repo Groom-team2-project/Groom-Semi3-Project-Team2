@@ -5,39 +5,49 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppBar } from "@/components/ui/AppBar";
 import { Button } from "@/components/ui/Button";
-import { Avatar } from "@/components/ui/Avatar";
 import { Field, FieldInput } from "@/components/ui/FieldInput";
 import { BottomTabBar } from "@/components/ui/BottomTabBar";
+import { ProfileImagePicker } from "@/components/profile/ProfileImagePicker";
 import { useAuth } from "@/context/AuthContext";
 import { useLastPlanId } from "@/lib/lastPlan";
 import { getPlans } from "@/lib/api";
-import type { Plan, Role } from "@/lib/api";
+import type { Plan, Role, User } from "@/lib/api";
 
 const ROLE_LABEL: Record<Role, string> = { OWNER: "모임장", EDITOR: "편집자", VIEWER: "뷰어" };
 
 export default function ProfilePage() {
-  const { user, isLoading, updateProfile, logout } = useAuth();
+  const { user, isLoading } = useAuth();
   const router = useRouter();
-  const lastPlanId = useLastPlanId();
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [nickname, setNickname] = useState("");
-  const [syncedUser, setSyncedUser] = useState(user);
 
   useEffect(() => {
     if (!isLoading && !user) router.replace("/login");
   }, [isLoading, user, router]);
 
-  // user는 마운트 후 비동기로 채워짐 — 처음 채워졌을 때만 입력값 초기화
-  // (effect가 아니라 렌더 중 상태 조정 패턴: https://react.dev/learn/you-might-not-need-an-effect)
-  if (user && user !== syncedUser) {
-    setSyncedUser(user);
-    setNickname(user.name);
-  }
+  if (isLoading || !user) return null;
+
+  return <ProfileContent key={user.id} user={user} />;
+}
+
+function ProfileContent({ user }: { user: User }) {
+  const { updateProfile, updateProfileImage, logout } = useAuth();
+  const router = useRouter();
+  const lastPlanId = useLastPlanId();
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [nickname, setNickname] = useState(user.name);
 
   useEffect(() => {
-    if (!user) return;
-    getPlans().then(setPlans);
-  }, [user]);
+    let active = true;
+    void getPlans()
+      .then((nextPlans) => {
+        if (active) setPlans(nextPlans);
+      })
+      .catch(() => {
+        if (active) setPlans([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function handleLogout() {
     await logout();
@@ -45,11 +55,9 @@ export default function ProfilePage() {
   }
 
   async function handleNicknameBlur() {
-    if (!user || !nickname.trim() || nickname === user.name) return;
+    if (!nickname.trim() || nickname === user.name) return;
     await updateProfile(nickname.trim());
   }
-
-  if (isLoading || !user) return null;
 
   const tabPlanId = plans.some((plan) => plan.id === lastPlanId)
     ? lastPlanId
@@ -60,7 +68,7 @@ export default function ProfilePage() {
       <AppBar title="프로필" backHref="/plans" />
       <div className="flex flex-1 flex-col gap-3 px-4 pb-8">
         <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3.5">
-          <Avatar name={user.name} color={user.avatarColor} size="lg" />
+          <ProfileImagePicker name={user.name} color={user.avatarColor} imageUrl={user.profileImage} onUpload={updateProfileImage} />
           <div>
             <div className="text-[15px] font-bold">{user.name}</div>
             <div className="text-[12px] text-gray-500">{user.email}</div>
