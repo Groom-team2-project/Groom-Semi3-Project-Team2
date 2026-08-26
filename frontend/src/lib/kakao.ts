@@ -1,22 +1,52 @@
+interface KakaoSdk {
+    init: (key: string) => void;
+    isInitialized: () => boolean;
+    Share: {
+        sendDefault: (options: Record<string, unknown>) => void;
+    };
+}
+
 declare global {
     interface Window {
-        Kakao: any;
+        Kakao?: KakaoSdk;
     }
 }
 
 let initialized = false;
 
 function initKakao() {
-    if (initialized || typeof window === "undefined" || !window.Kakao) return;
-    window.Kakao.init(process.env.NEXT_PUBLIC_KAKAO_JS_KEY);
+    if (
+        initialized ||
+        typeof window === "undefined" ||
+        !window.Kakao
+    ) {
+        return;
+    }
+
+    const kakaoJsKey = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
+
+    if (!kakaoJsKey) {
+        console.error("NEXT_PUBLIC_KAKAO_JS_KEY가 설정되지 않았습니다.");
+        return;
+    }
+
+    if (!window.Kakao.isInitialized()) {
+        window.Kakao.init(kakaoJsKey);
+    }
+
     initialized = true;
 }
 
-export function shareInviteToKakao(planTitle: string, inviteUrl: string) {
+export function shareInviteToKakao(
+    planTitle: string,
+    inviteUrl: string,
+) {
     initKakao();
 
     if (!window.Kakao?.isInitialized()) {
-        alert("카카오톡 공유를 준비하지 못했습니다. 잠시 후 다시 시도해주세요.");
+        alert(
+            "카카오톡 공유를 준비하지 못했습니다. 잠시 후 다시 시도해주세요.",
+        );
         return;
     }
 
