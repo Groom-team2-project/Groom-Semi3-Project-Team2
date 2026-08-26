@@ -1,5 +1,8 @@
 package com.groom.moigo.domain.schedule.service;
 
+import com.groom.moigo.domain.place.dto.SchedulePlaceResponse;
+import com.groom.moigo.domain.place.entity.PlaceEntity;
+import com.groom.moigo.domain.place.repository.PlaceRepository;
 import com.groom.moigo.domain.plan.entity.PlanEntity;
 import com.groom.moigo.domain.plan.repository.PlanRepository;
 import com.groom.moigo.domain.schedule.dto.*;
@@ -10,7 +13,6 @@ import com.groom.moigo.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.support.StandardMultipartHttpServletRequest;
 
 import java.util.HashSet;
 import java.util.List;
@@ -22,6 +24,7 @@ import java.util.Set;
 public class ScheduleService {
     private final ScheduleRepository scheduleRepository;
     private final PlanRepository planRepository;
+    private final PlaceRepository placeRepository;
 
     @Transactional
     public ScheduleResponse createSchedule(Long planId, ScheduleCreateRequest request){
@@ -32,9 +35,10 @@ public class ScheduleService {
         if(duplicated) {
             throw new BusinessException(ErrorCode.DUPLICATE_SCHEDULE_ORDER);
         }
+        SchedulePlaceResponse place = getSchedulePlaceResponse(request.getPlaceId());
 
         ScheduleEntity schedule = ScheduleEntity.builder()
-                .placeId(planId)
+                .planId(planId)
                 .placeId(request.getPlaceId())
                 .title(request.getTitle())
                 .memo(request.getMemo())
@@ -45,7 +49,7 @@ public class ScheduleService {
                 .build();
         ScheduleEntity saveSchedule = scheduleRepository.save(schedule);
 
-        return ScheduleResponse.from(saveSchedule);
+        return ScheduleResponse.from(saveSchedule, place);
     }
 
     public ScheduleListResponse getSchedules(Long planId) {
@@ -54,7 +58,7 @@ public class ScheduleService {
 
         List<ScheduleEntity> schedule = scheduleRepository.findAllByPlanIdAndDeletedAtIsNullOrderBySortOrderAsc(planId);
         List<ScheduleSummaryResponse> responses = schedule.stream()
-                .map(ScheduleSummaryResponse::from)
+                .map(item -> ScheduleSummaryResponse.from(item, getSchedulePlaceResponse(item.getPlaceId())))
                 .toList();
         return new ScheduleListResponse(planId, responses);
     }
@@ -65,8 +69,9 @@ public class ScheduleService {
 
         ScheduleEntity schedule = scheduleRepository.findByScheduleIdAndPlanIdAndDeletedAtIsNull(scheduleId, planId)
                 .orElseThrow(()-> new BusinessException(ErrorCode.SCHEDULE_NOT_FOUND));
+        SchedulePlaceResponse place = getSchedulePlaceResponse(schedule.getPlaceId());
 
-        return ScheduleResponse.from(schedule);
+        return ScheduleResponse.from(schedule, place);
     }
 
     @Transactional
@@ -76,6 +81,11 @@ public class ScheduleService {
 
         ScheduleEntity schedule = scheduleRepository.findByScheduleIdAndPlanIdAndDeletedAtIsNull(scheduleId, planId)
                 .orElseThrow(()-> new BusinessException(ErrorCode.SCHEDULE_NOT_FOUND));
+
+        if (request.getPlaceId() != null
+                && Boolean.TRUE.equals(request.getClearPlace())) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
 
         schedule.update(
                 request.getPlaceId(),
@@ -88,8 +98,9 @@ public class ScheduleService {
                 request.getClearMemo(),
                 request.getClearEndAt()
         );
+        SchedulePlaceResponse place = getSchedulePlaceResponse(schedule.getPlaceId());
 
-        return ScheduleResponse.from(schedule);
+        return ScheduleResponse.from(schedule, place);
     }
 
     @Transactional
@@ -119,5 +130,14 @@ public class ScheduleService {
         schedule.softDelete();
 
         return ScheduleDeleteResponse.from(schedule);
+    }
+
+    private SchedulePlaceResponse getSchedulePlaceResponse(Long placeId) {
+        if (placeId == null) {
+            return null;
+        }
+        PlaceEntity place = placeRepository.findByPlaceIdAndDeletedAtIsNull(placeId)
+                .orElseThrow(()-> new BusinessException(ErrorCode.PLACE_NOT_FOUND));
+        return SchedulePlaceResponse.from(place);
     }
 }
