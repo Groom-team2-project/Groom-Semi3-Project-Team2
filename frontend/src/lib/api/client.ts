@@ -5,13 +5,20 @@ export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === "true";
 
 export class ApiError extends Error {
-  status: number;
+  readonly status: number;
+  readonly errorCode: string | null;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, errorCode: string | null = null) {
     super(message);
     this.status = status;
+    this.errorCode = errorCode;
     this.name = "ApiError";
   }
+}
+
+interface ApiErrorResponse {
+  errorCode?: unknown;
+  message?: unknown;
 }
 
 let accessToken: string | null = null;
@@ -33,6 +40,30 @@ export function setAuthenticationRecovery(
   recovery: (() => Promise<void>) | null,
 ): void {
   recoverAuthentication = recovery;
+}
+
+function fallbackErrorMessage(status: number): string {
+  if (status === 401) return "로그인이 필요합니다.";
+  if (status >= 500) return "서버에 문제가 발생했습니다.";
+  return `요청에 실패했습니다. (${status})`;
+}
+
+async function toApiError(response: Response): Promise<ApiError> {
+  const fallbackMessage = fallbackErrorMessage(response.status);
+
+  try {
+    const body = await response.json() as ApiErrorResponse;
+    const message = typeof body.message === "string" && body.message.trim()
+      ? body.message
+      : fallbackMessage;
+    const errorCode = typeof body.errorCode === "string" && body.errorCode.trim()
+      ? body.errorCode
+      : null;
+
+    return new ApiError(message, response.status, errorCode);
+  } catch {
+    return new ApiError(fallbackMessage, response.status);
+  }
 }
 
 export async function apiFetch<T>(
@@ -62,6 +93,8 @@ export async function apiFetch<T>(
   }
 
   if (!response.ok) {
+    const apiError = await toApiError(response);
+
     if (response.status === 401) {
       if (options.retryOnUnauthorized !== false && recoverAuthentication) {
         try {
@@ -71,12 +104,9 @@ export async function apiFetch<T>(
           // 재발급 실패 시 원래 요청의 인증 오류를 반환합니다.
         }
       }
-      throw new ApiError("로그인이 필요합니다.", 401);
     }
-    if (response.status >= 500) {
-      throw new ApiError("서버에 문제가 발생했습니다.", response.status);
-    }
-    throw new ApiError(`요청에 실패했습니다. (${response.status})`, response.status);
+
+    throw apiError;
   }
 
   if (response.status === 204) {
