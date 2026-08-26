@@ -1,4 +1,4 @@
-package com.groom.moigo.domain.place2.kakao.dto;
+package com.groom.moigo.domain.place.kakao.dto;
 
 import lombok.Getter;
 

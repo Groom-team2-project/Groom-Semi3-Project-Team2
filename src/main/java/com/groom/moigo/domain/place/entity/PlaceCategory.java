@@ -1,4 +1,4 @@
-package com.groom.moigo.domain.place2.entity;
+package com.groom.moigo.domain.place.entity;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

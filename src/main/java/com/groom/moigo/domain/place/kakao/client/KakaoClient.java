@@ -1,6 +1,6 @@
-package com.groom.moigo.domain.place2.kakao.client;
+package com.groom.moigo.domain.place.kakao.client;
 
-import com.groom.moigo.domain.place2.kakao.dto.KakaoSearchResponse;
+import com.groom.moigo.domain.place.kakao.dto.KakaoSearchResponse;
 import com.groom.moigo.global.error.BusinessException;
 import com.groom.moigo.global.error.ErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;

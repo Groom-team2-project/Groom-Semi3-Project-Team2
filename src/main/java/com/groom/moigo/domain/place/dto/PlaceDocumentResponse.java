@@ -1,6 +1,6 @@
-package com.groom.moigo.domain.place2.dto;
+package com.groom.moigo.domain.place.dto;
 
-import com.groom.moigo.domain.place2.kakao.dto.KakaoDocument;
+import com.groom.moigo.domain.place.kakao.dto.KakaoDocument;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 

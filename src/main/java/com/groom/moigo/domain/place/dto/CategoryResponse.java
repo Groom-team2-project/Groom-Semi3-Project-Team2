@@ -1,6 +1,6 @@
-package com.groom.moigo.domain.place2.dto;
+package com.groom.moigo.domain.place.dto;
 
-import com.groom.moigo.domain.place2.entity.PlaceCategory;
+import com.groom.moigo.domain.place.entity.PlaceCategory;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 

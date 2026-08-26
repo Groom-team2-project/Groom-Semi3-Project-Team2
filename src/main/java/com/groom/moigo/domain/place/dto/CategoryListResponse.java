@@ -1,4 +1,4 @@
-package com.groom.moigo.domain.place2.dto;
+package com.groom.moigo.domain.place.dto;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
