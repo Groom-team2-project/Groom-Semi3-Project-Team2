@@ -67,7 +67,10 @@ public enum ErrorCode {
     //Schedule
     SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "일정을 찾을 수 없습니다."),
     INVALID_SCHEDULE_ORDER(HttpStatus.BAD_REQUEST, "일정 순서 정보가 올바르지 않습니다."),
-    DUPLICATE_SCHEDULE_ORDER(HttpStatus.CONFLICT, "이미 사용 중인 일정 순서입니다.");
+    DUPLICATE_SCHEDULE_ORDER(HttpStatus.CONFLICT, "이미 사용 중인 일정 순서입니다."),
+
+    //Kakao
+    KAKAO_LOCAL_API_ERROR(HttpStatus.BAD_GATEWAY, "카카오 장소 검색에 실패했습니다.");
 
     private final HttpStatus status;
     private final String message;
