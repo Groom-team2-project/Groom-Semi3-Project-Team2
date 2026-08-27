@@ -92,6 +92,15 @@ public class ScheduleService {
                 && Boolean.TRUE.equals(request.getClearPlace())) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
+        if (request.getMemo() != null
+                && Boolean.TRUE.equals(request.getClearMemo())) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        if (request.getEndAt() != null
+                && Boolean.TRUE.equals(request.getClearEndAt())) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
 
         schedule.update(
                 request.getPlaceId(),
@@ -143,7 +152,7 @@ public class ScheduleService {
         for (int index = 0; index < requestedIds.size(); index++){
             Long scheduleId = requestedIds.get(index);
             ScheduleEntity schedule = scheduleById.get(scheduleId);
-            int sortOrder = index + 1;
+            int sortOrder = FIRST_SORT_ORDER + index;
             schedule.reorder(sortOrder);
         }
 

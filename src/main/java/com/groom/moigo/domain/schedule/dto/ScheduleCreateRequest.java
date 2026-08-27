@@ -27,6 +27,4 @@ public class ScheduleCreateRequest {
     @NotNull
     private ReservationStatus reservationStatus;
 
-    // @Size(max = 500)
-    // String = kakaoRouteUrl
 }

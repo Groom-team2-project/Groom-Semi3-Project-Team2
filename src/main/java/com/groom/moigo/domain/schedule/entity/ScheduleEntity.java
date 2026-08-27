@@ -1,5 +1,7 @@
 package com.groom.moigo.domain.schedule.entity;
 
+import com.groom.moigo.global.error.BusinessException;
+import com.groom.moigo.global.error.ErrorCode;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -125,9 +127,7 @@ public class ScheduleEntity {
 
     private static void validateTimeRange(LocalDateTime startAt, LocalDateTime endAt) {
         if (endAt != null && endAt.isBefore(startAt)) {
-            throw new IllegalArgumentException(
-                    "종료 시간은 시작 시간보다 빠를 수 없습니다."
-            );
+            throw new BusinessException(ErrorCode.INVALID_TIME_RANGE);
         }
     }
 
