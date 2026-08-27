@@ -17,5 +17,6 @@ export async function getActivityDestination(planId: string, activity: ActivityL
 
   if (activity.targetType === "vote" && activity.targetId) return `/plans/${planId}/votes/${activity.targetId}`;
   if (activity.targetType === "member") return `/plans/${planId}/members`;
+  if (activity.targetType === "invitation") return `/plans/${planId}/members`;
   return null;
 }

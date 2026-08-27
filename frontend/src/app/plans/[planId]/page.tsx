@@ -13,6 +13,7 @@ import { usePlan } from "@/lib/hooks/usePlan";
 import { useRememberPlan } from "@/lib/lastPlan";
 import { getActivities, getSchedules, getVotes } from "@/lib/api";
 import { getActivityDestination } from "@/lib/activityNavigation";
+import { getActivityErrorMessage } from "@/lib/activityError";
 import type { ActivityLog, Schedule, Vote } from "@/lib/api";
 import { dateRangeToDayCount, dayIndexToDate, formatDateShort, formatDday, formatDeadline } from "@/lib/utils";
 
@@ -30,7 +31,9 @@ export default function PlanHomePage({ params }: { params: Promise<{ planId: str
   useEffect(() => {
     getSchedules(planId).then(setSchedules);
     getVotes(planId).then(setVotes);
-    getActivities(planId, { size: 3 }).then((page) => setActivities(page.activities));
+    getActivities(planId, { size: 3 })
+      .then((page) => setActivities(page.activities))
+      .catch((error) => setToastMessage(getActivityErrorMessage(error)));
   }, [planId]);
 
   const clearToast = useCallback(() => setToastMessage(null), []);

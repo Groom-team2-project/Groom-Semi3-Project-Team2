@@ -21,9 +21,14 @@ export function usePlan(planId: string) {
 
   useEffect(() => {
     let alive = true;
-    getPlan(planId).then((p) => {
-      if (alive) setPlan(p);
-    });
+    getPlan(planId)
+      .then((p) => {
+        if (alive) setPlan(p);
+      })
+      .catch(() => {
+        // 조회 실패(네트워크 오류, 인증 만료 등)도 "없음" 취급해 무한 로딩 대신 PlanNotFound를 보여준다.
+        if (alive) setPlan(null);
+      });
     return () => {
       alive = false;
     };
