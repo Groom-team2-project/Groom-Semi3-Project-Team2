@@ -110,6 +110,8 @@ export default function InvitationPage() {
 
             router.replace(`/plans/${result.planId}`);
         } catch (e) {
+            const apiError = e as ApiErrorResponse;
+
             // 초대 화면에 머무는 동안 로그인이 만료된 경우
             // 로그인 안내 화면으로 전환합니다.
             if (
