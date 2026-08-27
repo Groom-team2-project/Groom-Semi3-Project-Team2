@@ -37,8 +37,8 @@ export default function InvitationPage() {
                 const result = await getInvitationByCode(inviteCode);
                 setInvitation(result);
             } catch (e) {
-                // 미로그인 상태라면 로그인 페이지로 바로 보내지 않고
-                // 현재 초대 페이지에서 로그인 안내 화면을 보여줍니다.
+                // 미로그인 상태라면 현재 초대 페이지에서
+                // 로그인 안내 화면을 보여줍니다.
                 if (
                     e instanceof ApiError &&
                     (e.status === 401 || e.errorCode === "UNAUTHORIZED")
@@ -49,8 +49,8 @@ export default function InvitationPage() {
 
                 setError(
                     e instanceof ApiError
-                      ? e.message
-                      : "초대 정보를 불러오지 못했습니다.",
+                        ? e.message
+                        : "초대 정보를 불러오지 못했습니다.",
                 );
             } finally {
                 setLoading(false);
@@ -82,8 +82,8 @@ export default function InvitationPage() {
         } catch (e) {
             setLoginError(
                 e instanceof ApiError
-                  ? e.message
-                  : "카카오 로그인을 시작하지 못했습니다. 다시 시도해 주세요.",
+                    ? e.message
+                    : "카카오 로그인을 시작하지 못했습니다. 다시 시도해 주세요.",
             );
             setLoginPending(false);
         }
@@ -121,10 +121,53 @@ export default function InvitationPage() {
                 return;
             }
 
+            // 초대 링크 만료
+            if (
+                e instanceof ApiError &&
+                e.errorCode === "INVITATION_EXPIRED"
+            ) {
+                setInvitation((current) =>
+                    current
+                        ? {
+                            ...current,
+                            status: "EXPIRED",
+                        }
+                        : current,
+                );
+                setError("초대 링크가 만료되었습니다.");
+                return;
+            }
+
+            // 초대 링크 취소
+            if (
+                e instanceof ApiError &&
+                e.errorCode === "INVITATION_REVOKED"
+            ) {
+                setInvitation((current) =>
+                    current
+                        ? {
+                            ...current,
+                            status: "REVOKED",
+                        }
+                        : current,
+                );
+                setError("초대 링크가 취소되었습니다.");
+                return;
+            }
+
+            // 모집 인원 마감
+            if (
+                e instanceof ApiError &&
+                e.errorCode === "PLAN_RECRUITMENT_FULL"
+            ) {
+                setError("모집 인원이 마감되었습니다.");
+                return;
+            }
+
             setError(
                 e instanceof ApiError
-                  ? e.message
-                  : "계획 참여 중 오류가 발생했습니다.",
+                    ? e.message
+                    : "계획 참여 중 오류가 발생했습니다.",
             );
         } finally {
             setJoining(false);
@@ -175,7 +218,6 @@ export default function InvitationPage() {
             <main className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[#f8faf9] px-4 py-12">
                 <div className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                     <div className="px-7 py-8 text-center">
-
                         <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-2xl">
                             ✉
                         </div>
@@ -217,7 +259,9 @@ export default function InvitationPage() {
 
                         {loginError && (
                             <div className="mt-3 rounded-xl bg-red-soft px-4 py-3 text-left">
-                                <p className="text-sm text-red">{loginError}</p>
+                                <p className="text-sm text-red">
+                                    {loginError}
+                                </p>
                             </div>
                         )}
 
@@ -235,7 +279,6 @@ export default function InvitationPage() {
         return (
             <main className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[#f8faf9] px-4 py-12">
                 <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-
                     <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-xl font-bold text-red-500">
                         !
                     </div>
@@ -263,13 +306,13 @@ export default function InvitationPage() {
             </main>
         );
     }
-// 이미 참여 중인 계획
+
+    // 이미 참여 중인 계획
     if (alreadyJoined && invitation?.planId) {
         return (
             <main className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[#f8faf9] px-4 py-12">
                 <div className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                     <div className="px-7 py-8 text-center">
-
                         <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-2xl font-bold text-emerald-600">
                             ✓
                         </div>
@@ -289,7 +332,9 @@ export default function InvitationPage() {
                         <button
                             type="button"
                             onClick={() =>
-                                router.replace(`/plans/${invitation.planId}`)
+                                router.replace(
+                                    `/plans/${invitation.planId}`,
+                                )
                             }
                             className="mt-6 w-full rounded-xl bg-emerald-600 px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
                         >
@@ -306,7 +351,6 @@ export default function InvitationPage() {
         <main className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[#f8faf9] px-4 py-12">
             <div className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                 <div className="px-7 py-8">
-
                     <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-2xl">
                         ✉
                     </div>

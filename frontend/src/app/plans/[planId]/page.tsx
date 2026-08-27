@@ -62,6 +62,11 @@ export default function PlanHomePage({ params }: { params: Promise<{ planId: str
         subtitle={`${formatDateShort(plan.startDate)} - ${formatDateShort(plan.endDate)}${dday ? ` · ${dday}` : ""}`}
         actions={
           <>
+            {(plan.myRole === "OWNER" || plan.myRole === "EDITOR") && (
+                <Button href={`/plans/${planId}/edit`} variant="ghost" size="sm" fullWidth={false}>
+                  수정
+                </Button>
+            )}
             <Button href={`/plans/${planId}/places`} variant="ghost" size="sm" fullWidth={false}>
               장소
             </Button>
