@@ -17,8 +17,10 @@ import com.groom.moigo.domain.plan.repository.PlanRepository;
 import com.groom.moigo.global.error.BusinessException;
 import com.groom.moigo.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -28,6 +30,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -52,18 +55,28 @@ public class ActivityLogServiceImpl implements ActivityLogService {
             ActivityActionType.COMMENT_CREATED
     );
 
+    // 활동 기록은 부가 기능이라, 실패해도 원래 도메인 작업(투표 생성 등)이 실패하면 안 된다 (활동 기록 정책서 5절 2항).
+    // REQUIRES_NEW로 별도 트랜잭션에서 시도하고, 그래도 실패하면 예외를 호출자에게 전파하지 않고 로그만 남긴다.
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(ActivityRecordCommand command) {
-        ActivityLogEntity log = ActivityLogEntity.create(
-                command.planId(),
-                command.userId(),
-                command.actionType(),
-                command.targetType(),
-                command.targetId(),
-                command.summary()
-        );
+        try {
+            ActivityLogEntity activityLog = ActivityLogEntity.create(
+                    command.planId(),
+                    command.userId(),
+                    command.actionType(),
+                    command.targetType(),
+                    command.targetId(),
+                    command.summary()
+            );
 
-        activityLogRepository.save(log);
+            activityLogRepository.save(activityLog);
+        } catch (RuntimeException e) {
+            log.error(
+                    "활동 기록 저장 실패: planId={}, userId={}, actionType={}",
+                    command.planId(), command.userId(), command.actionType(), e
+            );
+        }
     }
 
     @Override
