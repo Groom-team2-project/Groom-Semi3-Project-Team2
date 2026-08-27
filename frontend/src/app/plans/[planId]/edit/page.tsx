@@ -1,10 +1,14 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppBar } from "@/components/ui/AppBar";
 import { Button } from "@/components/ui/Button";
-import { Field, FieldInput, FieldTextarea } from "@/components/ui/FieldInput";
+import {
+    Field,
+    FieldInput,
+    FieldTextarea,
+} from "@/components/ui/FieldInput";
 import { PlanNotFound } from "@/components/plan/PlanNotFound";
 import { usePlan } from "@/lib/hooks/usePlan";
 import { updatePlan } from "@/lib/api";
@@ -15,26 +19,7 @@ export default function PlanEditPage({
     params: Promise<{ planId: string }>;
 }) {
     const { planId } = use(params);
-    const router = useRouter();
     const { plan, isLoading } = usePlan(planId);
-
-    const [title, setTitle] = useState("");
-    const [startDate, setStartDate] = useState("");
-    const [endDate, setEndDate] = useState("");
-    const [description, setDescription] = useState("");
-    const [capacity, setCapacity] = useState("");
-    const [pending, setPending] = useState(false);
-
-    useEffect(() => {
-        if (!plan) {
-            return;
-        }
-        setTitle(plan.title);
-        setStartDate(plan.startDate);
-        setEndDate(plan.endDate);
-        setDescription(plan.description ?? "");
-        setCapacity(plan.capacity ? String(plan.capacity) : "");
-    }, [plan]);
 
     if (isLoading) {
         return null;
@@ -48,11 +33,56 @@ export default function PlanEditPage({
         return <PlanNotFound />;
     }
 
-    const canSubmit = title.trim().length > 0 && startDate && endDate && !pending;
+    return (
+        <PlanEditForm
+            key={planId}
+            planId={planId}
+            initialTitle={plan.title}
+            initialStartDate={plan.startDate}
+            initialEndDate={plan.endDate}
+            initialDescription={plan.description ?? ""}
+            initialCapacity={plan.capacity ? String(plan.capacity) : ""}
+        />
+    );
+}
+
+function PlanEditForm({
+                          planId,
+                          initialTitle,
+                          initialStartDate,
+                          initialEndDate,
+                          initialDescription,
+                          initialCapacity,
+                      }: {
+    planId: string;
+    initialTitle: string;
+    initialStartDate: string;
+    initialEndDate: string;
+    initialDescription: string;
+    initialCapacity: string;
+}) {
+    const router = useRouter();
+
+    const [title, setTitle] = useState(initialTitle);
+    const [startDate, setStartDate] = useState(initialStartDate);
+    const [endDate, setEndDate] = useState(initialEndDate);
+    const [description, setDescription] = useState(initialDescription);
+    const [capacity, setCapacity] = useState(initialCapacity);
+    const [pending, setPending] = useState(false);
+
+    const canSubmit =
+        title.trim().length > 0 &&
+        Boolean(startDate) &&
+        Boolean(endDate) &&
+        !pending;
 
     async function handleSubmit() {
-        if (!canSubmit) return;
+        if (!canSubmit) {
+            return;
+        }
+
         setPending(true);
+
         try {
             await updatePlan(planId, {
                 title: title.trim(),
@@ -61,6 +91,7 @@ export default function PlanEditPage({
                 endDate,
                 capacity: capacity ? Number(capacity) : undefined,
             });
+
             router.push(`/plans/${planId}`);
         } finally {
             setPending(false);
@@ -69,18 +100,39 @@ export default function PlanEditPage({
 
     return (
         <div className="flex min-h-dvh flex-col">
-            <AppBar title="여행 계획 수정" backHref={`/plans/${planId}`} />
+            <AppBar
+                title="여행 계획 수정"
+                backHref={`/plans/${planId}`}
+            />
+
             <div className="flex flex-1 flex-col gap-3 px-4 pb-8">
                 <Field label="제목">
-                    <FieldInput placeholder="ex) 제주도 여름 여행" value={title} onChange={(e) => setTitle(e.target.value)} />
+                    <FieldInput
+                        placeholder="ex) 제주도 여름 여행"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                    />
                 </Field>
+
                 <Field label="여행 기간">
                     <div className="flex items-center gap-2">
-                        <FieldInput type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                        <FieldInput
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                        />
+
                         <span className="text-gray-500">-</span>
-                        <FieldInput type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.target.value)} />
+
+                        <FieldInput
+                            type="date"
+                            value={endDate}
+                            min={startDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                        />
                     </div>
                 </Field>
+
                 <Field label="설명">
                     <FieldTextarea
                         placeholder="간단한 소개를 적어주세요"
@@ -88,6 +140,7 @@ export default function PlanEditPage({
                         onChange={(e) => setDescription(e.target.value)}
                     />
                 </Field>
+
                 <Field label="모집 인원" optional>
                     <FieldInput
                         type="number"
@@ -97,8 +150,13 @@ export default function PlanEditPage({
                         onChange={(e) => setCapacity(e.target.value)}
                     />
                 </Field>
+
                 <div className="h-1.5" />
-                <Button onClick={handleSubmit} disabled={!canSubmit}>
+
+                <Button
+                    onClick={handleSubmit}
+                    disabled={!canSubmit}
+                >
                     {pending ? "수정하는 중..." : "수정 완료"}
                 </Button>
             </div>
