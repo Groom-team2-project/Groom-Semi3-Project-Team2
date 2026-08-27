@@ -51,6 +51,7 @@ export default function ScheduleDetailPage({
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [commentsError, setCommentsError] = useState("");
+  const [likePendingIds, setLikePendingIds] = useState<Set<string>>(new Set());
   const { user } = useAuth();
   const currentUserId = USE_MOCK ? store.me.id : user?.id;
   const commentsById = new Map(comments.map((comment) => [comment.id, comment]));
@@ -100,10 +101,18 @@ export default function ScheduleDetailPage({
   }
 
   async function handleLike(commentId: string) {
-    // 낙관적 업데이트: 요청이 끝나기 전에 먼저 화면부터 바꾸고, 실패하면 원래대로 되돌립니다.
-    const previous = comments;
+    // 응답 역전으로 최신 상태를 덮어쓰지 않도록, 진행 중인 요청은 무시
+    if (likePendingIds.has(commentId)) return;
+
+    const target = comments.find((comment) => comment.id === commentId);
+    if (!target) return;
+    const previousLikedByMe = target.likedByMe;
+    const previousLikeCount = target.likeCount;
+
+    setLikePendingIds((prev) => new Set(prev).add(commentId));
+    // 낙관적 업데이트, 실패 시 이 댓글만 원상 복구
     setComments((prev) => prev.map((comment) => comment.id === commentId
-      ? { ...comment, likedByMe: !comment.likedByMe, likeCount: comment.likeCount + (comment.likedByMe ? -1 : 1) }
+      ? { ...comment, likedByMe: !previousLikedByMe, likeCount: previousLikeCount + (previousLikedByMe ? -1 : 1) }
       : comment));
     try {
       const { likeCount, likedByMe } = await toggleCommentLike(planId, scheduleId, commentId);
@@ -111,7 +120,15 @@ export default function ScheduleDetailPage({
         ? { ...comment, likeCount, likedByMe }
         : comment));
     } catch {
-      setComments(previous);
+      setComments((prev) => prev.map((comment) => comment.id === commentId
+        ? { ...comment, likedByMe: previousLikedByMe, likeCount: previousLikeCount }
+        : comment));
+    } finally {
+      setLikePendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(commentId);
+        return next;
+      });
     }
   }
 

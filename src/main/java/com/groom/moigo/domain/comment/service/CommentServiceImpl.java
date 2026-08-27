@@ -178,7 +178,8 @@ public class CommentServiceImpl implements CommentService {
     ) {
         validateScheduleInPlan(planId, scheduleId);
 
-        CommentEntity comment = commentRepository.findByCommentIdAndScheduleId(commentId, scheduleId)
+        // 동시 좋아요 토글 요청의 유니크 제약 위반을 막기 위한 행 잠금
+        CommentEntity comment = commentRepository.findByCommentIdAndScheduleIdForUpdate(commentId, scheduleId)
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.INVALID_INPUT_VALUE,
                         "댓글을 찾을 수 없습니다."
@@ -210,7 +211,7 @@ public class CommentServiceImpl implements CommentService {
 
         long likeCount = commentLikeRepository.countByCommentId(commentId);
 
-        // 좋아요를 누른 경우에만 기록함. 취소는 "내 활동"에도 남기지 않음 (SHARED_ACTIONS에도 없어 계획 공유 활동에는 노출되지 않음).
+        // 좋아요를 누른 경우에만 기록함(취소는 기록 안 함)
         if (likedByMe) {
             activityLogService.record(new ActivityRecordCommand(
                     planId,

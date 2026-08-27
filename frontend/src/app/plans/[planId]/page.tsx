@@ -20,7 +20,7 @@ import { dateRangeToDayCount, dayIndexToDate, formatDateShort, formatDday, forma
 export default function PlanHomePage({ params }: { params: Promise<{ planId: string }> }) {
   const { planId } = use(params);
   const router = useRouter();
-  const { plan, isLoading } = usePlan(planId);
+  const { plan, isLoading, error, refresh } = usePlan(planId);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [votes, setVotes] = useState<Vote[]>([]);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
@@ -48,6 +48,16 @@ export default function PlanHomePage({ params }: { params: Promise<{ planId: str
   }
 
   if (isLoading) return null;
+  if (error) {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-[13.5px] text-gray-700">계획을 불러오지 못했어요. 다시 시도해 주세요.</p>
+        <Button onClick={refresh} variant="ghost">
+          다시 시도
+        </Button>
+      </div>
+    );
+  }
   if (!plan) return <PlanNotFound />;
 
   const dayCount = dateRangeToDayCount(plan.startDate, plan.endDate);

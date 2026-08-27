@@ -21,14 +21,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 활동 기록 정책서(docs/activity-log-spec.md) 5절 2항 검증:
- * "활동 기록 실패로 원래 도메인 작업이 실패하지 않도록 트랜잭션 정책을 도메인별로 검토"
- *
- * <p>{@link ActivityLogServiceImpl#record}가 REQUIRES_NEW로 분리되고 예외를 내부에서 삼키는지,
- * 그래서 활동 기록 저장이 실패해도 호출한 쪽(투표 생성)의 트랜잭션은 정상 커밋되는지 확인
+ * 활동 기록 저장이 실패해도 투표 생성 트랜잭션은 정상 커밋되는지 검증 (활동 기록 정책서 5절 2항)
  */
 @SpringBootTest
 @Transactional
@@ -55,7 +52,9 @@ class ActivityLogRecordResilienceTest {
                 .save(any());
     }
 
+    // 테스트 트랜잭션에 합류하면 findById가 커밋 전 상태만 보게 되므로, NOT_SUPPORTED로 실제 커밋 여부를 검증함
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     @DisplayName("활동 기록 저장이 실패해도 투표 생성 자체는 성공하고 커밋된다")
     void createVoteSucceedsEvenWhenActivityLogFails() {
         VoteResponse response = voteService.create(planId, creatorId, createRequest());
