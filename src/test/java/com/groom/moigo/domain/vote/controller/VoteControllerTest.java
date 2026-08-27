@@ -24,16 +24,20 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 프론트엔드 {@code lib/api/votes.ts}가 보내는 요청과 기대하는 응답 형태를 그대로 검증한다.
  *
  * <p>응답은 공통 {@code CommonResponse} 규격이라 프론트엔드가 보는 투표는 {@code $.data} 아래에 있다.
+ *
+ * <p>{@code VoteTestFixture}가 REQUIRES_NEW로 즉시 커밋하므로(docs/activity-log-spec.md 7절 참고), 테스트 중간에
+ * 새로 만든 데이터를 바로 조회하는 경우가 있어 READ_COMMITTED로 지정한다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Transactional
+@Transactional(isolation = Isolation.READ_COMMITTED)
 class VoteControllerTest {
 
 	@Autowired private MockMvc mockMvc;
