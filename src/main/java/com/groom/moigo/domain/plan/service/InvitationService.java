@@ -16,9 +16,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.time.ZoneId;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +30,7 @@ public class InvitationService {
     private static final int CODE_LENGTH = 8;
     private static final int MAX_RETRY = 5; // 코드가 우연히 중복될 때 재시도할 최대 횟수
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final ZoneId SERVICE_ZONE = ZoneId.of("Asia/Seoul");
 
     private final InvitationRepository invitationRepository;
     private final MemberRepository memberRepository;
@@ -129,6 +132,11 @@ public class InvitationService {
         Long planId = invitation.getPlan().getPlanId();
         PlanEntity plan = planRepository.findByIdForUpdate(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
+
+        // 여행 종료일이 지난 계획에는 새로 참여할 수 없게 막습니다.
+        if (plan.getEndDate().isBefore(LocalDate.now(SERVICE_ZONE))) {
+            throw new BusinessException(ErrorCode.PLAN_ALREADY_COMPLETED);
+        }
 
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
