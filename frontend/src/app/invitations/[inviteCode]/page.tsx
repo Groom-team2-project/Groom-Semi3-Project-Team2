@@ -109,10 +109,7 @@ export default function InvitationPage() {
             }
 
             // 이미 참여 중인 계획
-            if (
-                apiError.status === 409 ||
-                apiError.errorCode === "MEMBER_ALREADY_JOINED"
-            ) {
+            if (apiError.errorCode === "MEMBER_ALREADY_JOINED") {
                 setAlreadyJoined(true);
                 return;
             }
