@@ -129,10 +129,10 @@ export const INITIAL_VOTES: Vote[] = [
 ];
 
 export const INITIAL_COMMENTS: Comment[] = [
-  { id: "cmt_1", scheduleId: "sch_4", authorName: "김민수", authorColor: "#00C896", text: "파라솔 미리 예약해둘게요", createdAt: minutesAgo(50) },
-  { id: "cmt_2", scheduleId: "sch_4", authorName: "박서연", authorColor: "#FF9F1C", text: "오전엔 사람 적대요, 좋아요", createdAt: minutesAgo(35) },
-  { id: "cmt_3", scheduleId: "sch_4", authorName: "최도윤", authorColor: "#8B7FF2", text: "저도 오전 조로 참여할게요!", createdAt: minutesAgo(20) },
-  { id: "cmt_4", scheduleId: "sch_4", userId: "user_jieun", authorName: "이지은", authorColor: "#3182F6", text: "그럼 오전 9시에 만나요!", createdAt: minutesAgo(10) },
+  { id: "cmt_1", scheduleId: "sch_4", authorName: "김민수", authorColor: "#00C896", text: "파라솔 미리 예약해둘게요", createdAt: minutesAgo(50), likeCount: 2, likedByMe: false },
+  { id: "cmt_2", scheduleId: "sch_4", authorName: "박서연", authorColor: "#FF9F1C", text: "오전엔 사람 적대요, 좋아요", createdAt: minutesAgo(35), likeCount: 0, likedByMe: false },
+  { id: "cmt_3", scheduleId: "sch_4", authorName: "최도윤", authorColor: "#8B7FF2", text: "저도 오전 조로 참여할게요!", createdAt: minutesAgo(20), likeCount: 1, likedByMe: true },
+  { id: "cmt_4", scheduleId: "sch_4", userId: "user_jieun", authorName: "이지은", authorColor: "#3182F6", text: "그럼 오전 9시에 만나요!", createdAt: minutesAgo(10), likeCount: 0, likedByMe: false },
 ];
 
 export const INITIAL_ACTIVITIES: ActivityLog[] = [

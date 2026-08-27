@@ -16,9 +16,11 @@ public record CommentResponse(
         String nickname,
         String profileImage,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        long likeCount,
+        boolean likedByMe
 ) {
-    public static CommentResponse from(CommentEntity comment, UserEntity user) {
+    public static CommentResponse from(CommentEntity comment, UserEntity user, long likeCount, boolean likedByMe) {
         if (comment.isDeleted()) {
             return new CommentResponse(
                   comment.getCommentId(),
@@ -31,7 +33,9 @@ public record CommentResponse(
                   null,
                   null,
                   comment.getCreatedAt(),
-                  comment.getUpdatedAt()
+                  comment.getUpdatedAt(),
+                  0,
+                  false
             );
         }
 
@@ -46,7 +50,9 @@ public record CommentResponse(
                 user.getNickname(),
                 user.getProfileImage(),
                 comment.getCreatedAt(),
-                comment.getUpdatedAt()
+                comment.getUpdatedAt(),
+                likeCount,
+                likedByMe
         );
     }
 }

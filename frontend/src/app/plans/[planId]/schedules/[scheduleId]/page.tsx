@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { AppBar } from "@/components/ui/AppBar";
 import { Button } from "@/components/ui/Button";
 import { CommentItem } from "@/components/plan/CommentItem";
-import { getSchedule, getComments, addComment, deleteComment } from "@/lib/api";
+import { getSchedule, getComments, addComment, deleteComment, toggleCommentLike } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { ApiError, USE_MOCK } from "@/lib/api/client";
 import { store } from "@/lib/api/store";
@@ -24,6 +24,17 @@ function getCommentPostError(error: unknown): string {
   return "댓글 등록에 실패했어요. 다시 시도해 주세요.";
 }
 
+function getCommentLoadError(error: unknown): string {
+  if (!(error instanceof ApiError)) return "댓글을 불러오지 못했어요. 다시 시도해 주세요.";
+
+  if (error.status === 0) return "네트워크 연결을 확인한 뒤 다시 시도해 주세요.";
+  if (error.status === 401) return "로그인이 필요해요. 다시 로그인해 주세요.";
+  if (error.status === 403) return "댓글을 볼 수 있는 권한이 없어요.";
+  if (error.status >= 500) return "서버에 문제가 있어요. 잠시 후 다시 시도해 주세요.";
+
+  return "댓글을 불러오지 못했어요. 다시 시도해 주세요.";
+}
+
 export default function ScheduleDetailPage({
   params,
 }: {
@@ -39,6 +50,7 @@ export default function ScheduleDetailPage({
   const [postError, setPostError] = useState("");
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [commentsError, setCommentsError] = useState("");
   const { user } = useAuth();
   const currentUserId = USE_MOCK ? store.me.id : user?.id;
   const commentsById = new Map(comments.map((comment) => [comment.id, comment]));
@@ -57,8 +69,12 @@ export default function ScheduleDetailPage({
   });
 
   useEffect(() => {
-    getSchedule(planId, scheduleId).then(setSchedule);
-    getComments(planId, scheduleId).then(setComments);
+    getSchedule(planId, scheduleId)
+      .then(setSchedule)
+      .catch(() => setSchedule(null));
+    getComments(planId, scheduleId)
+      .then(setComments)
+      .catch((error) => setCommentsError(getCommentLoadError(error)));
   }, [planId, scheduleId]);
 
   useEffect(() => {
@@ -80,6 +96,22 @@ export default function ScheduleDetailPage({
       setPostError(getCommentPostError(error));
     } finally {
       setPosting(false);
+    }
+  }
+
+  async function handleLike(commentId: string) {
+    // 낙관적 업데이트: 요청이 끝나기 전에 먼저 화면부터 바꾸고, 실패하면 원래대로 되돌립니다.
+    const previous = comments;
+    setComments((prev) => prev.map((comment) => comment.id === commentId
+      ? { ...comment, likedByMe: !comment.likedByMe, likeCount: comment.likeCount + (comment.likedByMe ? -1 : 1) }
+      : comment));
+    try {
+      const { likeCount, likedByMe } = await toggleCommentLike(planId, scheduleId, commentId);
+      setComments((prev) => prev.map((comment) => comment.id === commentId
+        ? { ...comment, likeCount, likedByMe }
+        : comment));
+    } catch {
+      setComments(previous);
     }
   }
 
@@ -119,6 +151,7 @@ export default function ScheduleDetailPage({
             showDivider={children.length === 0 && showDivider}
             onReply={() => openComposer(comment)}
             onDelete={() => handleDelete(comment.id)}
+            onLike={() => handleLike(comment.id)}
           />
           {!hasCycle && children.length > 0 && (
             <div className="bg-gray-100 pl-5 pr-2.5">
@@ -159,6 +192,7 @@ export default function ScheduleDetailPage({
         </div>
 
         <h3 className="mt-1 text-[13px] text-gray-500">댓글 {comments.length}</h3>
+        {commentsError && <p className="text-[12.5px] text-red">{commentsError}</p>}
         <div>
           {rootComments.map((comment) => renderComments([comment]))}
         </div>

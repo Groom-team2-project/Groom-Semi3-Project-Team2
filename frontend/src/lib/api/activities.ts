@@ -55,6 +55,7 @@ function mapActivity(response: ActivityApiResponse): ActivityLog {
     MEMBER_ROLE_CHANGED: "member_role_changed",
     COMMENT_CREATED: "comment_added",
     COMMENT_DELETED: "comment_deleted",
+    COMMENT_LIKED: "comment_liked",
   };
 
   return {
