@@ -11,10 +11,12 @@ import { usePlan } from "@/lib/hooks/usePlan";
 import {
   deletePlan,
   getInvitation,
+  getCurrentInvitation,
   getMembers,
   leavePlan,
   updateMemberRole,
 } from "@/lib/api";
+import { shareInviteToKakao } from "@/lib/kakao"; // [신규]
 import type { Invitation, Member, Role } from "@/lib/api";
 
 type ConfirmAction = "delete" | "leave" | null;
@@ -38,13 +40,28 @@ export default function MembersPage({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionError, setActionError] = useState("");
 
+  const myRole = plan?.myRole;
+  const isOwner = myRole === "OWNER";
+
   useEffect(() => {
-    getInvitation(planId)
+    // [변경] OWNER는 생성/재사용 API(POST), OWNER가 아니면 조회 전용 API(GET)를 호출합니다.
+    // isOwner는 plan 로딩이 끝나야 정확한 값이 나오므로, plan이 없으면(로딩 중) 아직 호출하지 않습니다.
+    if (!plan) {
+      return;
+    }
+
+    const fetchInvitation = isOwner
+        ? getInvitation(planId)
+        : getCurrentInvitation(planId);
+
+    fetchInvitation
         .then((data) => {
           setInvitation(data);
           setInvitationFailed(false);
         })
         .catch(() => {
+          // OWNER가 아직 링크를 한 번도 안 만든 경우, EDITOR/VIEWER는
+          // "아직 초대 링크가 없습니다" 상태를 이 catch로 받게 됩니다.
           setInvitation(null);
           setInvitationFailed(true);
         });
@@ -54,7 +71,7 @@ export default function MembersPage({
         .catch(() => {
           setMembers([]);
         });
-  }, [planId]);
+  }, [planId, plan, isOwner]);
 
   if (isLoading) {
     return null;
@@ -64,9 +81,7 @@ export default function MembersPage({
     return <PlanNotFound />;
   }
 
-  const myRole = plan.myRole;
   const planTitle = plan.title;
-  const isOwner = myRole === "OWNER";
 
   let roleDescription =
       "이 계획에 참여 중인 멤버와 역할을 확인할 수 있습니다.";
@@ -78,12 +93,12 @@ export default function MembersPage({
 
   if (myRole === "EDITOR") {
     roleDescription =
-        "초대 링크를 복사해 다른 사람을 초대할 수 있습니다. 편집자는 계획과 일정을 편집할 수 있으며, 멤버의 역할 변경은 모임장만 할 수 있습니다.";
+        "편집자는 계획과 일정을 편집할 수 있습니다. 초대 링크를 복사하거나 카카오톡으로 공유할 수 있지만, 새 링크 발급과 멤버 역할 변경은 모임장만 할 수 있습니다.";
   }
 
   if (myRole === "VIEWER") {
     roleDescription =
-        "초대 링크를 복사해 다른 사람을 초대할 수 있습니다. 뷰어는 계획과 일정을 조회할 수 있으며, 수정 및 멤버 역할 변경은 할 수 없습니다.";
+        "뷰어는 계획과 일정을 조회할 수 있습니다. 초대 링크를 복사하거나 카카오톡으로 공유할 수 있지만, 수정과 새 링크 발급, 멤버 역할 변경은 할 수 없습니다.";
   }
 
   async function handleCopy() {
@@ -100,6 +115,13 @@ export default function MembersPage({
     } catch {
       // 클립보드 권한이 없는 환경에서는 아무 동작도 하지 않음
     }
+  }
+
+  function handleKakaoShare() {
+    if (!invitation) {
+      return;
+    }
+    shareInviteToKakao(planTitle, invitation.url);
   }
 
   async function handleRoleChange(
@@ -175,7 +197,8 @@ export default function MembersPage({
         />
 
         <div className="flex flex-1 flex-col px-4 pb-8">
-          {/* 초대 링크 */}
+          {/* 초대 링크 —  OWNER 전용이 아니라 모든 멤버에게 노출합니다.
+              발급(생성/재발급)만 OWNER 전용 */}
           <div className="flex flex-col gap-3">
             <Field label="초대 링크">
               <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-100 px-3.5 py-3 font-mono text-[12px] text-gray-700">
@@ -183,7 +206,9 @@ export default function MembersPage({
                 {invitation
                     ? invitation.url
                     : invitationFailed
-                        ? "초대 링크를 불러올 수 없습니다."
+                        ? isOwner
+                            ? "초대 링크를 불러올 수 없습니다."
+                            : "아직 발급된 초대 링크가 없어요. 모임장에게 요청해보세요."
                         : "링크 생성 중..."}
               </span>
 
@@ -203,6 +228,7 @@ export default function MembersPage({
             <Button
                 variant="kakao"
                 disabled={!invitation}
+                onClick={handleKakaoShare}
             >
               카카오톡으로 초대하기
             </Button>
@@ -283,9 +309,12 @@ export default function MembersPage({
                         <strong className="font-semibold text-gray-700">
                           {planTitle}
                         </strong>
-                        을 삭제하면 참여 중인 모든 멤버가 더 이상
-                        계획에 접근할 수 없습니다. 이 작업은 되돌릴
-                        수 없습니다.
+                        을 삭제하면 참여 중인{" "}
+                        <strong className="font-semibold text-gray-700">
+                          멤버 {members.length}명
+                        </strong>
+                        이 더 이상 계획에 접근할 수 없습니다. 이
+                        작업은 되돌릴 수 없습니다.
                       </>
                   ) : (
                       <>

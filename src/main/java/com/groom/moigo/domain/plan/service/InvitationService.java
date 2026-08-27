@@ -198,4 +198,21 @@ public class InvitationService {
         return planRepository.findByIdAndNotDeleted(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
     }
+
+    @Transactional
+    public InvitationResponse getCurrentInvitation(Long userId, Long planId) {
+        getPlanOrThrow(planId);
+        planAccessService.requireJoinedMember(planId, userId); // OWNER 아니어도 JOINED면 통과
+
+        List<InvitationEntity> active = invitationRepository.findAllByPlan_PlanIdAndStatus(planId, InvitationStatus.ACTIVE);
+        if (active.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVITATION_NOT_FOUND);
+        }
+        InvitationEntity invitation = active.get(0);
+        expireIfNeeded(invitation);
+        if (invitation.getStatus() != InvitationStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.INVITATION_NOT_FOUND);
+        }
+        return InvitationResponse.from(invitation);
+    }
 }
