@@ -113,9 +113,7 @@ public class ScheduleEntity {
             Integer sortOrder
     ) {
         if (sortOrder == null || sortOrder < 0) {
-            throw new IllegalArgumentException(
-                    "순서는 0 이상"
-            );
+            throw new BusinessException(ErrorCode.INVALID_ORDER);
         }
         this.sortOrder = sortOrder;
     }
