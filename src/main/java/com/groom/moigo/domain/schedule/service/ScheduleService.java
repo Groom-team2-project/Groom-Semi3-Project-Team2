@@ -16,7 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -25,16 +28,19 @@ public class ScheduleService {
     private final ScheduleRepository scheduleRepository;
     private final PlanRepository planRepository;
     private final PlaceRepository placeRepository;
+    private static final int FIRST_SORT_ORDER = 1;
+    private static final int SORT_ORDER_STEP = 1;
+
 
     @Transactional
     public ScheduleResponse createSchedule(Long planId, ScheduleCreateRequest request){
-        PlanEntity plan = planRepository.findByIdAndNotDeleted(planId)
+        PlanEntity plan = planRepository.findByIdForUpdate(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
 
-        boolean duplicated = scheduleRepository.existsByPlanIdAndSortOrderAndDeletedAtIsNull(planId, request.getSortOrder());
-        if(duplicated) {
-            throw new BusinessException(ErrorCode.DUPLICATE_SCHEDULE_ORDER);
-        }
+        int nextSortOrder = scheduleRepository.findMaxSortOrderByPlanId(planId)
+                .map(last -> last + SORT_ORDER_STEP)
+                .orElse(FIRST_SORT_ORDER);
+
         SchedulePlaceResponse place = getSchedulePlaceResponse(request.getPlaceId());
 
         ScheduleEntity schedule = ScheduleEntity.builder()
@@ -45,7 +51,7 @@ public class ScheduleService {
                 .startAt(request.getStartAt())
                 .endAt(request.getEndAt())
                 .reservationStatus(request.getReservationStatus())
-                .sortOrder(request.getSortOrder())
+                .sortOrder(nextSortOrder)
                 .build();
         ScheduleEntity saveSchedule = scheduleRepository.save(schedule);
 
@@ -105,31 +111,76 @@ public class ScheduleService {
 
     @Transactional
     public ScheduleOrderResponse orderSchedule(Long planId, ScheduleOrderRequest request) {
-        PlanEntity plan = planRepository.findByIdAndNotDeleted(planId)
+        PlanEntity plan = planRepository.findByIdForUpdate(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
 
         List<ScheduleEntity> schedules = scheduleRepository.findAllByPlanIdAndDeletedAtIsNullOrderBySortOrderAsc(planId);
+
         List<Long> requestedIds = request.getScheduleIds();
         Set<Long> requestedIdSet = new HashSet<>(requestedIds);
 
+        //요청 id 중복 검증
         if (requestedIdSet.size() != requestedIds.size()){
             throw new BusinessException(ErrorCode.INVALID_SCHEDULE_ORDER);
         }
 
-        return null;
+        //활성일정id 집합을 만든 후 요청 집합과 같은지 거븐
+        Set<Long> activeScheduleIds = schedules.stream()
+                .map(ScheduleEntity::getScheduleId)
+                .collect(Collectors.toSet());
+        if (!activeScheduleIds.equals(requestedIdSet)) {
+            throw new BusinessException(ErrorCode.INVALID_SCHEDULE_ORDER);
+        }
+
+        //id별 entitymap생성
+        Map<Long, ScheduleEntity> scheduleById = schedules.stream()
+                .collect(Collectors.toMap(
+                        ScheduleEntity::getScheduleId,
+                        Function.identity()
+                ));
+
+        //요청 순서대로 sortOrder 재배정
+        for (int index = 0; index < requestedIds.size(); index++){
+            Long scheduleId = requestedIds.get(index);
+            ScheduleEntity schedule = scheduleById.get(scheduleId);
+            int sortOrder = index + 1;
+            schedule.reorder(sortOrder);
+        }
+
+        List<ScheduleOrderItemResponse> responses = requestedIds.stream()
+                .map(scheduleById::get)
+                .map(ScheduleOrderItemResponse::from)
+                .toList();
+
+        return new ScheduleOrderResponse(planId, responses);
     }
 
     @Transactional
     public ScheduleDeleteResponse deleteSchedule(Long planId, Long scheduleId) {
-        PlanEntity plan = planRepository.findByIdAndNotDeleted(planId)
+        PlanEntity plan = planRepository.findByIdForUpdate(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
 
-        ScheduleEntity schedule = scheduleRepository.findByScheduleIdAndPlanIdAndDeletedAtIsNull(scheduleId, planId)
-                .orElseThrow(()-> new BusinessException(ErrorCode.SCHEDULE_NOT_FOUND));
+        //활성 일정을 기존 순서대로 조회
+        List<ScheduleEntity> schedules = scheduleRepository.findAllByPlanIdAndDeletedAtIsNullOrderBySortOrderAsc(planId);
 
-        schedule.softDelete();
+        //삭제 대상이 현재 planId의 활성 일정인지 확인
+        ScheduleEntity scheduleToDelete = schedules.stream()
+                .filter(schedule -> schedule.getScheduleId().equals(scheduleId))
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.SCHEDULE_NOT_FOUND));
 
-        return ScheduleDeleteResponse.from(schedule);
+        //소프트 삭제
+        scheduleToDelete.softDelete();
+
+        //삭제 대상을 제외하고 연속된 순서로 재배정
+        List<ScheduleEntity> remainingSchedules = schedules.stream()
+                .filter(schedule -> !schedule.getScheduleId().equals(scheduleId))
+                .toList();
+        for (int index = 0; index < remainingSchedules.size(); index++){
+            remainingSchedules.get(index).reorder(FIRST_SORT_ORDER + index);
+        }
+
+        return ScheduleDeleteResponse.from(scheduleToDelete);
     }
 
     private SchedulePlaceResponse getSchedulePlaceResponse(Long placeId) {

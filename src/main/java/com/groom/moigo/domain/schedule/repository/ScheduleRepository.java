@@ -2,6 +2,7 @@ package com.groom.moigo.domain.schedule.repository;
 
 import com.groom.moigo.domain.schedule.entity.ScheduleEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -16,6 +17,6 @@ public interface ScheduleRepository extends JpaRepository<ScheduleEntity,Long> {
     //목록 조회
     List<ScheduleEntity> findAllByPlanIdAndDeletedAtIsNullOrderBySortOrderAsc(Long planId);
 
-    //순서 중복 조회
-    boolean existsByPlanIdAndSortOrderAndDeletedAtIsNull(Long planId, Integer sortOrder);
+    Optional<Integer> findMaxSortOrderByPlanId(@Param("planId") Long planId);
+
 }
