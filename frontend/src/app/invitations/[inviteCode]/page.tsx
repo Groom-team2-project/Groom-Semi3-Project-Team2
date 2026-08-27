@@ -11,12 +11,6 @@ import { ApiError } from "@/lib/api/client";
 import { useAuth } from "@/context/AuthContext";
 import { savePostLoginRedirect } from "@/lib/postLoginRedirect";
 
-interface ApiErrorResponse {
-    status?: number;
-    errorCode?: string;
-    message?: string;
-}
-
 export default function InvitationPage() {
     const params = useParams();
     const router = useRouter();
@@ -43,8 +37,6 @@ export default function InvitationPage() {
                 const result = await getInvitationByCode(inviteCode);
                 setInvitation(result);
             } catch (e) {
-                const apiError = e as ApiErrorResponse;
-
                 // 미로그인 상태라면 현재 초대 페이지에서
                 // 로그인 안내 화면을 보여줍니다.
                 if (
@@ -57,8 +49,8 @@ export default function InvitationPage() {
 
                 setError(
                     e instanceof ApiError
-                      ? e.message
-                      : "초대 정보를 불러오지 못했습니다.",
+                        ? e.message
+                        : "초대 정보를 불러오지 못했습니다.",
                 );
             } finally {
                 setLoading(false);
@@ -90,8 +82,8 @@ export default function InvitationPage() {
         } catch (e) {
             setLoginError(
                 e instanceof ApiError
-                  ? e.message
-                  : "카카오 로그인을 시작하지 못했습니다. 다시 시도해 주세요.",
+                    ? e.message
+                    : "카카오 로그인을 시작하지 못했습니다. 다시 시도해 주세요.",
             );
             setLoginPending(false);
         }
@@ -110,8 +102,6 @@ export default function InvitationPage() {
 
             router.replace(`/plans/${result.planId}`);
         } catch (e) {
-            const apiError = e as ApiErrorResponse;
-
             // 초대 화면에 머무는 동안 로그인이 만료된 경우
             // 로그인 안내 화면으로 전환합니다.
             if (
@@ -132,7 +122,10 @@ export default function InvitationPage() {
             }
 
             // 초대 링크 만료
-            if (apiError.errorCode === "INVITATION_EXPIRED") {
+            if (
+                e instanceof ApiError &&
+                e.errorCode === "INVITATION_EXPIRED"
+            ) {
                 setInvitation((current) =>
                     current
                         ? {
@@ -146,7 +139,10 @@ export default function InvitationPage() {
             }
 
             // 초대 링크 취소
-            if (apiError.errorCode === "INVITATION_REVOKED") {
+            if (
+                e instanceof ApiError &&
+                e.errorCode === "INVITATION_REVOKED"
+            ) {
                 setInvitation((current) =>
                     current
                         ? {
@@ -160,15 +156,18 @@ export default function InvitationPage() {
             }
 
             // 모집 인원 마감
-            if (apiError.errorCode === "PLAN_RECRUITMENT_FULL") {
+            if (
+                e instanceof ApiError &&
+                e.errorCode === "PLAN_RECRUITMENT_FULL"
+            ) {
                 setError("모집 인원이 마감되었습니다.");
                 return;
             }
 
             setError(
                 e instanceof ApiError
-                  ? e.message
-                  : "계획 참여 중 오류가 발생했습니다.",
+                    ? e.message
+                    : "계획 참여 중 오류가 발생했습니다.",
             );
         } finally {
             setJoining(false);
@@ -260,7 +259,9 @@ export default function InvitationPage() {
 
                         {loginError && (
                             <div className="mt-3 rounded-xl bg-red-soft px-4 py-3 text-left">
-                                <p className="text-sm text-red">{loginError}</p>
+                                <p className="text-sm text-red">
+                                    {loginError}
+                                </p>
                             </div>
                         )}
 
