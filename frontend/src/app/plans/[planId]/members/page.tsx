@@ -18,6 +18,7 @@ import {
 } from "@/lib/api";
 import { shareInviteToKakao } from "@/lib/kakao"; // [신규]
 import type { Invitation, Member, Role } from "@/lib/api";
+import { isPlanCompleted } from "@/lib/utils";
 
 type ConfirmAction = "delete" | "leave" | null;
 
@@ -81,6 +82,7 @@ export default function MembersPage({
     return <PlanNotFound />;
   }
 
+  const planCompleted = isPlanCompleted(plan.endDate);
   const planTitle = plan.title;
 
   let roleDescription =
@@ -202,22 +204,24 @@ export default function MembersPage({
           <div className="flex flex-col gap-3">
             <Field label="초대 링크">
               <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-100 px-3.5 py-3 font-mono text-[12px] text-gray-700">
-              <span className="truncate">
-                {invitation
-                    ? invitation.url
-                    : invitationFailed
-                        ? isOwner
-                            ? "초대 링크를 불러올 수 없습니다."
-                            : "아직 발급된 초대 링크가 없어요. 모임장에게 요청해보세요."
-                        : "링크 생성 중..."}
-              </span>
+    <span className="truncate">
+      {planCompleted
+          ? "종료된 계획이라 더 이상 초대할 수 없어요."
+          : invitation
+              ? invitation.url
+              : invitationFailed
+                  ? isOwner
+                      ? "초대 링크를 불러올 수 없습니다."
+                      : "아직 발급된 초대 링크가 없어요. 모임장에게 요청해보세요."
+                  : "링크 생성 중..."}
+    </span>
 
                 <span className="flex-1" />
 
                 <button
                     type="button"
                     onClick={handleCopy}
-                    disabled={!invitation}
+                    disabled={!invitation || planCompleted}
                     className="shrink-0 font-bold text-primary disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {copied ? "복사됨" : "복사"}
@@ -227,7 +231,7 @@ export default function MembersPage({
 
             <Button
                 variant="kakao"
-                disabled={!invitation}
+                disabled={!invitation || planCompleted}
                 onClick={handleKakaoShare}
             >
               카카오톡으로 초대하기
@@ -237,7 +241,7 @@ export default function MembersPage({
           {/* 참여 멤버 */}
           <div className="mt-5">
             <h3 className="text-[13px] text-gray-500">
-              참여 멤버 ({members.length}명)
+              참여 멤버 ({members.length}/{plan.capacity ?? "∞"}명)
             </h3>
 
             <div className="mt-1">

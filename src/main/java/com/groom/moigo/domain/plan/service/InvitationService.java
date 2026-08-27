@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -129,6 +130,11 @@ public class InvitationService {
         Long planId = invitation.getPlan().getPlanId();
         PlanEntity plan = planRepository.findByIdForUpdate(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
+
+        // 여행 종료일이 지난 계획에는 새로 참여할 수 없게 막습니다.
+        if (plan.getEndDate().isBefore(LocalDate.now())) {
+            throw new BusinessException(ErrorCode.PLAN_ALREADY_COMPLETED);
+        }
 
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));

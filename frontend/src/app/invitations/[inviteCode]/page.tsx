@@ -101,6 +101,14 @@ export default function InvitationPage() {
                 return;
             }
 
+            if (
+                apiError.status === 409 &&
+                apiError.errorCode === "PLAN_ALREADY_COMPLETED"
+            ) {
+                setError("이미 종료된 여행 계획이라 참여할 수 없습니다.");
+                return;
+            }
+
             // 이미 참여 중인 계획
             if (
                 apiError.status === 409 ||
