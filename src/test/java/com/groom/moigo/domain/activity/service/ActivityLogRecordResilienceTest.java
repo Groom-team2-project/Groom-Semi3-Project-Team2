@@ -25,10 +25,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 활동 기록 정책서(docs/activity-log-spec.md) 5절 2항 검증:
- * "활동 기록 실패로 원래 도메인 작업이 실패하지 않도록 트랜잭션 정책을 도메인별로 검토한다."
+ * "활동 기록 실패로 원래 도메인 작업이 실패하지 않도록 트랜잭션 정책을 도메인별로 검토"
  *
  * <p>{@link ActivityLogServiceImpl#record}가 REQUIRES_NEW로 분리되고 예외를 내부에서 삼키는지,
- * 그래서 활동 기록 저장이 실패해도 호출한 쪽(투표 생성)의 트랜잭션은 정상 커밋되는지 확인한다.
+ * 그래서 활동 기록 저장이 실패해도 호출한 쪽(투표 생성)의 트랜잭션은 정상 커밋되는지 확인
  */
 @SpringBootTest
 @Transactional
@@ -49,7 +49,7 @@ class ActivityLogRecordResilienceTest {
         planId = fixture.createPlan(creatorId, "제주도 3박 4일");
         placeId = fixture.createPlace("성산일출봉");
 
-        // 활동 기록 저장이 항상 실패하는 상황을 강제로 만든다.
+        // 활동 기록 저장이 항상 실패하는 상황을 강제로 만듦.
         doThrow(new RuntimeException("강제 실패 (테스트)"))
                 .when(activityLogRepository)
                 .save(any());

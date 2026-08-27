@@ -52,11 +52,12 @@ public class ActivityLogServiceImpl implements ActivityLogService {
             ActivityActionType.MEMBER_JOINED,
             ActivityActionType.MEMBER_LEFT,
             ActivityActionType.MEMBER_ROLE_CHANGED,
-            ActivityActionType.COMMENT_CREATED
+            ActivityActionType.COMMENT_CREATED,
+            ActivityActionType.COMMENT_DELETED
     );
 
-    // 활동 기록은 부가 기능이라, 실패해도 원래 도메인 작업(투표 생성 등)이 실패하면 안 된다 (활동 기록 정책서 5절 2항).
-    // REQUIRES_NEW로 별도 트랜잭션에서 시도하고, 그래도 실패하면 예외를 호출자에게 전파하지 않고 로그만 남긴다.
+    // 활동 기록은 부가 기능이라, 실패해도 원래 도메인 작업(투표 생성 등)이 실패하면 안 됨 (활동 기록 정책서 5절 2항).
+    // REQUIRES_NEW로 별도 트랜잭션에서 시도, 그래도 실패하면 예외를 호출자에게 전파하지 않고 로그만 남김.
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(ActivityRecordCommand command) {
