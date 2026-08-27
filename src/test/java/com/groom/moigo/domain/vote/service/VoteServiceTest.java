@@ -574,6 +574,28 @@ class VoteServiceTest {
 						"'첫날 어디 갈까요' 투표의 후보를 수정했어요",
 						"'첫날 어디 갈까요' 투표에서 후보를 뺐어요");
 	}
+
+	@Test
+	@DisplayName("삭제된 일정에는 투표를 연결할 수 없다")
+	void createVoteLinkedToDeletedSchedule() {
+		Long scheduleId = fixture.createSchedule(planId, "지워질 일정");
+		fixture.softDeleteSchedule(scheduleId);
+		VoteCreateRequest request =
+				new VoteCreateRequest(
+						"둘째날 저녁 뭐 먹지?",
+						null,
+						Instant.now().plus(1, ChronoUnit.DAYS),
+						null,
+						scheduleId,
+						List.of(
+								new VoteOptionCreateRequest("연돈", null, null, null),
+								new VoteOptionCreateRequest("제주바다", null, null, null)));
+
+		assertThatThrownBy(() -> voteService.create(planId, creatorId, request))
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.SCHEDULE_NOT_IN_PLAN);
+	}
 	private VoteCreateRequest createRequest() {
 		return new VoteCreateRequest(
 				"첫날 어디 갈까요",

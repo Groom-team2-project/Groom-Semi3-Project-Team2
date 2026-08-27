@@ -6,6 +6,7 @@ import com.groom.moigo.domain.activity.entity.ActivityTargetType;
 import com.groom.moigo.domain.activity.service.ActivityLogService;
 import com.groom.moigo.domain.plan.entity.MemberEntity;
 import com.groom.moigo.domain.plan.service.PlanAccessService;
+import com.groom.moigo.domain.schedule.repository.ScheduleRepository;
 import com.groom.moigo.domain.vote.dto.request.VoteCreateRequest;
 import com.groom.moigo.domain.vote.dto.request.VoteOptionCreateRequest;
 import com.groom.moigo.domain.vote.dto.request.VoteOptionUpdateRequest;
@@ -46,7 +47,7 @@ public class VoteService {
 	private final VoteResponseAssembler assembler;
 	private final ActivityLogService activityLogService;
 	private final PlanAccessService planAccessService;
-	private final ScheduleLinkReader scheduleLinkReader;
+	private final ScheduleRepository scheduleRepository;
 
 	@Transactional
 	public VoteResponse create(Long planId, Long userId, VoteCreateRequest request) {
@@ -295,13 +296,13 @@ public class VoteService {
 	/**
 	 * 연결하려는 일정이 같은 계획에 속하는지 확인한다.
 	 *
-	 * <p>FK 제약은 일정 존재 여부만 보므로 다른 계획의 일정에 투표가 붙는 것을 막지 못한다.
+	 * <p>FK 제약은 일정 존재 여부만 보므로 다른 계획의 일정이나 이미 지워진 일정에 투표가 붙는 것을 막지 못한다.
 	 */
 	private void validateScheduleInPlan(Long planId, Long scheduleId) {
 		if (scheduleId == null) {
 			return;
 		}
-		if (!scheduleLinkReader.existsInPlan(scheduleId, planId)) {
+		if (scheduleRepository.findByScheduleIdAndPlanIdAndDeletedAtIsNull(scheduleId, planId).isEmpty()) {
 			throw new BusinessException(ErrorCode.SCHEDULE_NOT_IN_PLAN);
 		}
 	}
