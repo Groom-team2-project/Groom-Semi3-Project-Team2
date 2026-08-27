@@ -70,11 +70,26 @@ function PlanEditForm({
     const [capacity, setCapacity] = useState(initialCapacity);
     const [pending, setPending] = useState(false);
 
-    const canSubmit =
-        title.trim().length > 0 &&
+    const capacityNumber = Number(capacity);
+
+    const isDateValid =
         Boolean(startDate) &&
         Boolean(endDate) &&
+        endDate >= startDate;
+
+    const isCapacityValid =
+        capacity === "" ||
+        (
+            Number.isInteger(capacityNumber) &&
+            capacityNumber >= 1
+        );
+
+    const canSubmit =
+        title.trim().length > 0 &&
+        isDateValid &&
+        isCapacityValid &&
         !pending;
+    const [errorMessage, setErrorMessage] = useState("");
 
     async function handleSubmit() {
         if (!canSubmit) {
@@ -82,6 +97,7 @@ function PlanEditForm({
         }
 
         setPending(true);
+        setErrorMessage("");
 
         try {
             await updatePlan(planId, {
@@ -93,11 +109,16 @@ function PlanEditForm({
             });
 
             router.push(`/plans/${planId}`);
+        } catch (error) {
+            setErrorMessage(
+                error instanceof Error
+                    ? error.message
+                    : "계획을 수정하지 못했습니다.",
+            );
         } finally {
             setPending(false);
         }
     }
-
     return (
         <div className="flex min-h-dvh flex-col">
             <AppBar
@@ -152,6 +173,15 @@ function PlanEditForm({
                 </Field>
 
                 <div className="h-1.5" />
+
+                {errorMessage && (
+                    <p
+                        role="alert"
+                        className="text-[13px] text-red"
+                    >
+                        {errorMessage}
+                    </p>
+                )}
 
                 <Button
                     onClick={handleSubmit}

@@ -43,36 +43,37 @@ export default function MembersPage({
 
   const myRole = plan?.myRole;
   const isOwner = myRole === "OWNER";
+  const planCompleted = plan ? isPlanCompleted(plan.endDate) : false;
 
   useEffect(() => {
-    // [변경] OWNER는 생성/재사용 API(POST), OWNER가 아니면 조회 전용 API(GET)를 호출합니다.
-    // isOwner는 plan 로딩이 끝나야 정확한 값이 나오므로, plan이 없으면(로딩 중) 아직 호출하지 않습니다.
     if (!plan) {
       return;
     }
 
-    const fetchInvitation = isOwner
-        ? getInvitation(planId)
-        : getCurrentInvitation(planId);
+    // 종료된 계획에서는 초대 조회/생성 API를 호출하지 않습니다.
+    if (!planCompleted) {
+      const fetchInvitation = isOwner
+          ? getInvitation(planId)
+          : getCurrentInvitation(planId);
 
-    fetchInvitation
-        .then((data) => {
-          setInvitation(data);
-          setInvitationFailed(false);
-        })
-        .catch(() => {
-          // OWNER가 아직 링크를 한 번도 안 만든 경우, EDITOR/VIEWER는
-          // "아직 초대 링크가 없습니다" 상태를 이 catch로 받게 됩니다.
-          setInvitation(null);
-          setInvitationFailed(true);
-        });
+      fetchInvitation
+          .then((data) => {
+            setInvitation(data);
+            setInvitationFailed(false);
+          })
+          .catch(() => {
+            setInvitation(null);
+            setInvitationFailed(true);
+          });
+    }
 
+    // 멤버 목록은 종료된 계획에서도 조회합니다.
     getMembers(planId)
         .then(setMembers)
         .catch(() => {
           setMembers([]);
         });
-  }, [planId, plan, isOwner]);
+  }, [planId, plan, isOwner, planCompleted]);
 
   if (isLoading) {
     return null;
@@ -82,23 +83,21 @@ export default function MembersPage({
     return <PlanNotFound />;
   }
 
-  const planCompleted = isPlanCompleted(plan.endDate);
   const planTitle = plan.title;
 
   let roleDescription =
       "이 계획에 참여 중인 멤버와 역할을 확인할 수 있습니다.";
 
-  if (myRole === "OWNER") {
+  if (planCompleted) {
+    roleDescription =
+        "종료된 계획입니다. 멤버와 역할은 확인할 수 있지만 더 이상 초대할 수 없습니다.";
+  } else if (myRole === "OWNER") {
     roleDescription =
         "초대 링크로 참여하면 편집자로 추가됩니다. 모임장은 역할 태그를 눌러 멤버를 편집자 ↔ 뷰어로 변경할 수 있습니다.";
-  }
-
-  if (myRole === "EDITOR") {
+  } else if (myRole === "EDITOR") {
     roleDescription =
         "편집자는 계획과 일정을 편집할 수 있습니다. 초대 링크를 복사하거나 카카오톡으로 공유할 수 있지만, 새 링크 발급과 멤버 역할 변경은 모임장만 할 수 있습니다.";
-  }
-
-  if (myRole === "VIEWER") {
+  } else if (myRole === "VIEWER") {
     roleDescription =
         "뷰어는 계획과 일정을 조회할 수 있습니다. 초대 링크를 복사하거나 카카오톡으로 공유할 수 있지만, 수정과 새 링크 발급, 멤버 역할 변경은 할 수 없습니다.";
   }
