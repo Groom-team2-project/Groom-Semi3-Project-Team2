@@ -9,6 +9,12 @@ import {
 import type { Invitation } from "@/lib/api/types";
 import { useAuth } from "@/context/AuthContext";
 
+interface ApiErrorResponse {
+    status?: number;
+    errorCode?: string;
+    message?: string;
+}
+
 export default function InvitationPage() {
     const params = useParams();
     const router = useRouter();
@@ -33,14 +39,10 @@ export default function InvitationPage() {
                 const result = await getInvitationByCode(inviteCode);
                 setInvitation(result);
             } catch (e) {
-                const apiError = e as {
-                    status?: number;
-                    errorCode?: string;
-                    message?: string;
-                };
+                const apiError = e as ApiErrorResponse;
 
-                // 미로그인 상태라면 로그인 페이지로 바로 보내지 않고
-                // 현재 초대 페이지에서 로그인 안내 화면을 보여줍니다.
+                // 미로그인 상태라면 현재 초대 페이지에서
+                // 로그인 안내 화면을 보여줍니다.
                 if (
                     apiError.status === 401 ||
                     apiError.errorCode === "UNAUTHORIZED"
@@ -85,13 +87,9 @@ export default function InvitationPage() {
 
             router.replace(`/plans/${result.planId}`);
         } catch (e) {
-            const apiError = e as {
-                status?: number;
-                errorCode?: string;
-                message?: string;
-            };
+            const apiError = e as ApiErrorResponse;
 
-            // 초대 화면에 머무는 동안 로그인이 만료된 경우
+            // 로그인 만료
             if (
                 apiError.status === 401 ||
                 apiError.errorCode === "UNAUTHORIZED"
@@ -100,14 +98,51 @@ export default function InvitationPage() {
                 return;
             }
 
+            // 이미 종료된 계획
             if (apiError.errorCode === "PLAN_ALREADY_COMPLETED") {
-                setError("이미 종료된 여행 계획이라 참여할 수 없습니다.");
+                setError(
+                    "이미 종료된 여행 계획이라 참여할 수 없습니다.",
+                );
                 return;
             }
 
-            // 이미 참여 중인 계획
+            // 이미 참여 중
             if (apiError.errorCode === "MEMBER_ALREADY_JOINED") {
                 setAlreadyJoined(true);
+                return;
+            }
+
+            // 초대 링크 만료
+            if (apiError.errorCode === "INVITATION_EXPIRED") {
+                setInvitation((current) =>
+                    current
+                        ? {
+                            ...current,
+                            status: "EXPIRED",
+                        }
+                        : current,
+                );
+                setError("초대 링크가 만료되었습니다.");
+                return;
+            }
+
+            // 초대 링크 취소
+            if (apiError.errorCode === "INVITATION_REVOKED") {
+                setInvitation((current) =>
+                    current
+                        ? {
+                            ...current,
+                            status: "REVOKED",
+                        }
+                        : current,
+                );
+                setError("초대 링크가 취소되었습니다.");
+                return;
+            }
+
+            // 모집 인원 마감
+            if (apiError.errorCode === "PLAN_RECRUITMENT_FULL") {
+                setError("모집 인원이 마감되었습니다.");
                 return;
             }
 
@@ -164,7 +199,6 @@ export default function InvitationPage() {
             <main className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[#f8faf9] px-4 py-12">
                 <div className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                     <div className="px-7 py-8 text-center">
-
                         <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-2xl">
                             ✉
                         </div>
@@ -215,7 +249,6 @@ export default function InvitationPage() {
         return (
             <main className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[#f8faf9] px-4 py-12">
                 <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-
                     <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-xl font-bold text-red-500">
                         !
                     </div>
@@ -243,13 +276,13 @@ export default function InvitationPage() {
             </main>
         );
     }
-// 이미 참여 중인 계획
+
+    // 이미 참여 중인 계획
     if (alreadyJoined && invitation?.planId) {
         return (
             <main className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[#f8faf9] px-4 py-12">
                 <div className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                     <div className="px-7 py-8 text-center">
-
                         <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-2xl font-bold text-emerald-600">
                             ✓
                         </div>
@@ -269,7 +302,9 @@ export default function InvitationPage() {
                         <button
                             type="button"
                             onClick={() =>
-                                router.replace(`/plans/${invitation.planId}`)
+                                router.replace(
+                                    `/plans/${invitation.planId}`,
+                                )
                             }
                             className="mt-6 w-full rounded-xl bg-emerald-600 px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
                         >
@@ -286,7 +321,6 @@ export default function InvitationPage() {
         <main className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[#f8faf9] px-4 py-12">
             <div className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                 <div className="px-7 py-8">
-
                     <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-2xl">
                         ✉
                     </div>
