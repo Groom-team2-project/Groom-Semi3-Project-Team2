@@ -7,7 +7,9 @@ import {
     joinByInviteCode,
 } from "@/lib/api/invitations";
 import type { Invitation } from "@/lib/api/types";
+import { ApiError } from "@/lib/api/client";
 import { useAuth } from "@/context/AuthContext";
+import { savePostLoginRedirect } from "@/lib/postLoginRedirect";
 
 interface ApiErrorResponse {
     status?: number;
@@ -25,7 +27,9 @@ export default function InvitationPage() {
     const [invitation, setInvitation] = useState<Invitation | null>(null);
     const [loading, setLoading] = useState(true);
     const [joining, setJoining] = useState(false);
+    const [loginPending, setLoginPending] = useState(false);
     const [requiresLogin, setRequiresLogin] = useState(false);
+    const [loginError, setLoginError] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [alreadyJoined, setAlreadyJoined] = useState(false);
 
@@ -44,16 +48,17 @@ export default function InvitationPage() {
                 // 미로그인 상태라면 현재 초대 페이지에서
                 // 로그인 안내 화면을 보여줍니다.
                 if (
-                    apiError.status === 401 ||
-                    apiError.errorCode === "UNAUTHORIZED"
+                    e instanceof ApiError &&
+                    (e.status === 401 || e.errorCode === "UNAUTHORIZED")
                 ) {
                     setRequiresLogin(true);
                     return;
                 }
 
                 setError(
-                    apiError.message ??
-                    "초대 정보를 불러오지 못했습니다.",
+                    e instanceof ApiError
+                      ? e.message
+                      : "초대 정보를 불러오지 못했습니다.",
                 );
             } finally {
                 setLoading(false);
@@ -64,14 +69,32 @@ export default function InvitationPage() {
     }, [inviteCode]);
 
     const handleLogin = async () => {
-        // 로그인 후 돌아올 초대 페이지 저장
-        sessionStorage.setItem(
-            "postLoginRedirect",
-            `/invitations/${inviteCode}`,
-        );
+        if (loginPending) {
+            return;
+        }
+
+        setLoginPending(true);
+        setLoginError(null);
+
+        if (!savePostLoginRedirect(`/invitations/${inviteCode}`)) {
+            setLoginError(
+                "브라우저 저장소를 사용할 수 없습니다. 저장소 접근을 허용한 뒤 다시 시도해 주세요.",
+            );
+            setLoginPending(false);
+            return;
+        }
 
         // 로그인 페이지를 거치지 않고 바로 카카오 로그인 실행
-        await loginWithKakao();
+        try {
+            await loginWithKakao();
+        } catch (e) {
+            setLoginError(
+                e instanceof ApiError
+                  ? e.message
+                  : "카카오 로그인을 시작하지 못했습니다. 다시 시도해 주세요.",
+            );
+            setLoginPending(false);
+        }
     };
 
     const handleJoin = async () => {
@@ -87,27 +110,21 @@ export default function InvitationPage() {
 
             router.replace(`/plans/${result.planId}`);
         } catch (e) {
-            const apiError = e as ApiErrorResponse;
-
-            // 로그인 만료
+            // 초대 화면에 머무는 동안 로그인이 만료된 경우
+            // 로그인 안내 화면으로 전환합니다.
             if (
-                apiError.status === 401 ||
-                apiError.errorCode === "UNAUTHORIZED"
+                e instanceof ApiError &&
+                (e.status === 401 || e.errorCode === "UNAUTHORIZED")
             ) {
                 setRequiresLogin(true);
                 return;
             }
 
-            // 이미 종료된 계획
-            if (apiError.errorCode === "PLAN_ALREADY_COMPLETED") {
-                setError(
-                    "이미 종료된 여행 계획이라 참여할 수 없습니다.",
-                );
-                return;
-            }
-
-            // 이미 참여 중
-            if (apiError.errorCode === "MEMBER_ALREADY_JOINED") {
+            // 이미 참여 중인 계획
+            if (
+                e instanceof ApiError &&
+                e.errorCode === "MEMBER_ALREADY_JOINED"
+            ) {
                 setAlreadyJoined(true);
                 return;
             }
@@ -147,8 +164,9 @@ export default function InvitationPage() {
             }
 
             setError(
-                apiError.message ??
-                "계획 참여 중 오류가 발생했습니다.",
+                e instanceof ApiError
+                  ? e.message
+                  : "계획 참여 중 오류가 발생했습니다.",
             );
         } finally {
             setJoining(false);
@@ -230,10 +248,19 @@ export default function InvitationPage() {
                         <button
                             type="button"
                             onClick={handleLogin}
-                            className="mt-6 w-full rounded-xl bg-[#FEE500] px-4 py-3.5 text-sm font-semibold text-[#191919] transition hover:brightness-95 active:brightness-90"
+                            disabled={loginPending}
+                            className="mt-6 w-full rounded-xl bg-[#FEE500] px-4 py-3.5 text-sm font-semibold text-[#191919] transition hover:brightness-95 active:brightness-90 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                            카카오로 로그인하고 참여하기
+                            {loginPending
+                                ? "로그인 준비 중..."
+                                : "카카오로 로그인하고 참여하기"}
                         </button>
+
+                        {loginError && (
+                            <div className="mt-3 rounded-xl bg-red-soft px-4 py-3 text-left">
+                                <p className="text-sm text-red">{loginError}</p>
+                            </div>
+                        )}
 
                         <p className="mt-3 text-xs text-gray-400">
                             카카오 로그인만 지원합니다.
