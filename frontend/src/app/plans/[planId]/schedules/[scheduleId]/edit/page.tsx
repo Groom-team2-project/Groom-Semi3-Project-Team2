@@ -11,7 +11,7 @@ import { PlaceSearchTrigger } from "@/components/plan/PlaceSearchTrigger";
 import { usePlan } from "@/lib/hooks/usePlan";
 import { useFormDraft, hasDraft } from "@/lib/formDraft";
 import { consumePickedPlace } from "@/lib/pickedPlace";
-import { getScheduleMutationErrorMessage } from "@/lib/scheduleError";
+import { getScheduleLoadErrorMessage, getScheduleMutationErrorMessage } from "@/lib/scheduleError";
 import { getSchedule, updateSchedule } from "@/lib/api";
 import type { Schedule } from "@/lib/api";
 import { dateRangeToDayCount, dayIndexToDate, formatDateShort } from "@/lib/utils";
@@ -40,17 +40,35 @@ export default function ScheduleEditPage({
   const hadDraftRef = useRef(hasDraft(draftKey));
   const { draft, setDraft, clearDraft } = useFormDraft<Draft>(draftKey, EMPTY_DRAFT);
   const [original, setOriginal] = useState<Schedule | null | undefined>(undefined);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [pending, setPending] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const closeToast = useCallback(() => setToast(null), []);
 
   useEffect(() => {
-    getSchedule(planId, scheduleId).then((s) => {
-      setOriginal(s);
-      if (s && !hadDraftRef.current) {
-        setDraft({ day: s.day, time: s.time, placeId: s.placeId ?? "", placeName: s.placeName, placeAddress: s.placeAddress ?? "", emoji: s.emoji, memo: s.memo ?? "" });
-      }
-    });
+    let cancelled = false;
+
+    getSchedule(planId, scheduleId)
+      .then((schedule) => {
+        if (cancelled) return;
+        setOriginal(schedule);
+        if (schedule && !hadDraftRef.current) {
+          setDraft({ day: schedule.day, time: schedule.time, placeId: schedule.placeId ?? "", placeName: schedule.placeName, placeAddress: schedule.placeAddress ?? "", emoji: schedule.emoji, memo: schedule.memo ?? "" });
+        }
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setLoadError(getScheduleLoadErrorMessage(error));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planId, scheduleId, loadAttempt]);
+
+  useEffect(() => {
     const picked = consumePickedPlace();
     if (picked) {
       setDraft((draft) => ({
@@ -63,6 +81,26 @@ export default function ScheduleEditPage({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planId, scheduleId]);
+
+  function retryLoad() {
+    setOriginal(undefined);
+    setLoadError(null);
+    setLoadAttempt((attempt) => attempt + 1);
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex min-h-dvh flex-col">
+        <AppBar title="일정 수정" backHref={`/plans/${planId}/timeline`} />
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+          <p className="text-[13.5px] text-gray-700">{loadError}</p>
+          <Button onClick={retryLoad} variant="ghost">
+            다시 시도
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (original === undefined || !plan) return null;
   if (original === null) {
