@@ -99,16 +99,12 @@ public class InvitationService {
         invitation.revoke();
     }
 
-    private void expireIfNeeded(InvitationEntity invitation) {
-        invitation.expireIfNeeded();
-    }
-
     @Transactional
     public InvitationResponse getInvitationByCode(String inviteCode) {
         InvitationEntity invitation = invitationRepository.findByInviteCode(inviteCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVITATION_NOT_FOUND));
 
-        expireIfNeeded(invitation);
+        invitation.expireIfNeeded();
 
         return InvitationResponse.from(invitation);
     }
@@ -120,7 +116,7 @@ public class InvitationService {
         InvitationEntity invitation = invitationRepository.findByInviteCode(inviteCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVITATION_NOT_FOUND));
 
-        expireIfNeeded(invitation); //초대링크 만료 여부 확인
+        invitation.expireIfNeeded();
 
         if (invitation.getStatus() == InvitationStatus.REVOKED) {
             throw new BusinessException(ErrorCode.INVITATION_REVOKED);
@@ -217,7 +213,7 @@ public class InvitationService {
             throw new BusinessException(ErrorCode.INVITATION_NOT_FOUND);
         }
         InvitationEntity invitation = active.get(0);
-        expireIfNeeded(invitation);
+        invitation.expireIfNeeded();
         if (invitation.getStatus() != InvitationStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.INVITATION_NOT_FOUND);
         }

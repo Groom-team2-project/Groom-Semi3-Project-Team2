@@ -2,13 +2,11 @@ package com.groom.moigo.domain.plan.service;
 
 import com.groom.moigo.domain.plan.entity.MemberEntity;
 import com.groom.moigo.domain.plan.entity.MemberRole;
-import com.groom.moigo.domain.plan.entity.MemberStatus;
 import com.groom.moigo.domain.plan.repository.MemberRepository;
 import com.groom.moigo.global.error.BusinessException;
 import com.groom.moigo.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Plan 접근/권한 관련
@@ -18,25 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class PlanAccessService {
 
     private final MemberRepository memberRepository;
-
-    @Transactional(readOnly = true)
-    public boolean isJoinedMember(Long planId, Long userId) {
-        return memberRepository.existsByPlan_PlanIdAndUser_UserIdAndStatus(planId, userId, MemberStatus.JOINED);
-    }
-
-    @Transactional(readOnly = true)
-    public MemberRole getRole(Long planId, Long userId) {
-        return memberRepository.findByPlan_PlanIdAndUser_UserId(planId, userId)
-                .filter(MemberEntity::isJoined)
-                .map(MemberEntity::getRole)
-                .orElse(null);
-    }
-
-    @Transactional(readOnly = true)
-    public boolean canEdit(Long planId, Long userId) {
-        MemberRole role = getRole(planId, userId);
-        return role == MemberRole.OWNER || role == MemberRole.EDITOR;
-    }
 
     // 유저 상태 체크 (JOINED)
     public MemberEntity requireJoinedMember(Long planId, Long userId) {
