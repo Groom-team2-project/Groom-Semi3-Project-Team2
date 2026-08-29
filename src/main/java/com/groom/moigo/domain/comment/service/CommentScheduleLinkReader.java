@@ -11,7 +11,7 @@ class CommentScheduleLinkReader {
 
     boolean existsInPlan(Long scheduleId, Long planId) {
         Long count = jdbcTemplate.queryForObject(
-                "select count(*) from schedules where schedule_id = ? and plan_id = ?",
+                "select count(*) from schedules where schedule_id = ? and plan_id = ? and deleted_at is null",
                 Long.class, scheduleId, planId
         );
         return count != null && count > 0;

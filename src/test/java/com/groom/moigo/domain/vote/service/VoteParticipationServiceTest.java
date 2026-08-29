@@ -27,10 +27,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+// activityLogService.record()가 REQUIRES_NEW로 커밋되므로, 그 결과를 바로 조회하는 이 테스트는
+// READ_COMMITTED로 지정한다 (docs/activity-log-spec.md 7절 참고).
 @SpringBootTest
-@Transactional
+@Transactional(isolation = Isolation.READ_COMMITTED)
 class VoteParticipationServiceTest {
 
 	@Autowired private VoteService voteService;
@@ -105,8 +108,11 @@ class VoteParticipationServiceTest {
 		voteParticipationService.participate(
 				planId, id(vote.id()), firstId, single(vote.options().get(0).id()));
 
+		// activityLogRepository.save()가 REQUIRES_NEW로 즉시 커밋되어 테스트가 끝나도 롤백되지 않으므로, 이 테이블에는
+		// 다른 테스트가 남긴 행이 함께 있을 수 있다. 이번 투표(targetId)로 걸러서 확인한다.
 		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_PARTICIPATED)
+				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_PARTICIPATED
+						&& log.getTargetId().equals(Long.valueOf(vote.id())))
 				.singleElement()
 				.satisfies(
 						log -> {
@@ -128,7 +134,8 @@ class VoteParticipationServiceTest {
 				planId, id(vote.id()), firstId, single(vote.options().get(1).id()));
 
 		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_PARTICIPATED)
+				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_PARTICIPATED
+						&& log.getTargetId().equals(Long.valueOf(vote.id())))
 				.hasSize(1);
 	}
 
@@ -145,7 +152,8 @@ class VoteParticipationServiceTest {
 
 		// 표를 바꾸는 것과 달리 취소 후 재참여는 새로 참여한 것으로 본다.
 		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_PARTICIPATED)
+				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_PARTICIPATED
+						&& log.getTargetId().equals(Long.valueOf(vote.id())))
 				.hasSize(2);
 	}
 
