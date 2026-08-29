@@ -20,6 +20,7 @@ public enum ErrorCode {
     PLAN_RECRUITMENT_FULL(HttpStatus.CONFLICT, "모집 인원이 마감되었습니다."),
     INVALID_PLAN_TITLE(HttpStatus.BAD_REQUEST, "제목은 비어 있을 수 없습니다."),
     INVALID_RECRUITMENT_COUNT(HttpStatus.BAD_REQUEST, "모집 인원은 1 이상이어야 합니다."),
+    PLAN_ALREADY_COMPLETED(HttpStatus.CONFLICT, "이미 종료된 계획에는 참여할 수 없습니다."),
 
     //member
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "멤버를 찾을 수 없습니다."),
@@ -68,6 +69,8 @@ public enum ErrorCode {
     SCHEDULE_NOT_FOUND(HttpStatus.NOT_FOUND, "일정을 찾을 수 없습니다."),
     INVALID_SCHEDULE_ORDER(HttpStatus.BAD_REQUEST, "일정 순서 정보가 올바르지 않습니다."),
     DUPLICATE_SCHEDULE_ORDER(HttpStatus.CONFLICT, "이미 사용 중인 일정 순서입니다."),
+    INVALID_TIME_RANGE(HttpStatus.BAD_REQUEST, "종료 시간은 시작 시간보다 빠를 수 없습니다."),
+    INVALID_ORDER(HttpStatus.CONFLICT, "순서는 0 이상이어야 합니다"),
 
     //Kakao
     KAKAO_LOCAL_API_ERROR(HttpStatus.BAD_GATEWAY, "카카오 장소 검색에 실패했습니다."),
