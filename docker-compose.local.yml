@@ -26,6 +26,8 @@ services:
       KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET:-dummy-kakao-client-secret}
       KAKAO_REDIRECT_URI: ${KAKAO_REDIRECT_URI:-http://localhost:3000/oauth/kakao/callback}
 
+      KAKAO_LOCAL_REST_API_KEY: ${KAKAO_LOCAL_REST_API_KEY:?KAKAO_LOCAL_REST_API_KEY is required}
+
       AWS_REGION: us-east-1
       S3_BUCKET_NAME: moigo-local
       SPRING_CLOUD_AWS_S3_ENDPOINT: http://localstack:4566
