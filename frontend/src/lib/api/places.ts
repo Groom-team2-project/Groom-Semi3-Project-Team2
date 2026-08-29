@@ -22,6 +22,7 @@ interface PlaceDocumentApiResponse {
   latitude: number | null;
   phone: string | null;
   placeUrl: string | null;
+  selectionToken: string;
 }
 
 interface PlaceDocumentListApiResponse {
@@ -63,6 +64,7 @@ function mapPlaceDocument(place: PlaceDocumentApiResponse): PlaceSearchResult {
     latitude: place.latitude ?? undefined,
     phone: place.phone ?? undefined,
     placeUrl: place.placeUrl ?? undefined,
+    selectionToken: place.selectionToken,
     emoji: CATEGORY_EMOJI[place.categoryGroupCode ?? ""] ?? "📍",
   };
 }
@@ -208,11 +210,11 @@ export async function addPlaceToPlan(
   usage: PlaceUsage = "saved",
 ): Promise<Place> {
   if (!USE_MOCK) {
-    if (result.latitude === undefined || result.longitude === undefined) {
+    if (!result.selectionToken) {
       throw new ApiError(
-        "장소 좌표 정보가 없어 저장할 수 없습니다.",
+        "장소 선택 정보가 없어 저장할 수 없습니다. 다시 검색해 주세요.",
         400,
-        "INVALID_PLACE_COORDINATES",
+        "INVALID_PLACE_SELECTION_TOKEN",
       );
     }
 
@@ -221,15 +223,7 @@ export async function addPlaceToPlan(
       {
         method: "POST",
         body: JSON.stringify({
-          kakaoPlaceId: result.kakaoId,
-          name: result.name,
-          category: result.category,
-          address: result.landLotAddress ?? result.address,
-          roadAddress: result.roadAddress,
-          phone: result.phone,
-          placeUrl: result.placeUrl,
-          latitude: result.latitude,
-          longitude: result.longitude,
+          selectionToken: result.selectionToken,
         }),
       },
     );

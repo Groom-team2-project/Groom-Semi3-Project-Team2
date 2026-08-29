@@ -68,6 +68,7 @@ export interface Place {
 /** 카카오 로컬 API 검색 결과 (아직 저장 전) */
 export interface PlaceSearchResult {
   kakaoId: string;
+  selectionToken?: string;
   name: string;
   address: string;
   landLotAddress?: string;
