@@ -6,14 +6,17 @@ import com.groom.moigo.domain.place.entity.PlaceEntity;
 import com.groom.moigo.domain.place.kakao.client.KakaoClient;
 import com.groom.moigo.domain.place.kakao.dto.KakaoSearchResponse;
 import com.groom.moigo.domain.place.repository.PlaceRepository;
+import com.groom.moigo.domain.place.token.PlaceSelectionClaims;
+import com.groom.moigo.domain.place.token.PlaceSelectionTokenProvider;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -22,6 +25,8 @@ import java.util.Optional;
 public class PlaceService {
     private final KakaoClient kakaoClient;
     private final PlaceRepository placeRepository;
+    private final PlaceSelectionTokenProvider placeSelectionTokenProvider;
+    private final PlacePersistenceService placePersistenceService;
 
     public PlaceDocumentListResponse searchPlaces(
             String keyword,
@@ -37,7 +42,10 @@ public class PlaceService {
                 null,
                 null);
         List<PlaceDocumentResponse> places = kakaoResponse.getDocuments().stream()
-                .map(PlaceDocumentResponse::from)
+                .map(document -> PlaceDocumentResponse.from(
+                        document,
+                        placeSelectionTokenProvider.create(document)
+                ))
                 .toList();
         return PlaceDocumentListResponse.of(places, kakaoResponse.getMeta());
     }
@@ -73,103 +81,37 @@ public class PlaceService {
                 size);
 
         List<PlaceDocumentResponse> places = kakaoResponse.getDocuments().stream()
-                .map(PlaceDocumentResponse::from)
+                .map(document -> PlaceDocumentResponse.from(
+                        document,
+                        placeSelectionTokenProvider.create(document)
+                ))
                 .toList();
 
         return PlaceDocumentListResponse.of(places, kakaoResponse.getMeta());
     }
 
-    /*
-    TODO:
-        1.  Place를 Schedule에서 등록하기 위해서, createPlace 메서드를 호출할 경우,
-            Place DB 내에 기존에 등록했던 이력이 있는지 검사 후,
-            존재한다면 -> 해당 데이터와 비교 후 최신화(방법에 대해서는 2에서 서술)
-            없다면 -> 해당 데이터 추가
-        2.  1에서 등록했던 이력 혹은 데이터가 정확한지 알아내기 위하여 데이터에 대한 해싱을 고려하고 있는데,
-            이게 효과적인지 알기 위해서 성능 비교가 필요할 것으로 보임.
-            우선 v1의 구현으로 모든 데이터를 각각 비교하여 구현하고,
-            성능 개선 작업에서 v2를 구현하여 해싱 적용을 고려해볼 것.
-        3.  2에서 v1 구현을 위해서,
-            첫번째로 KakaoPlaceId 가 일치하는 행이 있는지 검사(findKakaoPlaceId 로 행을 찾음),
-            두번째로 좌표 일치 여부 검사,
-            세번째로 주소 일치 여부 검사.
-        ->  성능 오버헤드에는 큰 영향을 주지 않을 수도 있을 것으로 판단되어서, v2 계획은 잠정 폐기하겠습니다.
-            (행으로 가져온 데이터를 Backend 내에서 확인하는게 해싱에 필요한 리소스 보다 적을 것으로 보입니다)
-     */
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public PlaceRegisterResponse registerPlace(PlaceRegisterRequest request) {
-        Optional<PlaceEntity> optionalPlace = placeRepository.findByKakaoPlaceId(request.getKakaoPlaceId());
+        PlaceSelectionClaims claims = placeSelectionTokenProvider.verify(request.getSelectionToken());
+        Optional<PlaceEntity> existingPlace = placeRepository.findByKakaoPlaceId(claims.kakaoPlaceId());
 
-        PlaceEntity place;
-
-        if (optionalPlace.isPresent()) {
-            // DB 내 존재하는 Place 처리
-            place = optionalPlace.get();
-
-            // Place 정보 변경 여부 검사
-            if (hasPlaceChanged(place, request)) {
-                PlaceEntity updatedPlace = updatePlace(place, request);
-
-                return PlaceRegisterResponse.from(updatedPlace);
-            }
-            // 변경점 없다고 판단시 그대로 반환
-        } else {
-            // DB 내 존재하지 않는 Place일 경우 생성
-            place = createPlace(request);
+        if (existingPlace.isPresent()) {
+            PlaceEntity updated = placePersistenceService.update(
+                    existingPlace.get().getPlaceId(),
+                    claims
+            );
+            return PlaceRegisterResponse.from(updated);
         }
 
-        return PlaceRegisterResponse.from(place);
+        return createOrGetPlace(claims);
     }
 
-    private PlaceEntity updatePlace(
-            PlaceEntity place,
-            PlaceRegisterRequest request
-    ) {
-        place.update(
-                request.getName(),
-                request.getCategory(),
-                request.getAddress(),
-                request.getRoadAddress(),
-                request.getPhone(),
-                request.getPlaceUrl(),
-                request.getLatitude(),
-                request.getLongitude()
-        );
-        return place;
-    }
-
-    private PlaceEntity createPlace(PlaceRegisterRequest request) {
-        PlaceEntity place = PlaceEntity.create(
-                request.getKakaoPlaceId(),
-                request.getName(),
-                request.getCategory(),
-                request.getAddress(),
-                request.getRoadAddress(),
-                request.getPhone(),
-                request.getPlaceUrl(),
-                request.getLatitude(),
-                request.getLongitude()
-        );
-
-        return placeRepository.save(place);
-    }
-
-    private boolean hasPlaceChanged(PlaceEntity place, PlaceRegisterRequest request) {
-        return hasCoordinateChanged(place.getLatitude(), request.getLatitude())
-                || hasCoordinateChanged(place.getLongitude(), request.getLongitude())
-                || !Objects.equals(place.getRoadAddress(), request.getRoadAddress())
-                || !Objects.equals(place.getAddress(), request.getAddress())
-                || !Objects.equals(place.getPhone(), request.getPhone())
-                || !Objects.equals(place.getPlaceUrl(), request.getPlaceUrl())
-                || !Objects.equals(place.getCategory(), request.getCategory())
-                || !Objects.equals(place.getName(), request.getName());
-    }
-
-    private boolean hasCoordinateChanged(BigDecimal current, BigDecimal incoming) {
-        if (current == null || incoming == null) {
-            return current != incoming;
+    private PlaceRegisterResponse createOrGetPlace(PlaceSelectionClaims claims) {
+        try {
+            return PlaceRegisterResponse.from(placePersistenceService.create(claims));
+        } catch (DataIntegrityViolationException exception) {
+            PlaceEntity existing = placePersistenceService.findByKakaoPlaceId(claims.kakaoPlaceId());
+            return PlaceRegisterResponse.from(existing);
         }
-        return current.compareTo(incoming) != 0;
     }
-
 }

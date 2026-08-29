@@ -5,6 +5,8 @@ import com.groom.moigo.domain.place.dto.PlaceRegisterResponse;
 import com.groom.moigo.domain.place.entity.PlaceEntity;
 import com.groom.moigo.domain.place.kakao.client.KakaoClient;
 import com.groom.moigo.domain.place.repository.PlaceRepository;
+import com.groom.moigo.domain.place.token.PlaceSelectionClaims;
+import com.groom.moigo.domain.place.token.PlaceSelectionTokenProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,7 +27,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,36 +38,40 @@ class PlaceServiceConcurrencyTest {
     @Mock
     private PlaceRepository placeRepository;
 
+    @Mock
+    private PlaceSelectionTokenProvider placeSelectionTokenProvider;
+
+    @Mock
+    private PlacePersistenceService placePersistenceService;
+
     @InjectMocks
     private PlaceService placeService;
 
     @Test
-    @DisplayName("동시에 같은 신규 카카오 장소를 등록하면 한 요청은 unique 충돌한다")
-    void concurrentFirstRegistrationCausesUniqueConstraintViolation() throws Exception {
-        // 현재 동작을 기록하는 characterization test이다.
-        // 동시성 복구 로직을 추가한 뒤에는 두 요청이 같은 placeId를 받는지 검증하도록 바꿘야 한다.
-        PlaceRegisterRequest request = createRequest("12345");
+    @DisplayName("동시에 같은 신규 카카오 장소를 등록해도 같은 placeId를 반환한다")
+    void concurrentFirstRegistrationReturnsSamePlaceId() throws Exception {
+        PlaceRegisterRequest request = createRequest("signed-token");
+        PlaceSelectionClaims claims = createClaims("12345");
+        PlaceEntity savedPlace = createSavedPlace(claims, 1L);
         CountDownLatch lookupsReady = new CountDownLatch(2);
         CountDownLatch startSaving = new CountDownLatch(1);
         AtomicBoolean inserted = new AtomicBoolean(false);
 
+        when(placeSelectionTokenProvider.verify("signed-token")).thenReturn(claims);
         when(placeRepository.findByKakaoPlaceId("12345"))
                 .thenAnswer(invocation -> {
                     lookupsReady.countDown();
                     assertThat(startSaving.await(3, TimeUnit.SECONDS)).isTrue();
                     return Optional.empty();
                 });
-
-        when(placeRepository.save(any(PlaceEntity.class)))
+        when(placePersistenceService.create(claims))
                 .thenAnswer(invocation -> {
                     if (!inserted.compareAndSet(false, true)) {
                         throw new DataIntegrityViolationException("uk_places_kakao_place_id");
                     }
-
-                    PlaceEntity place = invocation.getArgument(0);
-                    ReflectionTestUtils.setField(place, "placeId", 1L);
-                    return place;
+                    return savedPlace;
                 });
+        when(placePersistenceService.findByKakaoPlaceId("12345")).thenReturn(savedPlace);
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
@@ -77,18 +82,10 @@ class PlaceServiceConcurrencyTest {
             startSaving.countDown();
 
             List<RegistrationAttempt> attempts = List.of(first.get(), second.get());
-
-            assertThat(attempts)
-                    .filteredOn(attempt -> attempt.error() == null)
-                    .singleElement()
-                    .extracting(RegistrationAttempt::placeId)
-                    .isEqualTo(1L);
-
-            assertThat(attempts)
-                    .filteredOn(attempt -> attempt.error() != null)
-                    .singleElement()
-                    .extracting(RegistrationAttempt::error)
-                    .isInstanceOf(DataIntegrityViolationException.class);
+            assertThat(attempts).allSatisfy(attempt -> {
+                assertThat(attempt.error()).isNull();
+                assertThat(attempt.placeId()).isEqualTo(1L);
+            });
         } finally {
             startSaving.countDown();
             executor.shutdownNow();
@@ -104,18 +101,42 @@ class PlaceServiceConcurrencyTest {
         }
     }
 
-    private PlaceRegisterRequest createRequest(String kakaoPlaceId) {
+    private PlaceRegisterRequest createRequest(String selectionToken) {
         PlaceRegisterRequest request = new PlaceRegisterRequest();
-        ReflectionTestUtils.setField(request, "kakaoPlaceId", kakaoPlaceId);
-        ReflectionTestUtils.setField(request, "name", "테스트 카페");
-        ReflectionTestUtils.setField(request, "category", "음식점 > 카페");
-        ReflectionTestUtils.setField(request, "address", "서울특별시 중구 테스트동 1");
-        ReflectionTestUtils.setField(request, "roadAddress", "서울특별시 중구 테스트로 1");
-        ReflectionTestUtils.setField(request, "phone", "02-1234-5678");
-        ReflectionTestUtils.setField(request, "placeUrl", "https://place.map.kakao.com/12345");
-        ReflectionTestUtils.setField(request, "latitude", new BigDecimal("37.5665000"));
-        ReflectionTestUtils.setField(request, "longitude", new BigDecimal("126.9780000"));
+        ReflectionTestUtils.setField(request, "selectionToken", selectionToken);
         return request;
+    }
+
+    private PlaceSelectionClaims createClaims(String kakaoPlaceId) {
+        return new PlaceSelectionClaims(
+                kakaoPlaceId,
+                "테스트 카페",
+                "음식점 > 카페",
+                "서울특별시 중구 테스트동 1",
+                "서울특별시 중구 테스트로 1",
+                "02-1234-5678",
+                "https://place.map.kakao.com/12345",
+                new BigDecimal("37.5665000"),
+                new BigDecimal("126.9780000"),
+                1_000L,
+                1_600L
+        );
+    }
+
+    private PlaceEntity createSavedPlace(PlaceSelectionClaims claims, Long placeId) {
+        PlaceEntity place = PlaceEntity.create(
+                claims.kakaoPlaceId(),
+                claims.name(),
+                claims.category(),
+                claims.address(),
+                claims.roadAddress(),
+                claims.phone(),
+                claims.placeUrl(),
+                claims.latitude(),
+                claims.longitude()
+        );
+        ReflectionTestUtils.setField(place, "placeId", placeId);
+        return place;
     }
 
     private record RegistrationAttempt(Long placeId, RuntimeException error) {
