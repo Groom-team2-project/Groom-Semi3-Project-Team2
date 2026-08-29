@@ -54,4 +54,60 @@ public class PlaceEntity {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    public static PlaceEntity create(
+            String kakaoPlaceId,
+            String name,
+            String category,
+            String address,
+            String roadAddress,
+            String phone,
+            String placeUrl,
+            BigDecimal latitude,
+            BigDecimal longitude
+    ) {
+        PlaceEntity place = new PlaceEntity();
+        place.kakaoPlaceId = kakaoPlaceId;
+        place.name = name;
+        place.category = category;
+        place.address = address;
+        place.roadAddress = roadAddress;
+        place.phone = phone;
+        place.placeUrl = placeUrl;
+        place.latitude = latitude;
+        place.longitude = longitude;
+        return place;
+    }
+
+    public void update(
+            String name,
+            String category,
+            String address,
+            String roadAddress,
+            String phone,
+            String placeUrl,
+            BigDecimal latitude,
+            BigDecimal longitude
+    ) {
+        this.name = name;
+        this.category = category;
+        this.address = address;
+        this.roadAddress = roadAddress;
+        this.phone = phone;
+        this.placeUrl = placeUrl;
+        this.latitude = latitude;
+        this.longitude = longitude;
+    }
+
+    @PrePersist
+    private void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    private void preUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }

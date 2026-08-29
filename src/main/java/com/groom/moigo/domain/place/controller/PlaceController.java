@@ -2,8 +2,11 @@ package com.groom.moigo.domain.place.controller;
 
 import com.groom.moigo.domain.place.dto.CategoryListResponse;
 import com.groom.moigo.domain.place.dto.PlaceDocumentListResponse;
+import com.groom.moigo.domain.place.dto.PlaceRegisterRequest;
+import com.groom.moigo.domain.place.dto.PlaceRegisterResponse;
 import com.groom.moigo.domain.place.service.PlaceService;
 import com.groom.moigo.global.response.CommonResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -60,5 +63,15 @@ public class PlaceController {
 
         return ResponseEntity.status(HttpStatus.OK)
                 .body(CommonResponse.success(response, "카테고리 장소 목록 조회 성공"));
+    }
+
+    @PostMapping("/place/register")
+    public ResponseEntity<CommonResponse<PlaceRegisterResponse>> registerPlace(
+            @Valid @RequestBody PlaceRegisterRequest request
+    ) {
+        PlaceRegisterResponse response = placeService.registerPlace(request);
+
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(CommonResponse.success(response, "장소 등록 완료"));
     }
 }
