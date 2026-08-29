@@ -12,16 +12,26 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 투표 테스트가 필요로 하는 선행 데이터를 만든다.
  *
  * <p>다른 도메인의 선행 데이터는 JDBC로 직접 넣는다. 투표 테스트가 그쪽 서비스의 검증 규칙까지 따라가지 않도록 하기 위함이다.
+ *
+ * <p>각 생성 메서드는 {@code REQUIRES_NEW}로 즉시 커밋함. {@code @Transactional} 테스트(테스트 종료 시 롤백)가
+ * 쓰는 커넥션과 분리해두지 않으면, {@code ActivityLogServiceImpl.record()}처럼 REQUIRES_NEW로 별도 커넥션을 쓰는
+ * 코드가 아직 커밋되지 않은 이 픽스처의 plan/user를 보지 못해 FK 위반으로 실패함
+ * (docs/activity-log-spec.md 7절 참고). 테스트가 끝나도 여기서 만든 행은 롤백되지 않고 남으므로,
+ * SEQUENCE로 값을 유니크하게 유지해 재실행 시 충돌하지 않게 함.
  */
 @Component
 public class VoteTestFixture {
 
-	private static final AtomicLong SEQUENCE = new AtomicLong();
+	// REQUIRES_NEW로 즉시 커밋되어 테스트 종료 후에도 롤백되지 않고 남으므로, 0부터 시작하면 재실행 시 이전 실행분과
+	// 유니크 제약이 충돌함. 실행마다 다른 값에서 시작하도록 nanoTime을 시드로 씀.
+	private static final AtomicLong SEQUENCE = new AtomicLong(System.nanoTime());
 
 	private final SimpleJdbcInsert userInsert;
 	private final SimpleJdbcInsert planInsert;
@@ -49,6 +59,7 @@ public class VoteTestFixture {
 		this.jdbcTemplate = new JdbcTemplate(dataSource);
 	}
 
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public Long createUser(String nickname) {
 		long unique = SEQUENCE.incrementAndGet();
 		LocalDateTime now = LocalDateTime.now();
@@ -62,6 +73,7 @@ public class VoteTestFixture {
 	}
 
 	/** 계획을 만들고 만든 사람을 OWNER 멤버로 등록한다. */
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public Long createPlan(Long userId, String title) {
 		LocalDateTime now = LocalDateTime.now();
 		Map<String, Object> values = new HashMap<>();
@@ -77,6 +89,7 @@ public class VoteTestFixture {
 	}
 
 	/** 계획에 참여 중인 멤버로 등록한다. */
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void join(Long planId, Long userId, MemberRole role) {
 		Map<String, Object> values = new HashMap<>();
 		values.put("plan_id", planId);
@@ -88,6 +101,7 @@ public class VoteTestFixture {
 	}
 
 	/** 계획에 참여했다가 나간 멤버로 등록한다. */
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public void leave(Long planId, Long userId, MemberRole role) {
 		Map<String, Object> values = new HashMap<>();
 		values.put("plan_id", planId);
@@ -98,6 +112,7 @@ public class VoteTestFixture {
 		memberInsert.execute(values);
 	}
 
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public Long createPlace(String name) {
 		long unique = SEQUENCE.incrementAndGet();
 		LocalDateTime now = LocalDateTime.now();
@@ -110,6 +125,7 @@ public class VoteTestFixture {
 		return placeInsert.executeAndReturnKey(values).longValue();
 	}
 
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	public Long createSchedule(Long planId, String title) {
 		LocalDateTime now = LocalDateTime.now();
 		Map<String, Object> values = new HashMap<>();

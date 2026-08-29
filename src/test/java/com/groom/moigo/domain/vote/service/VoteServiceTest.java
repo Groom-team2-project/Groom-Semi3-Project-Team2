@@ -27,10 +27,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+// REQUIRES_NEW로 커밋되는 activityLogService.record()의 결과를 이 테스트의 트랜잭션에서 바로 조회하므로,
+// MySQL 기본 격리 수준(REPEATABLE READ)의 스냅샷 때문에 안 보이지 않도록 READ_COMMITTED로 지정함
+// (docs/activity-log-spec.md 7절 참고).
 @SpringBootTest
-@Transactional
+@Transactional(isolation = Isolation.READ_COMMITTED)
 class VoteServiceTest {
 
 	@Autowired private VoteService voteService;
@@ -110,7 +114,10 @@ class VoteServiceTest {
 	void createVoteRecordsActivity() {
 		VoteResponse response = voteService.create(planId, creatorId, createRequest());
 
+		// activityLogRepository.save()가 REQUIRES_NEW로 즉시 커밋되어 테스트가 끝나도 롤백되지 않으므로, 반복 실행하면
+		// 이 테이블에는 이전 실행이 남긴 행이 쌓여있다. findAll()로 통째로 보지 않고 이번에 만든 투표의 로그만 걸러본다.
 		assertThat(activityLogRepository.findAll())
+				.filteredOn(log -> log.getTargetId().equals(Long.valueOf(response.id())))
 				.singleElement()
 				.satisfies(
 						log -> {
@@ -527,7 +534,8 @@ class VoteServiceTest {
 				planId, id(vote.id()), creatorId, new VoteUpdateRequest("바뀐 제목", null, null, null));
 
 		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_UPDATED)
+				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_UPDATED
+						&& log.getTargetId().equals(Long.valueOf(vote.id())))
 				.singleElement()
 				.satisfies(log -> assertThat(log.getSummary()).isEqualTo("'바뀐 제목' 투표를 수정했어요"));
 	}
@@ -540,7 +548,8 @@ class VoteServiceTest {
 		voteService.delete(planId, id(vote.id()), creatorId);
 
 		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_DELETED)
+				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_DELETED
+						&& log.getTargetId().equals(Long.valueOf(vote.id())))
 				.singleElement()
 				.satisfies(
 						log -> {
@@ -567,7 +576,8 @@ class VoteServiceTest {
 		voteService.deleteOption(planId, voteId, id(vote.options().get(1).id()), creatorId);
 
 		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_UPDATED)
+				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_UPDATED
+						&& log.getTargetId().equals(Long.valueOf(vote.id())))
 				.extracting(log -> log.getSummary())
 				.containsExactly(
 						"'첫날 어디 갈까요' 투표에 후보를 추가했어요",

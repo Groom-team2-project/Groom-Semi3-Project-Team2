@@ -25,10 +25,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+// activityLogService.record()가 REQUIRES_NEW로 커밋되므로, 그 결과를 바로 조회하는 이 테스트는
+// READ_COMMITTED로 지정한다 (docs/activity-log-spec.md 7절 참고).
 @SpringBootTest
-@Transactional
+@Transactional(isolation = Isolation.READ_COMMITTED)
 class VoteParticipationServiceTest {
 
 	@Autowired private VoteService voteService;
@@ -107,13 +110,13 @@ class VoteParticipationServiceTest {
 		voteParticipationService.participate(
 				planId, id(vote.id()), firstId, single(vote.options().get(0).id()));
 
-		// 누가 무엇을 골랐는지 드러나지 않아야 하므로 참여 관련 이력은 만들지 않는다.
-		// 투표 생성 이력만 남는다.
+		// 누가 무엇을 골랐는지 드러나지 않아야 하므로 참여 관련 이력은 만들지 않는다. 투표 생성 이력만 남는다.
+		// 활동 기록이 REQUIRES_NEW로 즉시 커밋되어 다른 테스트가 남긴 행이 섞이므로 이번 투표로 걸러서 본다.
 		assertThat(activityLogRepository.findAll())
+				.filteredOn(log -> log.getTargetId().equals(Long.valueOf(vote.id())))
 				.extracting(log -> log.getActionType())
 				.containsExactly(ActivityActionType.VOTE_CREATED);
 	}
-
 	@Test
 	@DisplayName("단일 선택 투표에 선택지를 2개 이상 고르면 거부된다")
 	void participateSingleChoiceWithMultipleOptions() {
