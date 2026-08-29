@@ -1,7 +1,9 @@
 package com.groom.moigo.domain.vote.repository;
 
 import com.groom.moigo.domain.vote.entity.Vote;
+import com.groom.moigo.domain.vote.entity.VoteStatus;
 import jakarta.persistence.LockModeType;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,4 +24,7 @@ public interface VoteRepository extends JpaRepository<Vote, Long> {
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select v from Vote v where v.id = :voteId")
 	Optional<Vote> findByIdForUpdate(@Param("voteId") Long voteId);
+
+	/** 마감 일시가 지났는데 아직 진행 중인 투표. 마감 스케줄러가 쓴다. */
+	List<Vote> findByStatusAndEndDatetimeLessThanEqual(VoteStatus status, Instant now);
 }
