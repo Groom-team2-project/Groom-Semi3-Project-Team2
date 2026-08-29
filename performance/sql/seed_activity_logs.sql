@@ -4,6 +4,9 @@
 -- 1. 운영·공용 DB가 아닌 로컬 MySQL에서만 실행한다.
 -- 2. 카카오 로그인한 계정이 멤버로 참여한 전용 벤치마크 계획을 먼저 만든다.
 -- 3. 아래 plan_id, user_id를 해당 값으로 바꾼다.
+-- 4. mysql 클라이언트의 접속 문자셋이 utf8mb4가 아니면 summary의 한글이 깨진 채로 저장된다.
+--    (화면에 '?????'로 보이는 원인) 아래에서 문자셋을 utf8mb4로 맞춰준다.
+SET NAMES utf8mb4;
 
 SET @benchmark_plan_id := 1;
 SET @benchmark_user_id := 1;
@@ -81,7 +84,19 @@ WHERE plan_id = @benchmark_plan_id
 ORDER BY created_at DESC, log_id DESC
 LIMIT 150, 1;
 
--- OFFSET 방식과 커서 방식이 읽는 행 수를 비교할 때 사용한다.
+-- 첫·중간·후반 페이지에서 OFFSET 방식과 커서 방식이 읽는 행 수를 비교할 때 사용한다.
+EXPLAIN ANALYZE
+SELECT log_id, created_at
+FROM activity_logs
+WHERE plan_id = @benchmark_plan_id
+  AND action_type IN (
+      'SCHEDULE_CREATED', 'SCHEDULE_UPDATED', 'SCHEDULE_DELETED',
+      'VOTE_CREATED', 'VOTE_UPDATED', 'VOTE_DELETED', 'VOTE_CLOSED',
+      'MEMBER_JOINED', 'MEMBER_LEFT', 'MEMBER_ROLE_CHANGED', 'COMMENT_CREATED'
+  )
+ORDER BY created_at DESC, log_id DESC
+LIMIT 20 OFFSET 0;
+
 EXPLAIN ANALYZE
 SELECT log_id, created_at
 FROM activity_logs
@@ -93,6 +108,18 @@ WHERE plan_id = @benchmark_plan_id
   )
 ORDER BY created_at DESC, log_id DESC
 LIMIT 20 OFFSET 150;
+
+EXPLAIN ANALYZE
+SELECT log_id, created_at
+FROM activity_logs
+WHERE plan_id = @benchmark_plan_id
+  AND action_type IN (
+      'SCHEDULE_CREATED', 'SCHEDULE_UPDATED', 'SCHEDULE_DELETED',
+      'VOTE_CREATED', 'VOTE_UPDATED', 'VOTE_DELETED', 'VOTE_CLOSED',
+      'MEMBER_JOINED', 'MEMBER_LEFT', 'MEMBER_ROLE_CHANGED', 'COMMENT_CREATED'
+  )
+ORDER BY created_at DESC, log_id DESC
+LIMIT 20 OFFSET 250;
 
 SELECT created_at, log_id
 INTO @cursor_created_at, @cursor_log_id
