@@ -42,7 +42,7 @@ app:
 
 kakao:
   local:
-    rest-api-key: ${KAKAO_LOCAL_REST_API_KEY:dummy-kakao-local-rest-api-key}
+    rest-api-key: ${KAKAO_REST_API_KEY:dummy-kakao-rest-api-key}
   oauth:
     client-id: ${KAKAO_CLIENT_ID:dummy-kakao-client-id}
     client-secret: ${KAKAO_CLIENT_SECRET:dummy-kakao-client-secret}
@@ -95,6 +95,8 @@ app:
       public-url: ${S3_PUBLIC_URL}
 
 kakao:
+  local:
+    rest-api-key: ${KAKAO_REST_API_KEY}
   oauth:
     client-id: ${KAKAO_CLIENT_ID}
     client-secret: ${KAKAO_CLIENT_SECRET}
