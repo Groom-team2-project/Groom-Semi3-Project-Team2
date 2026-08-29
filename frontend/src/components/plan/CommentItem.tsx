@@ -7,6 +7,7 @@ interface CommentItemProps {
   showDivider?: boolean;
   onReply?: () => void;
   onDelete?: () => void;
+  onLike?: () => void;
 }
 
 export function CommentItem({
@@ -15,6 +16,7 @@ export function CommentItem({
   showDivider = false,
   onReply,
   onDelete,
+  onLike,
 }: CommentItemProps) {
   return (
     <div className={`${showDivider ? "border-b border-gray-200" : ""} flex gap-2 py-2.5`}>
@@ -31,6 +33,16 @@ export function CommentItem({
           )}
         </div>
         <div className="mt-0.5 text-[13px] text-gray-700">{comment.text}</div>
+        {!comment.deleted && (
+          <button
+            type="button"
+            onClick={onLike}
+            className={`mt-1 flex items-center gap-1 text-[11px] ${comment.likedByMe ? "font-bold text-primary" : "text-gray-500"}`}
+          >
+            <span>{comment.likedByMe ? "👍" : "👍🏻"}</span>
+            <span>{comment.likeCount > 0 ? comment.likeCount : "좋아요"}</span>
+          </button>
+        )}
       </div>
     </div>
   );
