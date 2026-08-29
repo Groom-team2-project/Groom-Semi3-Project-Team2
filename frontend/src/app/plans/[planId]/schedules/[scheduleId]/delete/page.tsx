@@ -1,10 +1,12 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppBar } from "@/components/ui/AppBar";
 import { Button } from "@/components/ui/Button";
+import { Toast } from "@/components/ui/Toast";
 import { getSchedule, deleteSchedule } from "@/lib/api";
+import { getScheduleMutationErrorMessage } from "@/lib/scheduleError";
 import type { Schedule } from "@/lib/api";
 
 export default function ScheduleDeleteConfirmPage({
@@ -16,6 +18,8 @@ export default function ScheduleDeleteConfirmPage({
   const router = useRouter();
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [pending, setPending] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const closeToast = useCallback(() => setToast(null), []);
 
   useEffect(() => {
     getSchedule(planId, scheduleId).then(setSchedule);
@@ -26,6 +30,8 @@ export default function ScheduleDeleteConfirmPage({
     try {
       await deleteSchedule(planId, scheduleId);
       router.push(`/plans/${planId}/timeline?day=${schedule?.day ?? 1}`);
+    } catch (error) {
+      setToast(getScheduleMutationErrorMessage(error, "삭제"));
     } finally {
       setPending(false);
     }
@@ -49,6 +55,7 @@ export default function ScheduleDeleteConfirmPage({
           </Button>
         </div>
       </div>
+      <Toast message={toast} onClose={closeToast} />
     </div>
   );
 }

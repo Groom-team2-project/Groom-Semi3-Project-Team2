@@ -1,9 +1,115 @@
 import { generateId } from "@/lib/utils";
 import { store, simulateLatency } from "./store";
+import { apiFetch, ApiError, USE_MOCK } from "./client";
 import type { Place, PlaceSearchResult, PlaceUsage } from "./types";
+
+interface CommonResponse<T> {
+  success: boolean;
+  data: T;
+  errorCode: string | null;
+  message: string;
+}
+
+interface PlaceDocumentApiResponse {
+  kakaoPlaceId: string;
+  name: string;
+  category: string | null;
+  categoryGroupCode: string | null;
+  categoryGroupName: string | null;
+  address: string | null;
+  roadAddress: string | null;
+  longitude: number | null;
+  latitude: number | null;
+  phone: string | null;
+  placeUrl: string | null;
+}
+
+interface PlaceDocumentListApiResponse {
+  places: PlaceDocumentApiResponse[];
+  totalCount: number;
+  pageableCount: number;
+  isEnd: boolean;
+}
+
+interface PlaceRegisterApiResponse {
+  placeId: number;
+}
+
+export interface PlaceSearchLocation {
+  latitude: number;
+  longitude: number;
+}
+
+const NEARBY_RADIUS_METERS = 2_000;
+
+const CATEGORY_EMOJI: Record<string, string> = {
+  AT4: "🏖️",
+  AD5: "🏨",
+  FD6: "🍽️",
+  CE7: "☕",
+};
+
+function mapPlaceDocument(place: PlaceDocumentApiResponse): PlaceSearchResult {
+  return {
+    kakaoId: place.kakaoPlaceId,
+    name: place.name,
+    address: place.roadAddress || place.address || "주소 정보 없음",
+    landLotAddress: place.address ?? undefined,
+    roadAddress: place.roadAddress ?? undefined,
+    category: place.category ?? undefined,
+    categoryGroupCode: place.categoryGroupCode ?? undefined,
+    categoryGroupName: place.categoryGroupName ?? undefined,
+    longitude: place.longitude ?? undefined,
+    latitude: place.latitude ?? undefined,
+    phone: place.phone ?? undefined,
+    placeUrl: place.placeUrl ?? undefined,
+    emoji: CATEGORY_EMOJI[place.categoryGroupCode ?? ""] ?? "📍",
+  };
+}
+
+function distanceInMeters(origin: PlaceSearchLocation, place: PlaceSearchResult): number | undefined {
+  if (place.latitude === undefined || place.longitude === undefined) return undefined;
+
+  const toRadians = (degree: number) => degree * (Math.PI / 180);
+  const earthRadius = 6_371_000;
+  const latitudeDelta = toRadians(place.latitude - origin.latitude);
+  const longitudeDelta = toRadians(place.longitude - origin.longitude);
+  const a = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(toRadians(origin.latitude))
+    * Math.cos(toRadians(place.latitude))
+    * Math.sin(longitudeDelta / 2) ** 2;
+
+  return Math.round(earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+async function searchCategory(
+  category: string,
+  location: PlaceSearchLocation,
+): Promise<PlaceSearchResult[]> {
+  const latitudeDelta = NEARBY_RADIUS_METERS / 111_320;
+  const longitudeScale = Math.max(Math.cos(location.latitude * (Math.PI / 180)), 0.01);
+  const longitudeDelta = NEARBY_RADIUS_METERS / (111_320 * longitudeScale);
+  const params = new URLSearchParams({
+    southWestLongitude: String(location.longitude - longitudeDelta),
+    southWestLatitude: String(location.latitude - latitudeDelta),
+    northEastLongitude: String(location.longitude + longitudeDelta),
+    northEastLatitude: String(location.latitude + latitudeDelta),
+    page: "1",
+    size: "15",
+  });
+  const response = await apiFetch<CommonResponse<PlaceDocumentListApiResponse>>(
+    `/api/v1/place2/category/${encodeURIComponent(category)}?${params.toString()}`,
+  );
+
+  return response.data.places.map(mapPlaceDocument);
+}
 
 /** GET /api/v1/plans/{planId}/places — 이 계획에서 저장한 장소 (일정/투표에서 재사용) */
 export async function getSavedPlaces(planId: string): Promise<Place[]> {
+  if (!USE_MOCK) {
+    // 선택 장소 저장 API가 준비되기 전에는 서버에 저장된 계획별 장소가 없다.
+    return [];
+  }
   await simulateLatency(150);
   return store.places.filter((p) => p.planId === planId);
 }
@@ -21,8 +127,19 @@ const KEYWORD_POOL: Omit<PlaceSearchResult, "kakaoId">[] = [
 
 /** GET /api/v1/places/search?query= — 카카오 로컬 API 키워드 검색 */
 export async function searchPlacesByKeyword(keyword: string): Promise<PlaceSearchResult[]> {
+  const normalizedKeyword = keyword.trim();
+  if (!normalizedKeyword) return [];
+
+  if (!USE_MOCK) {
+    const params = new URLSearchParams({ keyword: normalizedKeyword, page: "1", size: "15" });
+    const response = await apiFetch<CommonResponse<PlaceDocumentListApiResponse>>(
+      `/api/v1/place2/search?${params.toString()}`,
+    );
+    return response.data.places.map(mapPlaceDocument);
+  }
+
   await simulateLatency(320);
-  const q = keyword.trim().toLowerCase();
+  const q = normalizedKeyword.toLowerCase();
   const matched = q
     ? KEYWORD_POOL.filter(
         (p) => p.name.toLowerCase().includes(q) || p.address.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q),
@@ -50,7 +167,35 @@ export const NEARBY_CATEGORIES = [
 ] as const;
 
 /** GET /api/v1/places/search?category=&lat=&lng= — 내 주변 카테고리 검색 */
-export async function searchPlacesNearby(category = "all"): Promise<PlaceSearchResult[]> {
+export async function searchPlacesNearby(
+  category = "all",
+  location?: PlaceSearchLocation,
+): Promise<PlaceSearchResult[]> {
+  if (!USE_MOCK) {
+    if (!location) {
+      throw new ApiError("현재 위치를 확인할 수 없습니다.", 0, "LOCATION_UNAVAILABLE");
+    }
+
+    const categories = category === "all"
+      ? NEARBY_CATEGORIES.filter((item) => item.code !== "all").map((item) => item.code)
+      : [category];
+    const responses = await Promise.all(categories.map((code) => searchCategory(code, location)));
+    const uniquePlaces = new Map<string, PlaceSearchResult>();
+
+    for (const place of responses.flat()) {
+      if (!uniquePlaces.has(place.kakaoId)) {
+        uniquePlaces.set(place.kakaoId, {
+          ...place,
+          distanceMeters: distanceInMeters(location, place),
+        });
+      }
+    }
+
+    return [...uniquePlaces.values()].sort(
+      (left, right) => (left.distanceMeters ?? Number.MAX_SAFE_INTEGER) - (right.distanceMeters ?? Number.MAX_SAFE_INTEGER),
+    );
+  }
+
   await simulateLatency(280);
   const filtered = category === "all" ? NEARBY_POOL : NEARBY_POOL.filter((p) => p.category === category);
   return filtered.map((p) => ({ ...p, kakaoId: generateId("kko") }));
@@ -62,6 +207,45 @@ export async function addPlaceToPlan(
   result: PlaceSearchResult,
   usage: PlaceUsage = "saved",
 ): Promise<Place> {
+  if (!USE_MOCK) {
+    if (result.latitude === undefined || result.longitude === undefined) {
+      throw new ApiError(
+        "장소 좌표 정보가 없어 저장할 수 없습니다.",
+        400,
+        "INVALID_PLACE_COORDINATES",
+      );
+    }
+
+    const response = await apiFetch<CommonResponse<PlaceRegisterApiResponse>>(
+      "/api/v1/place2/place/register",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          kakaoPlaceId: result.kakaoId,
+          name: result.name,
+          category: result.category,
+          address: result.landLotAddress ?? result.address,
+          roadAddress: result.roadAddress,
+          phone: result.phone,
+          placeUrl: result.placeUrl,
+          latitude: result.latitude,
+          longitude: result.longitude,
+        }),
+      },
+    );
+
+    return {
+      id: String(response.data.placeId),
+      planId,
+      name: result.name,
+      address: result.address,
+      emoji: result.emoji,
+      category: result.category,
+      source: "KAKAO_LOCAL",
+      usage: [usage],
+    };
+  }
+
   await simulateLatency(200);
   const existing = store.places.find((p) => p.planId === planId && p.name === result.name);
   if (existing) {
