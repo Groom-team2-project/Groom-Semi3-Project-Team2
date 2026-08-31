@@ -21,6 +21,14 @@ interface CommentApiResponse {
   nickname: string | null;
   profileImage: string | null;
   createdAt: string;
+  likeCount: number;
+  likedByMe: boolean;
+}
+
+interface CommentLikeApiResponse {
+  commentId: number;
+  likeCount: number;
+  likedByMe: boolean;
 }
 
 function mapComment(response: CommentApiResponse): Comment {
@@ -36,6 +44,8 @@ function mapComment(response: CommentApiResponse): Comment {
     text: response.content,
     deleted: response.deleted,
     createdAt: response.createdAt,
+    likeCount: response.likeCount,
+    likedByMe: response.likedByMe,
   };
 }
 
@@ -146,6 +156,8 @@ export async function addComment(
       authorColor: store.me.avatarColor,
       text: content,
       createdAt: new Date().toISOString(),
+      likeCount: 0,
+      likedByMe: false,
     };
     store.comments.push(comment);
     store.recordActivity(
@@ -185,4 +197,30 @@ export async function deleteComment(planId: string, scheduleId: string, commentI
     `/api/v1/plans/${planId}/schedules/${scheduleId}/comments/${commentId}`,
     { method: "DELETE" },
   );
+}
+
+/** POST /api/v1/plans/{planId}/schedules/{scheduleId}/comments/{commentId}/likes */
+export async function toggleCommentLike(
+  planId: string,
+  scheduleId: string,
+  commentId: string,
+): Promise<{ likeCount: number; likedByMe: boolean }> {
+  if (USE_MOCK) {
+    await simulateLatency(120);
+    const comment = store.comments.find((item) => item.id === commentId && item.scheduleId === scheduleId);
+    if (!comment) throw new Error("Comment not found");
+    comment.likedByMe = !comment.likedByMe;
+    comment.likeCount += comment.likedByMe ? 1 : -1;
+    // 좋아요를 취소할 때는 기록하지 않음 (실제 백엔드와 동일한 정책)
+    if (comment.likedByMe) {
+      store.recordActivity(planId, "comment_liked", "댓글에 좋아요를 눌렀어요", "comment", commentId);
+    }
+    return { likeCount: comment.likeCount, likedByMe: comment.likedByMe };
+  }
+
+  const response = await apiFetch<CommonResponse<CommentLikeApiResponse>>(
+    `/api/v1/plans/${planId}/schedules/${scheduleId}/comments/${commentId}/likes`,
+    { method: "POST" },
+  );
+  return { likeCount: response.data.likeCount, likedByMe: response.data.likedByMe };
 }

@@ -2,6 +2,7 @@ package com.groom.moigo.domain.comment.controller;
 
 import com.groom.moigo.domain.auth.security.AuthMember;
 import com.groom.moigo.domain.comment.dto.CommentCreateRequest;
+import com.groom.moigo.domain.comment.dto.CommentLikeResponse;
 import com.groom.moigo.domain.comment.dto.CommentResponse;
 import com.groom.moigo.domain.comment.service.CommentService;
 import com.groom.moigo.domain.plan.entity.MemberEntity;
@@ -52,12 +53,31 @@ public class CommentController {
             @PathVariable Long scheduleId,
             @AuthenticationPrincipal AuthMember authMember
     ) {
-        planAccessService.requireJoinedMember(planId, authMember.userId());
+        Long userId = authMember.userId();
+        planAccessService.requireJoinedMember(planId, userId);
 
-        List<CommentResponse> response = commentService.getComments(planId, scheduleId);
+        List<CommentResponse> response = commentService.getComments(planId, scheduleId, userId);
 
         return ResponseEntity.ok(
                 CommonResponse.success(response, "댓글 목록 조회 성공")
+        );
+    }
+
+    @PostMapping("/{commentId}/likes")
+    public ResponseEntity<CommonResponse<CommentLikeResponse>> toggleLike(
+            @PathVariable Long planId,
+            @PathVariable Long scheduleId,
+            @PathVariable Long commentId,
+            @AuthenticationPrincipal AuthMember authMember
+    ) {
+        Long userId = authMember.userId();
+        // 좋아요는 열람 권한만 있으면 되는 가벼운 상호작용이라, 편집 권한(requireEditable)까지는 요구하지 않는다.
+        planAccessService.requireJoinedMember(planId, userId);
+
+        CommentLikeResponse response = commentService.toggleLike(planId, scheduleId, commentId, userId);
+
+        return ResponseEntity.ok(
+                CommonResponse.success(response, "댓글 좋아요 처리 성공")
         );
     }
 

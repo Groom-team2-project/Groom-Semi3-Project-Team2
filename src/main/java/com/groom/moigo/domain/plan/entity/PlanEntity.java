@@ -114,10 +114,6 @@ public class PlanEntity {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public boolean isDeleted() {
-        return this.deletedAt != null;
-    }
-
     public void softDelete() {
         this.deletedAt = LocalDateTime.now();
     }

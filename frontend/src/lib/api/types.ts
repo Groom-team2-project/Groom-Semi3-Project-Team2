@@ -101,6 +101,8 @@ export interface Comment {
   text: string;
   deleted?: boolean;
   createdAt: string;
+  likeCount: number;
+  likedByMe: boolean;
 }
 
 export type VoteStatus = "OPEN" | "CLOSED";
@@ -115,6 +117,7 @@ export interface VoteOption {
 }
 
 export interface Vote {
+  creatorId: string;
   id: string;
   planId: string;
   title: string;
@@ -142,7 +145,8 @@ export type ActivityType =
   | "invitation_revoked"
   | "invitation_reissued"
   | "comment_added"
-  | "comment_deleted";
+  | "comment_deleted"
+  | "comment_liked";
 
 export interface ActivityLog {
   id: string;

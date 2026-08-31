@@ -110,9 +110,13 @@ class ScheduleServiceTest {
     @DisplayName("존재하지 않는 Plan에는 일정을 생성할 수 없다")
     void createInUnknownPlan() throws Exception {
         ScheduleCreateRequest request = createRequest(null);
+        long before = scheduleRepository.count();
 
         assertBusinessError(() -> scheduleService.createSchedule(999_999L, request), ErrorCode.PLAN_NOT_FOUND);
-        assertThat(scheduleRepository.findAll()).isEmpty();
+
+        // 다른 테스트가 REQUIRES_NEW로 즉시 커밋해둔 일정이 테이블에 남아있을 수 있어 전체가 비어있는지 대신
+        // 이번 호출로 새로 생긴 게 없는지만 확인한다.
+        assertThat(scheduleRepository.count()).isEqualTo(before);
     }
 
     @Test
