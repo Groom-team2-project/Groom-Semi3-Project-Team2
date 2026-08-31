@@ -1,6 +1,7 @@
 import { generateId, dayIndexToDate } from "@/lib/utils";
 import { store, simulateLatency } from "./store";
-import { apiFetch, USE_MOCK } from "./client";
+import { apiFetch, ApiError, USE_MOCK } from "./client";
+import { getPlan } from "./plans";
 import type { Comment, Schedule } from "./types";
 
 interface CommonResponse<T> {
@@ -8,6 +9,33 @@ interface CommonResponse<T> {
   data: T;
   errorCode: string | null;
   message: string;
+}
+
+interface SchedulePlaceApiResponse {
+  placeId: number;
+  name: string;
+  category: string | null;
+  address: string | null;
+  roadAddress: string | null;
+  phone: string | null;
+  placeUrl: string | null;
+}
+
+interface ScheduleApiResponse {
+  scheduleId: number;
+  place: SchedulePlaceApiResponse | null;
+  title: string;
+  memo?: string | null;
+  startAt: string;
+  endAt: string | null;
+  reservationStatus: "NOT_REQUIRED" | "UNRESERVED" | "RESERVED" | "CANCELLED";
+  sortOrder: number;
+  kakaoRouteUrl?: string | null;
+}
+
+interface ScheduleListApiResponse {
+  planId: number;
+  schedules: ScheduleApiResponse[];
 }
 
 interface CommentApiResponse {
@@ -31,6 +59,45 @@ interface CommentLikeApiResponse {
   likedByMe: boolean;
 }
 
+function dateToDay(date: string, planStartDate: string): number {
+  const current = Date.parse(`${date}T00:00:00Z`);
+  const start = Date.parse(`${planStartDate}T00:00:00Z`);
+  return Math.max(1, Math.round((current - start) / 86_400_000) + 1);
+}
+
+function placeEmoji(category: string | null | undefined): string {
+  if (category?.includes("카페")) return "☕";
+  if (category?.includes("음식점")) return "🍽️";
+  if (category?.includes("숙박")) return "🏨";
+  if (category?.includes("관광")) return "🏖️";
+  return "📍";
+}
+
+function mapSchedule(response: ScheduleApiResponse, planId: string, planStartDate: string): Schedule {
+  const date = response.startAt.slice(0, 10);
+  return {
+    id: String(response.scheduleId),
+    planId,
+    placeId: response.place ? String(response.place.placeId) : undefined,
+    day: dateToDay(date, planStartDate),
+    date,
+    time: response.startAt.slice(11, 16),
+    placeName: response.place?.name ?? response.title,
+    placeAddress: response.place?.roadAddress ?? response.place?.address ?? undefined,
+    emoji: placeEmoji(response.place?.category),
+    memo: response.memo ?? undefined,
+    kakaoRouteUrl: response.kakaoRouteUrl ?? undefined,
+  };
+}
+
+async function getPlanStartDate(planId: string): Promise<string> {
+  const plan = await getPlan(planId);
+  if (!plan) {
+    throw new ApiError("삭제되었거나 접근할 수 없는 계획입니다.", 404, "PLAN_NOT_FOUND");
+  }
+  return plan.startDate;
+}
+
 function mapComment(response: CommentApiResponse): Comment {
   return {
     id: String(response.commentId),
@@ -51,7 +118,9 @@ function mapComment(response: CommentApiResponse): Comment {
 
 export interface UpsertScheduleInput {
   day: number;
+  date?: string;
   time: string;
+  placeId?: string;
   placeName: string;
   placeAddress?: string;
   emoji?: string;
@@ -60,41 +129,83 @@ export interface UpsertScheduleInput {
 
 /** GET /api/v1/plans/{planId}/schedules */
 export async function getSchedules(planId: string): Promise<Schedule[]> {
-  await simulateLatency(180);
-  return store.schedules
-    .filter((s) => s.planId === planId)
-    .sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));
+  if (USE_MOCK) {
+    await simulateLatency(180);
+    return store.schedules
+      .filter((schedule) => schedule.planId === planId)
+      .sort((left, right) => left.day - right.day || left.time.localeCompare(right.time));
+  }
+
+  const [response, planStartDate] = await Promise.all([
+    apiFetch<CommonResponse<ScheduleListApiResponse>>(`/api/v1/plans/${planId}/schedules`),
+    getPlanStartDate(planId),
+  ]);
+  return response.data.schedules.map((schedule) => mapSchedule(schedule, planId, planStartDate));
 }
 
 export async function getSchedulesByDay(planId: string, day: number): Promise<Schedule[]> {
   const all = await getSchedules(planId);
-  return all.filter((s) => s.day === day);
+  return all.filter((schedule) => schedule.day === day);
 }
 
 /** GET /api/v1/plans/{planId}/schedules/{scheduleId} */
 export async function getSchedule(planId: string, scheduleId: string): Promise<Schedule | null> {
-  await simulateLatency(120);
-  return store.schedules.find((s) => s.planId === planId && s.id === scheduleId) ?? null;
+  if (USE_MOCK) {
+    await simulateLatency(120);
+    return store.schedules.find((schedule) => schedule.planId === planId && schedule.id === scheduleId) ?? null;
+  }
+
+  try {
+    const [response, planStartDate] = await Promise.all([
+      apiFetch<CommonResponse<ScheduleApiResponse>>(`/api/v1/plans/${planId}/schedules/${scheduleId}`),
+      getPlanStartDate(planId),
+    ]);
+    return mapSchedule(response.data, planId, planStartDate);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 /** POST /api/v1/plans/{planId}/schedules */
 export async function createSchedule(planId: string, input: UpsertScheduleInput): Promise<Schedule> {
-  await simulateLatency(300);
-  const plan = store.getPlan(planId);
-  const schedule: Schedule = {
-    id: generateId("sch"),
-    planId,
-    day: input.day,
-    date: plan ? dayIndexToDate(plan.startDate, input.day) : new Date().toISOString().slice(0, 10),
-    time: input.time,
-    placeName: input.placeName,
-    placeAddress: input.placeAddress,
-    emoji: input.emoji ?? "📍",
-    memo: input.memo,
-  };
-  store.schedules.push(schedule);
-  store.recordActivity(planId, "schedule_added", `'${schedule.placeName}' 일정을 추가했어요`, "schedule", schedule.id);
-  return schedule;
+  if (USE_MOCK) {
+    await simulateLatency(300);
+    const plan = store.getPlan(planId);
+    const schedule: Schedule = {
+      id: generateId("sch"),
+      planId,
+      placeId: input.placeId,
+      day: input.day,
+      date: plan ? dayIndexToDate(plan.startDate, input.day) : new Date().toISOString().slice(0, 10),
+      time: input.time,
+      placeName: input.placeName,
+      placeAddress: input.placeAddress,
+      emoji: input.emoji ?? "📍",
+      memo: input.memo,
+    };
+    store.schedules.push(schedule);
+    store.recordActivity(planId, "schedule_added", `'${schedule.placeName}' 일정을 추가했어요`, "schedule", schedule.id);
+    return schedule;
+  }
+
+  const planStartDate = await getPlanStartDate(planId);
+  const date = input.date ?? dayIndexToDate(planStartDate, input.day);
+  const response = await apiFetch<CommonResponse<ScheduleApiResponse>>(
+    `/api/v1/plans/${planId}/schedules`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        placeId: input.placeId ? Number(input.placeId) : null,
+        title: input.placeName,
+        memo: input.memo,
+        startAt: `${date}T${input.time}:00`,
+        endAt: null,
+        reservationStatus: "NOT_REQUIRED",
+      }),
+    },
+  );
+  return { ...mapSchedule(response.data, planId, planStartDate), day: input.day };
 }
 
 /** PATCH /api/v1/plans/{planId}/schedules/{scheduleId} */
@@ -103,23 +214,51 @@ export async function updateSchedule(
   scheduleId: string,
   input: Partial<UpsertScheduleInput>,
 ): Promise<Schedule> {
-  await simulateLatency();
-  const schedule = store.schedules.find((s) => s.planId === planId && s.id === scheduleId);
-  if (!schedule) throw new Error("Schedule not found");
-  Object.assign(schedule, input);
-  store.recordActivity(planId, "schedule_updated", `'${schedule.placeName}' 일정을 수정했어요`, "schedule", schedule.id);
-  return schedule;
+  if (USE_MOCK) {
+    await simulateLatency();
+    const schedule = store.schedules.find((item) => item.planId === planId && item.id === scheduleId);
+    if (!schedule) throw new Error("Schedule not found");
+    Object.assign(schedule, input);
+    store.recordActivity(planId, "schedule_updated", `'${schedule.placeName}' 일정을 수정했어요`, "schedule", schedule.id);
+    return schedule;
+  }
+
+  const planStartDate = await getPlanStartDate(planId);
+  const date = input.date ?? (input.day ? dayIndexToDate(planStartDate, input.day) : undefined);
+  const startAt = date && input.time ? `${date}T${input.time}:00` : undefined;
+  const response = await apiFetch<CommonResponse<ScheduleApiResponse>>(
+    `/api/v1/plans/${planId}/schedules/${scheduleId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        placeId: input.placeId ? Number(input.placeId) : undefined,
+        title: input.placeName,
+        memo: input.memo || undefined,
+        startAt,
+        clearMemo: input.memo === "",
+      }),
+    },
+  );
+  const schedule = mapSchedule(response.data, planId, planStartDate);
+  return { ...schedule, day: input.day ?? schedule.day };
 }
 
 /** DELETE /api/v1/plans/{planId}/schedules/{scheduleId} */
 export async function deleteSchedule(planId: string, scheduleId: string): Promise<void> {
-  await simulateLatency(250);
-  const schedule = store.schedules.find((s) => s.planId === planId && s.id === scheduleId);
-  store.schedules = store.schedules.filter((s) => !(s.planId === planId && s.id === scheduleId));
-  store.comments = store.comments.filter((c) => c.scheduleId !== scheduleId);
-  if (schedule) {
-    store.recordActivity(planId, "schedule_deleted", `'${schedule.placeName}' 일정을 삭제했어요`, "schedule", schedule.id);
+  if (USE_MOCK) {
+    await simulateLatency(250);
+    const schedule = store.schedules.find((item) => item.planId === planId && item.id === scheduleId);
+    store.schedules = store.schedules.filter((item) => !(item.planId === planId && item.id === scheduleId));
+    store.comments = store.comments.filter((comment) => comment.scheduleId !== scheduleId);
+    if (schedule) {
+      store.recordActivity(planId, "schedule_deleted", `'${schedule.placeName}' 일정을 삭제했어요`, "schedule", schedule.id);
+    }
+    return;
   }
+
+  await apiFetch<CommonResponse<unknown>>(`/api/v1/plans/${planId}/schedules/${scheduleId}`, {
+    method: "DELETE",
+  });
 }
 
 /** GET /api/v1/plans/{planId}/schedules/{scheduleId}/comments */
@@ -128,7 +267,7 @@ export async function getComments(planId: string, scheduleId: string): Promise<C
     await simulateLatency(150);
     return store.comments
       .filter((comment) => comment.scheduleId === scheduleId)
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
   }
 
   const response = await apiFetch<CommonResponse<CommentApiResponse[]>>(
