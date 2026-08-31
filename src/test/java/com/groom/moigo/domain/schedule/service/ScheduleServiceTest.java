@@ -1,6 +1,7 @@
 package com.groom.moigo.domain.schedule.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.groom.moigo.domain.plan.entity.MemberRole;
 import com.groom.moigo.domain.schedule.dto.ScheduleCreateRequest;
 import com.groom.moigo.domain.schedule.dto.ScheduleListResponse;
 import com.groom.moigo.domain.schedule.dto.ScheduleOrderRequest;
@@ -37,18 +38,19 @@ class ScheduleServiceTest {
     @Autowired private ScheduleTestFixture fixture;
     @Autowired private ObjectMapper objectMapper;
 
+    private Long userId;
     private Long planId;
 
     @BeforeEach
     void setUp() {
-        Long userId = fixture.createUser("일정사용자");
+        userId = fixture.createUser("일정사용자");
         planId = fixture.createPlan(userId, "제주 여행");
     }
 
     @Test
     @DisplayName("첫 일정은 순서 1로 생성한다")
     void createFirstSchedule() throws Exception {
-        ScheduleResponse response = scheduleService.createSchedule(planId, createRequest(null));
+        ScheduleResponse response = scheduleService.createSchedule(userId, planId, createRequest(null));
 
         assertThat(response.getScheduleId()).isNotNull();
         assertThat(response.getPlanId()).isEqualTo(planId);
@@ -64,7 +66,7 @@ class ScheduleServiceTest {
         fixture.createSchedule(planId, "첫 일정", 1);
         fixture.createSchedule(planId, "둘째 일정", 2);
 
-        ScheduleResponse response = scheduleService.createSchedule(planId, createRequest(null));
+        ScheduleResponse response = scheduleService.createSchedule(userId, planId, createRequest(null));
 
         assertThat(response.getSortOrder()).isEqualTo(3);
         assertThat(activeOrders()).containsExactly(1, 2, 3);
@@ -77,7 +79,7 @@ class ScheduleServiceTest {
         Long deletedId = fixture.createSchedule(planId, "삭제 일정", 10);
         fixture.softDeleteSchedule(deletedId);
 
-        ScheduleResponse response = scheduleService.createSchedule(planId, createRequest(null));
+        ScheduleResponse response = scheduleService.createSchedule(userId, planId, createRequest(null));
 
         assertThat(response.getSortOrder()).isEqualTo(2);
         assertThat(activeOrders()).containsExactly(1, 2);
@@ -88,7 +90,7 @@ class ScheduleServiceTest {
     void createWithPlace() throws Exception {
         Long placeId = fixture.createPlace("성산일출봉");
 
-        ScheduleResponse response = scheduleService.createSchedule(planId, createRequest(placeId));
+        ScheduleResponse response = scheduleService.createSchedule(userId, planId, createRequest(placeId));
 
         assertThat(response.getPlace()).isNotNull();
         assertThat(response.getPlace().getPlaceId()).isEqualTo(placeId);
@@ -102,7 +104,7 @@ class ScheduleServiceTest {
     void createWithUnknownPlace() throws Exception {
         ScheduleCreateRequest request = createRequest(999_999L);
 
-        assertBusinessError(() -> scheduleService.createSchedule(planId, request), ErrorCode.PLACE_NOT_FOUND);
+        assertBusinessError(() -> scheduleService.createSchedule(userId, planId, request), ErrorCode.PLACE_NOT_FOUND);
         assertThat(activeSchedules()).isEmpty();
     }
 
@@ -111,14 +113,14 @@ class ScheduleServiceTest {
     void createInUnknownPlan() throws Exception {
         ScheduleCreateRequest request = createRequest(null);
 
-        assertBusinessError(() -> scheduleService.createSchedule(999_999L, request), ErrorCode.PLAN_NOT_FOUND);
+        assertBusinessError(() -> scheduleService.createSchedule(userId, 999_999L, request), ErrorCode.PLAN_NOT_FOUND);
         assertThat(scheduleRepository.findAll()).isEmpty();
     }
 
     @Test
     @DisplayName("일정이 없으면 빈 목록을 반환한다")
     void getEmptyScheduleList() {
-        ScheduleListResponse response = scheduleService.getSchedules(planId);
+        ScheduleListResponse response = scheduleService.getSchedules(userId, planId);
 
         assertThat(response.getPlanId()).isEqualTo(planId);
         assertThat(response.getSchedules()).isEmpty();
@@ -132,7 +134,7 @@ class ScheduleServiceTest {
         Long deletedId = fixture.createSchedule(planId, "삭제", 2);
         fixture.softDeleteSchedule(deletedId);
 
-        ScheduleListResponse response = scheduleService.getSchedules(planId);
+        ScheduleListResponse response = scheduleService.getSchedules(userId, planId);
 
         assertThat(response.getSchedules()).extracting(item -> item.getScheduleId())
                 .containsExactly(firstId, thirdId);
@@ -147,7 +149,7 @@ class ScheduleServiceTest {
         Long otherUserId = fixture.createUser("다른사용자");
         Long otherPlanId = fixture.createPlan(otherUserId, "부산 여행");
 
-        assertBusinessError(() -> scheduleService.getSchedule(otherPlanId, scheduleId),
+        assertBusinessError(() -> scheduleService.getSchedule(otherUserId, otherPlanId, scheduleId),
                 ErrorCode.SCHEDULE_NOT_FOUND);
     }
 
@@ -157,7 +159,7 @@ class ScheduleServiceTest {
         Long scheduleId = fixture.createSchedule(planId, "삭제 일정", 1);
         fixture.softDeleteSchedule(scheduleId);
 
-        assertBusinessError(() -> scheduleService.getSchedule(planId, scheduleId),
+        assertBusinessError(() -> scheduleService.getSchedule(userId, planId, scheduleId),
                 ErrorCode.SCHEDULE_NOT_FOUND);
     }
 
@@ -170,7 +172,7 @@ class ScheduleServiceTest {
         var originalEndAt = before.getEndAt();
 
         ScheduleResponse response = scheduleService.updateSchedule(
-                planId, updateRequest("{\"title\":\"변경된 제목\"}"), scheduleId);
+                userId, planId, updateRequest("{\"title\":\"변경된 제목\"}"), scheduleId);
 
         assertThat(response.getTitle()).isEqualTo("변경된 제목");
         assertThat(response.getMemo()).isEqualTo("기존 제목 메모");
@@ -185,7 +187,7 @@ class ScheduleServiceTest {
         Long scheduleId = fixture.createSchedule(planId, "메모 일정", 1);
 
         ScheduleResponse response = scheduleService.updateSchedule(
-                planId, updateRequest("{\"clearMemo\":true}"), scheduleId);
+                userId, planId, updateRequest("{\"clearMemo\":true}"), scheduleId);
 
         assertThat(response.getMemo()).isNull();
         assertThat(scheduleRepository.findById(scheduleId).orElseThrow().getMemo()).isNull();
@@ -197,7 +199,7 @@ class ScheduleServiceTest {
         Long scheduleId = fixture.createSchedule(planId, "기존 제목", 1);
         ScheduleUpdateRequest request = updateRequest("{\"memo\":\"새 메모\",\"clearMemo\":true}");
 
-        assertBusinessError(() -> scheduleService.updateSchedule(planId, request, scheduleId),
+        assertBusinessError(() -> scheduleService.updateSchedule(userId, planId, request, scheduleId),
                 ErrorCode.INVALID_INPUT_VALUE);
         assertThat(scheduleRepository.findById(scheduleId).orElseThrow().getMemo())
                 .isEqualTo("기존 제목 메모");
@@ -211,7 +213,7 @@ class ScheduleServiceTest {
         Long thirdId = fixture.createSchedule(planId, "셋째", 3);
 
         ScheduleOrderResponse response = scheduleService.orderSchedule(
-                planId, orderRequest(List.of(thirdId, firstId, secondId)));
+                userId, planId, orderRequest(List.of(thirdId, firstId, secondId)));
 
         assertThat(response.getSchedules()).extracting(item -> item.getScheduleId())
                 .containsExactly(thirdId, firstId, secondId);
@@ -229,7 +231,7 @@ class ScheduleServiceTest {
         Map<Long, Integer> before = activeOrderMap();
         ScheduleOrderRequest request = orderRequest(List.of(firstId, firstId, secondId));
 
-        assertBusinessError(() -> scheduleService.orderSchedule(planId, request),
+        assertBusinessError(() -> scheduleService.orderSchedule(userId, planId, request),
                 ErrorCode.INVALID_SCHEDULE_ORDER);
         assertThat(activeOrderMap()).isEqualTo(before);
     }
@@ -242,7 +244,7 @@ class ScheduleServiceTest {
         Map<Long, Integer> before = activeOrderMap();
         ScheduleOrderRequest request = orderRequest(List.of(firstId));
 
-        assertBusinessError(() -> scheduleService.orderSchedule(planId, request),
+        assertBusinessError(() -> scheduleService.orderSchedule(userId, planId, request),
                 ErrorCode.INVALID_SCHEDULE_ORDER);
         assertThat(activeOrderMap()).isEqualTo(before);
     }
@@ -258,7 +260,7 @@ class ScheduleServiceTest {
         Map<Long, Integer> before = activeOrderMap();
         ScheduleOrderRequest request = orderRequest(List.of(firstId, secondId, otherScheduleId));
 
-        assertBusinessError(() -> scheduleService.orderSchedule(planId, request),
+        assertBusinessError(() -> scheduleService.orderSchedule(userId, planId, request),
                 ErrorCode.INVALID_SCHEDULE_ORDER);
         assertThat(activeOrderMap()).isEqualTo(before);
     }
@@ -273,7 +275,7 @@ class ScheduleServiceTest {
         Map<Long, Integer> before = activeOrderMap();
         ScheduleOrderRequest request = orderRequest(List.of(firstId, secondId, deletedId));
 
-        assertBusinessError(() -> scheduleService.orderSchedule(planId, request),
+        assertBusinessError(() -> scheduleService.orderSchedule(userId, planId, request),
                 ErrorCode.INVALID_SCHEDULE_ORDER);
         assertThat(activeOrderMap()).isEqualTo(before);
     }
@@ -286,7 +288,7 @@ class ScheduleServiceTest {
         Long thirdId = fixture.createSchedule(planId, "셋째", 3);
         List<Long> ids = List.of(firstId, secondId, thirdId);
 
-        scheduleService.deleteSchedule(planId, ids.get(deletedOrder - 1));
+        scheduleService.deleteSchedule(userId, planId, ids.get(deletedOrder - 1));
 
         assertThat(activeOrders()).containsExactly(1, 2);
         assertThat(scheduleRepository.findById(ids.get(deletedOrder - 1)).orElseThrow().getDeletedAt())
@@ -298,7 +300,7 @@ class ScheduleServiceTest {
     void deleteOnlySchedule() {
         Long scheduleId = fixture.createSchedule(planId, "유일한 일정", 1);
 
-        var response = scheduleService.deleteSchedule(planId, scheduleId);
+        var response = scheduleService.deleteSchedule(userId, planId, scheduleId);
 
         assertThat(response.getScheduleId()).isEqualTo(scheduleId);
         assertThat(response.getDeletedAt()).isNotNull();
@@ -309,10 +311,57 @@ class ScheduleServiceTest {
     @DisplayName("이미 삭제된 일정을 다시 삭제할 수 없다")
     void deleteAlreadyDeletedSchedule() {
         Long scheduleId = fixture.createSchedule(planId, "삭제 일정", 1);
-        scheduleService.deleteSchedule(planId, scheduleId);
+        scheduleService.deleteSchedule(userId, planId, scheduleId);
 
-        assertBusinessError(() -> scheduleService.deleteSchedule(planId, scheduleId),
+        assertBusinessError(() -> scheduleService.deleteSchedule(userId, planId, scheduleId),
                 ErrorCode.SCHEDULE_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("VIEWER는 일정을 조회할 수 있다")
+    void viewerCanReadSchedules() {
+        Long viewerId = fixture.createUser("일정조회자");
+        fixture.join(planId, viewerId, MemberRole.VIEWER);
+        fixture.createSchedule(planId, "조회 일정", 1);
+
+        ScheduleListResponse response = scheduleService.getSchedules(viewerId, planId);
+
+        assertThat(response.getSchedules()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("EDITOR는 일정을 생성할 수 있다")
+    void editorCanCreateSchedule() throws Exception {
+        Long editorId = fixture.createUser("일정편집자");
+        fixture.join(planId, editorId, MemberRole.EDITOR);
+
+        ScheduleResponse response = scheduleService.createSchedule(editorId, planId, createRequest(null));
+
+        assertThat(response.getScheduleId()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("VIEWER는 일정을 생성할 수 없다")
+    void viewerCannotCreateSchedule() throws Exception {
+        Long viewerId = fixture.createUser("일정조회자");
+        fixture.join(planId, viewerId, MemberRole.VIEWER);
+
+        assertBusinessError(
+                () -> scheduleService.createSchedule(viewerId, planId, createRequestUnchecked(null)),
+                ErrorCode.PLAN_UPDATE_FORBIDDEN
+        );
+        assertThat(activeSchedules()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("계획에 참여하지 않은 사용자는 일정을 조회할 수 없다")
+    void nonMemberCannotReadSchedules() {
+        Long nonMemberId = fixture.createUser("비회원");
+
+        assertBusinessError(
+                () -> scheduleService.getSchedules(nonMemberId, planId),
+                ErrorCode.PLAN_ACCESS_DENIED
+        );
     }
 
     private ScheduleCreateRequest createRequest(Long placeId) throws Exception {
@@ -327,6 +376,14 @@ class ScheduleServiceTest {
                   "reservationStatus": "NOT_REQUIRED"
                 }
                 """.formatted(placeField), ScheduleCreateRequest.class);
+    }
+
+    private ScheduleCreateRequest createRequestUnchecked(Long placeId) {
+        try {
+            return createRequest(placeId);
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
     }
 
     private ScheduleUpdateRequest updateRequest(String json) throws Exception {
