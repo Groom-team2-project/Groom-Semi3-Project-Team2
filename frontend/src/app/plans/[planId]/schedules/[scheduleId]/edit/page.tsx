@@ -13,12 +13,15 @@ import { useFormDraft, hasDraft } from "@/lib/formDraft";
 import { consumePickedPlace } from "@/lib/pickedPlace";
 import { getScheduleLoadErrorMessage, getScheduleMutationErrorMessage } from "@/lib/scheduleError";
 import { getSchedule, updateSchedule } from "@/lib/api";
-import type { Schedule } from "@/lib/api";
+import type { ReservationStatus, Schedule } from "@/lib/api";
 import { dateRangeToDayCount, dayIndexToDate, formatDateShort } from "@/lib/utils";
 
 interface Draft {
   day: number;
-  time: string;
+  title: string;
+  startTime: string;
+  endTime: string;
+  reservationStatus: ReservationStatus;
   placeId: string;
   placeName: string;
   placeAddress: string;
@@ -26,7 +29,18 @@ interface Draft {
   memo: string;
 }
 
-const EMPTY_DRAFT: Draft = { day: 1, time: "09:00", placeId: "", placeName: "", placeAddress: "", emoji: "📍", memo: "" };
+const EMPTY_DRAFT: Draft = {
+  day: 1,
+  title: "",
+  startTime: "09:00",
+  endTime: "",
+  reservationStatus: "NOT_REQUIRED",
+  placeId: "",
+  placeName: "",
+  placeAddress: "",
+  emoji: "📍",
+  memo: "",
+};
 
 export default function ScheduleEditPage({
   params,
@@ -54,7 +68,18 @@ export default function ScheduleEditPage({
         if (cancelled) return;
         setOriginal(schedule);
         if (schedule && !hadDraftRef.current) {
-          setDraft({ day: schedule.day, time: schedule.time, placeId: schedule.placeId ?? "", placeName: schedule.placeName, placeAddress: schedule.placeAddress ?? "", emoji: schedule.emoji, memo: schedule.memo ?? "" });
+          setDraft({
+            day: schedule.day,
+            title: schedule.title ?? schedule.placeName,
+            startTime: schedule.time,
+            endTime: schedule.endAt?.slice(11, 16) ?? "",
+            reservationStatus: schedule.reservationStatus ?? "NOT_REQUIRED",
+            placeId: schedule.placeId ?? "",
+            placeName: schedule.placeId ? schedule.placeName : "",
+            placeAddress: schedule.placeAddress ?? "",
+            emoji: schedule.emoji,
+            memo: schedule.memo ?? "",
+          });
         }
       })
       .catch((error) => {
@@ -115,21 +140,27 @@ export default function ScheduleEditPage({
   const planStartDate = plan.startDate;
   const dayCount = dateRangeToDayCount(planStartDate, plan.endDate);
   const returnPath = encodeURIComponent(`/plans/${planId}/schedules/${scheduleId}/edit`);
-  const canSubmit = draft.placeId.length > 0 && draft.placeName.trim().length > 0 && Boolean(draft.time) && !pending;
+  const canSubmit = draft.title.trim().length > 0 && Boolean(draft.startTime) && !pending;
 
   async function handleSubmit() {
     if (!canSubmit) return;
+    if (draft.endTime && draft.endTime < draft.startTime) {
+      setToast("종료 시간은 시작 시간과 같거나 늦어야 해요.");
+      return;
+    }
     setPending(true);
     try {
+      const date = dayIndexToDate(planStartDate, draft.day);
       await updateSchedule(planId, scheduleId, {
-        day: draft.day,
-        date: dayIndexToDate(planStartDate, draft.day),
-        time: draft.time,
-        placeId: draft.placeId,
-        placeName: draft.placeName,
-        placeAddress: draft.placeAddress || undefined,
-        emoji: draft.emoji,
-        memo: draft.memo,
+        title: draft.title.trim(),
+        startAt: `${date}T${draft.startTime}:00`,
+        endAt: draft.endTime ? `${date}T${draft.endTime}:00` : undefined,
+        reservationStatus: draft.reservationStatus,
+        placeId: draft.placeId || undefined,
+        memo: draft.memo || undefined,
+        clearPlace: Boolean(original.placeId) && !draft.placeId,
+        clearMemo: Boolean(original.memo) && !draft.memo,
+        clearEndAt: Boolean(original.endAt) && !draft.endTime,
       });
       clearDraft();
       router.push(`/plans/${planId}/schedules/${scheduleId}`);
@@ -144,6 +175,14 @@ export default function ScheduleEditPage({
     <div className="flex min-h-dvh flex-col">
       <AppBar title="일정 수정" backHref={`/plans/${planId}/schedules/${scheduleId}`} />
       <div className="flex flex-1 flex-col gap-3 px-4 pb-8">
+        <Field label="일정 제목">
+          <FieldInput
+            maxLength={200}
+            value={draft.title}
+            onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
+          />
+        </Field>
+
         <Field label="날짜">
           <select
             value={draft.day}
@@ -158,7 +197,7 @@ export default function ScheduleEditPage({
           </select>
         </Field>
 
-        <Field label="장소">
+        <Field label="장소" optional>
           <PlaceSearchTrigger
             href={`/plans/${planId}/places/search?return=${returnPath}&usage=schedule`}
             label="카카오 장소 검색으로 다시 찾기"
@@ -168,15 +207,59 @@ export default function ScheduleEditPage({
         {draft.placeName && (
           <Field label="선택된 장소">
             <PlaceRow emoji={draft.emoji} name={draft.placeName} address={draft.placeAddress} />
+            <Button
+              variant="danger"
+              size="sm"
+              fullWidth={false}
+              className="mt-2"
+              onClick={() => setDraft((current) => ({
+                ...current,
+                placeId: "",
+                placeName: "",
+                placeAddress: "",
+                emoji: "📍",
+              }))}
+            >
+              장소 제거
+            </Button>
           </Field>
         )}
 
-        <Field label="시간">
-          <FieldInput type="time" value={draft.time} onChange={(e) => setDraft((d) => ({ ...d, time: e.target.value }))} />
+        <Field label="시작 시간">
+          <FieldInput
+            type="time"
+            value={draft.startTime}
+            onChange={(event) => setDraft((current) => ({ ...current, startTime: event.target.value }))}
+          />
         </Field>
 
-        <Field label="메모">
+        <Field label="종료 시간" optional>
+          <FieldInput
+            type="time"
+            value={draft.endTime}
+            onChange={(event) => setDraft((current) => ({ ...current, endTime: event.target.value }))}
+          />
+        </Field>
+
+        <Field label="예약 상태">
+          <select
+            value={draft.reservationStatus}
+            onChange={(event) => setDraft((current) => ({
+              ...current,
+              reservationStatus: event.target.value as ReservationStatus,
+            }))}
+            className="w-full rounded-xl border border-gray-200 bg-gray-100 px-3.5 py-3 text-[14.5px] text-ink"
+          >
+            <option value="NOT_REQUIRED">예약 불필요</option>
+            <option value="UNRESERVED">예약 전</option>
+            <option value="RESERVED">예약 완료</option>
+            <option value="CANCELLED">예약 취소</option>
+          </select>
+        </Field>
+
+        <Field label="메모" optional>
           <FieldTextarea
+            maxLength={1000}
             placeholder="예약 필요, 웨이팅 있음 등"
             value={draft.memo}
             onChange={(e) => setDraft((d) => ({ ...d, memo: e.target.value }))}

@@ -81,6 +81,10 @@ export default function ScheduleNewPage({
 
   async function handleSubmit() {
     if (!canSubmit) return;
+    if (draft.endTime && draft.endTime < draft.startTime) {
+      setToast("종료 시간은 시작 시간과 같거나 늦어야 해요.");
+      return;
+    }
     setPending(true);
     try {
       const date = dayIndexToDate(planStartDate, draft.day);

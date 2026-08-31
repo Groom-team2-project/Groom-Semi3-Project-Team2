@@ -1,4 +1,4 @@
-import { generateId, dayIndexToDate } from "@/lib/utils";
+import { generateId } from "@/lib/utils";
 import { store, simulateLatency } from "./store";
 import { apiFetch, ApiError, USE_MOCK } from "./client";
 import { getPlan } from "./plans";
@@ -119,15 +119,16 @@ function mapComment(response: CommentApiResponse): Comment {
   };
 }
 
-export interface UpsertScheduleInput {
-  day: number;
-  date?: string;
-  time: string;
+export interface UpdateScheduleInput {
+  title?: string;
   placeId?: string;
-  placeName: string;
-  placeAddress?: string;
-  emoji?: string;
+  startAt?: string;
+  endAt?: string;
   memo?: string;
+  reservationStatus?: ReservationStatus;
+  clearPlace?: boolean;
+  clearMemo?: boolean;
+  clearEndAt?: boolean;
 }
 
 export interface CreateScheduleInput {
@@ -230,35 +231,62 @@ export async function createSchedule(planId: string, input: CreateScheduleInput)
 export async function updateSchedule(
   planId: string,
   scheduleId: string,
-  input: Partial<UpsertScheduleInput>,
+  input: UpdateScheduleInput,
 ): Promise<Schedule> {
   if (USE_MOCK) {
     await simulateLatency();
     const schedule = store.schedules.find((item) => item.planId === planId && item.id === scheduleId);
     if (!schedule) throw new Error("Schedule not found");
-    Object.assign(schedule, input);
-    store.recordActivity(planId, "schedule_updated", `'${schedule.placeName}' 일정을 수정했어요`, "schedule", schedule.id);
+    const plan = store.getPlan(planId);
+    const place = input.placeId
+      ? store.places.find((item) => item.id === input.placeId && item.planId === planId)
+      : undefined;
+
+    if (input.title !== undefined) schedule.title = input.title;
+    if (input.startAt !== undefined) {
+      schedule.date = input.startAt.slice(0, 10);
+      schedule.time = input.startAt.slice(11, 16);
+      if (plan) schedule.day = dateToDay(schedule.date, plan.startDate);
+    }
+    if (input.clearEndAt) schedule.endAt = undefined;
+    else if (input.endAt !== undefined) schedule.endAt = input.endAt;
+    if (input.clearMemo) schedule.memo = undefined;
+    else if (input.memo !== undefined) schedule.memo = input.memo;
+    if (input.reservationStatus !== undefined) schedule.reservationStatus = input.reservationStatus;
+    if (input.clearPlace) {
+      schedule.placeId = undefined;
+      schedule.placeName = schedule.title ?? schedule.placeName;
+      schedule.placeAddress = undefined;
+      schedule.emoji = "📍";
+    } else if (place) {
+      schedule.placeId = place.id;
+      schedule.placeName = place.name;
+      schedule.placeAddress = place.address;
+      schedule.emoji = place.emoji;
+    }
+    store.recordActivity(planId, "schedule_updated", `'${schedule.title ?? schedule.placeName}' 일정을 수정했어요`, "schedule", schedule.id);
     return schedule;
   }
 
   const planStartDate = await getPlanStartDate(planId);
-  const date = input.date ?? (input.day ? dayIndexToDate(planStartDate, input.day) : undefined);
-  const startAt = date && input.time ? `${date}T${input.time}:00` : undefined;
   const response = await apiFetch<CommonResponse<ScheduleApiResponse>>(
     `/api/v1/plans/${planId}/schedules/${scheduleId}`,
     {
       method: "PATCH",
       body: JSON.stringify({
         placeId: input.placeId ? Number(input.placeId) : undefined,
-        title: input.placeName,
-        memo: input.memo || undefined,
-        startAt,
-        clearMemo: input.memo === "",
+        title: input.title,
+        memo: input.memo,
+        startAt: input.startAt,
+        endAt: input.endAt,
+        reservationStatus: input.reservationStatus,
+        clearPlace: input.clearPlace,
+        clearMemo: input.clearMemo,
+        clearEndAt: input.clearEndAt,
       }),
     },
   );
-  const schedule = mapSchedule(response.data, planId, planStartDate);
-  return { ...schedule, day: input.day ?? schedule.day };
+  return mapSchedule(response.data, planId, planStartDate);
 }
 
 /** DELETE /api/v1/plans/{planId}/schedules/{scheduleId} */

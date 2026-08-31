@@ -143,7 +143,7 @@ function DayCard({
 }) {
   const summary = schedules.length
     ? schedules
-        .map((s) => (s.linkedVoteId ? `(투표중) ${s.placeName}` : s.placeName))
+        .map((s) => (s.linkedVoteId ? `(투표중) ${s.title ?? s.placeName}` : (s.title ?? s.placeName)))
         .join(" → ")
     : "아직 일정이 없어요";
 
