@@ -14,8 +14,6 @@ import com.groom.moigo.domain.vote.dto.response.VoteOptionResponse;
 import com.groom.moigo.domain.vote.dto.response.VoteResponse;
 import com.groom.moigo.domain.vote.dto.response.VoteResultResponse;
 import com.groom.moigo.domain.vote.entity.VoteType;
-import com.groom.moigo.domain.vote.exception.VoteErrorCode;
-import com.groom.moigo.domain.vote.exception.VoteException;
 import com.groom.moigo.domain.vote.support.VoteTestFixture;
 import com.groom.moigo.global.error.BusinessException;
 import com.groom.moigo.global.error.ErrorCode;
@@ -27,10 +25,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+// activityLogService.record()가 REQUIRES_NEW로 커밋되므로, 그 결과를 바로 조회하는 이 테스트는
+// READ_COMMITTED로 지정한다 (docs/activity-log-spec.md 7절 참고).
 @SpringBootTest
-@Transactional
+@Transactional(isolation = Isolation.READ_COMMITTED)
 class VoteParticipationServiceTest {
 
 	@Autowired private VoteService voteService;
@@ -96,59 +97,26 @@ class VoteParticipationServiceTest {
 		assertThat(result.options().get(0).selectedByMe()).isTrue();
 		assertThat(result.options().get(1).selectedByMe()).isFalse();
 	}
-
 	@Test
-	@DisplayName("투표에 참여하면 활동 이력이 남는다")
-	void participateRecordsActivity() {
+	@DisplayName("참여·재투표·취소는 활동 이력을 남기지 않는다")
+	void participationLeavesNoActivityTrace() {
 		VoteResponse vote = createVote(VoteType.SINGLE);
 
 		voteParticipationService.participate(
 				planId, id(vote.id()), firstId, single(vote.options().get(0).id()));
-
-		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_PARTICIPATED)
-				.singleElement()
-				.satisfies(
-						log -> {
-							assertThat(log.getPlanId()).isEqualTo(planId);
-							assertThat(log.getUserId()).isEqualTo(firstId);
-							assertThat(log.getTargetId()).isEqualTo(Long.valueOf(vote.id()));
-							assertThat(log.getSummary()).isEqualTo("투표에 참여했어요");
-						});
-	}
-
-	@Test
-	@DisplayName("표를 바꾸는 재투표는 활동 이력을 새로 남기지 않는다")
-	void revoteDoesNotRecordActivityAgain() {
-		VoteResponse vote = createVote(VoteType.SINGLE);
-		voteParticipationService.participate(
-				planId, id(vote.id()), firstId, single(vote.options().get(0).id()));
-
 		voteParticipationService.participate(
 				planId, id(vote.id()), firstId, single(vote.options().get(1).id()));
-
-		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_PARTICIPATED)
-				.hasSize(1);
-	}
-
-	@Test
-	@DisplayName("참여를 취소했다가 다시 참여하면 활동 이력이 새로 남는다")
-	void rejoinAfterCancelRecordsActivityAgain() {
-		VoteResponse vote = createVote(VoteType.SINGLE);
-		voteParticipationService.participate(
-				planId, id(vote.id()), firstId, single(vote.options().get(0).id()));
 		voteParticipationService.cancel(planId, id(vote.id()), firstId);
-
 		voteParticipationService.participate(
 				planId, id(vote.id()), firstId, single(vote.options().get(0).id()));
 
-		// 표를 바꾸는 것과 달리 취소 후 재참여는 새로 참여한 것으로 본다.
+		// 누가 무엇을 골랐는지 드러나지 않아야 하므로 참여 관련 이력은 만들지 않는다. 투표 생성 이력만 남는다.
+		// 활동 기록이 REQUIRES_NEW로 즉시 커밋되어 다른 테스트가 남긴 행이 섞이므로 이번 투표로 걸러서 본다.
 		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_PARTICIPATED)
-				.hasSize(2);
+				.filteredOn(log -> log.getTargetId().equals(Long.valueOf(vote.id())))
+				.extracting(log -> log.getActionType())
+				.containsExactly(ActivityActionType.VOTE_CREATED);
 	}
-
 	@Test
 	@DisplayName("단일 선택 투표에 선택지를 2개 이상 고르면 거부된다")
 	void participateSingleChoiceWithMultipleOptions() {
@@ -157,9 +125,9 @@ class VoteParticipationServiceTest {
 
 		assertThatThrownBy(
 						() -> voteParticipationService.participate(planId, id(vote.id()), firstId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.SINGLE_CHOICE_ONLY);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.SINGLE_CHOICE_ONLY);
 	}
 
 	@Test
@@ -183,9 +151,9 @@ class VoteParticipationServiceTest {
 
 		assertThatThrownBy(
 						() -> voteParticipationService.participate(planId, id(vote.id()), firstId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.OPTION_NOT_SELECTED);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.OPTION_NOT_SELECTED);
 	}
 
 	@Test
@@ -198,9 +166,9 @@ class VoteParticipationServiceTest {
 
 		assertThatThrownBy(
 						() -> voteParticipationService.participate(planId, id(vote.id()), firstId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.DUPLICATED_OPTION_SELECTED);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.DUPLICATED_OPTION_SELECTED);
 	}
 
 	@Test
@@ -212,9 +180,9 @@ class VoteParticipationServiceTest {
 
 		assertThatThrownBy(
 						() -> voteParticipationService.participate(planId, id(vote.id()), firstId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.OPTION_NOT_IN_VOTE);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.OPTION_NOT_IN_VOTE);
 	}
 
 	@Test
@@ -228,9 +196,9 @@ class VoteParticipationServiceTest {
 		assertThatThrownBy(
 						() ->
 								voteParticipationService.participate(otherPlanId, id(vote.id()), firstId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.VOTE_NOT_IN_PLAN);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.VOTE_NOT_IN_PLAN);
 	}
 
 	@Test
@@ -259,9 +227,9 @@ class VoteParticipationServiceTest {
 
 		assertThatThrownBy(
 						() -> voteParticipationService.participate(planId, id(vote.id()), firstId, request))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.VOTE_ALREADY_CLOSED);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.VOTE_ALREADY_CLOSED);
 	}
 
 	@Test
@@ -284,9 +252,9 @@ class VoteParticipationServiceTest {
 		VoteResponse vote = createVote(VoteType.SINGLE);
 
 		assertThatThrownBy(() -> voteParticipationService.cancel(planId, id(vote.id()), firstId))
-				.isInstanceOf(VoteException.class)
-				.extracting(exception -> ((VoteException) exception).getErrorCode())
-				.isEqualTo(VoteErrorCode.VOTE_PARTICIPATION_NOT_FOUND);
+				.isInstanceOf(BusinessException.class)
+				.extracting(exception -> ((BusinessException) exception).getErrorCode())
+				.isEqualTo(ErrorCode.VOTE_PARTICIPATION_NOT_FOUND);
 	}
 
 	@Test
@@ -299,7 +267,7 @@ class VoteParticipationServiceTest {
 		MyVoteResponse response =
 				voteParticipationService.findMyParticipation(planId, id(vote.id()), firstId);
 
-		assertThat(response.memberId()).isEqualTo(String.valueOf(firstId));
+		assertThat(response.userId()).isEqualTo(String.valueOf(firstId));
 		assertThat(response.selectedOptionIds()).containsExactlyInAnyOrderElementsOf(optionIds);
 		assertThat(response.selectedOptionId()).isEqualTo(optionIds.get(0));
 		assertThat(response.participatedAt()).isNotNull();

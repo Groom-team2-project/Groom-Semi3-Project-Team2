@@ -5,8 +5,11 @@ import com.groom.moigo.domain.activity.entity.ActivityActionType;
 import com.groom.moigo.domain.activity.entity.ActivityTargetType;
 import com.groom.moigo.domain.activity.service.ActivityLogService;
 import com.groom.moigo.domain.comment.dto.CommentCreateRequest;
+import com.groom.moigo.domain.comment.dto.CommentLikeResponse;
 import com.groom.moigo.domain.comment.dto.CommentResponse;
 import com.groom.moigo.domain.comment.entity.CommentEntity;
+import com.groom.moigo.domain.comment.entity.CommentLikeEntity;
+import com.groom.moigo.domain.comment.repository.CommentLikeRepository;
 import com.groom.moigo.domain.comment.repository.CommentRepository;
 import com.groom.moigo.domain.user.entity.UserEntity;
 import com.groom.moigo.domain.user.repository.UserRepository;
@@ -18,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -26,6 +30,7 @@ import java.util.stream.Collectors;
 @Transactional
 public class CommentServiceImpl implements CommentService {
     private final CommentRepository commentRepository;
+    private final CommentLikeRepository commentLikeRepository;
     private final UserRepository userRepository;
     private final ActivityLogService activityLogService;
     private final CommentScheduleLinkReader commentScheduleLinkReader;
@@ -59,16 +64,16 @@ public class CommentServiceImpl implements CommentService {
                 ActivityTargetType.COMMENT,
                 savedComment.getCommentId(),
                 request.parentCommentId() == null
-                        ? user.getNickname() + "님이 댓글을 남겼어요."
-                        : user.getNickname() + "님이 댓글에 답글을 남겼어요."
+                        ? "댓글을 남겼어요."
+                        : "댓글에 답글을 남겼어요."
         ));
 
-        return CommentResponse.from(savedComment, user);
+        return CommentResponse.from(savedComment, user, 0, false);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<CommentResponse> getComments(Long planId, Long scheduleId) {
+    public List<CommentResponse> getComments(Long planId, Long scheduleId, Long userId) {
         validateScheduleInPlan(planId, scheduleId);
 
         List<CommentEntity> comments = commentRepository.findByScheduleIdOrderByCreatedAtAsc(scheduleId)
@@ -85,10 +90,23 @@ public class CommentServiceImpl implements CommentService {
                 ).stream()
                 .collect(Collectors.toMap(UserEntity::getUserId, Function.identity()));
 
+        List<CommentLikeEntity> likes = commentLikeRepository.findByCommentIdIn(
+                comments.stream().map(CommentEntity::getCommentId).toList()
+        );
+        Map<Long, Long> likeCountByCommentId = likes.stream()
+                .collect(Collectors.groupingBy(CommentLikeEntity::getCommentId, Collectors.counting()));
+        Set<Long> likedCommentIds = likes.stream()
+                .filter(like -> like.getUserId().equals(userId))
+                .map(CommentLikeEntity::getCommentId)
+                .collect(Collectors.toSet());
+
         return comments.stream()
                 .map(comment -> {
+                    long likeCount = likeCountByCommentId.getOrDefault(comment.getCommentId(), 0L);
+                    boolean likedByMe = likedCommentIds.contains(comment.getCommentId());
+
                     if (comment.isDeleted()) {
-                        return CommentResponse.from(comment, null);
+                        return CommentResponse.from(comment, null, likeCount, likedByMe);
                     }
 
                     UserEntity user = usersById.get(comment.getUserId());
@@ -99,7 +117,7 @@ public class CommentServiceImpl implements CommentService {
                         );
                     }
 
-                    return CommentResponse.from(comment, user);
+                    return CommentResponse.from(comment, user, likeCount, likedByMe);
                 })
                 .toList();
     }
@@ -141,15 +159,71 @@ public class CommentServiceImpl implements CommentService {
         }
 
         comment.delete();
-        UserEntity user = findUser(userId);
         activityLogService.record(new ActivityRecordCommand(
                 planId,
                 userId,
                 ActivityActionType.COMMENT_DELETED,
                 ActivityTargetType.COMMENT,
                 commentId,
-                user.getNickname() + "님이 댓글을 삭제했어요."
+                "댓글을 삭제했어요."
         ));
+    }
+
+    @Override
+    public CommentLikeResponse toggleLike(
+            Long planId,
+            Long scheduleId,
+            Long commentId,
+            Long userId
+    ) {
+        validateScheduleInPlan(planId, scheduleId);
+
+        // 동시 좋아요 토글 요청의 유니크 제약 위반을 막기 위한 행 잠금
+        CommentEntity comment = commentRepository.findByCommentIdAndScheduleIdForUpdate(commentId, scheduleId)
+                .orElseThrow(() -> new BusinessException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "댓글을 찾을 수 없습니다."
+                ));
+
+        if (!comment.getPlanId().equals(planId)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "해당 계획의 댓글이 아닙니다."
+            );
+        }
+
+        if (comment.isDeleted()) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "삭제된 댓글에는 좋아요를 남길 수 없습니다."
+            );
+        }
+
+        boolean likedByMe = commentLikeRepository.findByCommentIdAndUserId(commentId, userId)
+                .map(existing -> {
+                    commentLikeRepository.delete(existing);
+                    return false;
+                })
+                .orElseGet(() -> {
+                    commentLikeRepository.save(CommentLikeEntity.create(commentId, userId));
+                    return true;
+                });
+
+        long likeCount = commentLikeRepository.countByCommentId(commentId);
+
+        // 좋아요를 누른 경우에만 기록함(취소는 기록 안 함)
+        if (likedByMe) {
+            activityLogService.record(new ActivityRecordCommand(
+                    planId,
+                    userId,
+                    ActivityActionType.COMMENT_LIKED,
+                    ActivityTargetType.COMMENT,
+                    commentId,
+                    "댓글에 좋아요를 눌렀어요."
+            ));
+        }
+
+        return new CommentLikeResponse(commentId, likeCount, likedByMe);
     }
 
     private void validateParentComment(Long parentCommentId, Long scheduleId) {

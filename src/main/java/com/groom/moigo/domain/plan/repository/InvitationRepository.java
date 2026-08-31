@@ -15,7 +15,4 @@ public interface InvitationRepository extends JpaRepository<InvitationEntity, Lo
     List<InvitationEntity> findAllByPlan_PlanIdAndStatus(Long planId, InvitationStatus status);
 
     boolean existsByInviteCode(String inviteCode);
-
-    // 계획 참여자 모두 조회
-    List<InvitationEntity> findAllByPlan_PlanId(Long planId);
 }
