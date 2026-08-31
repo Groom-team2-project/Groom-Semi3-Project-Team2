@@ -219,7 +219,7 @@ export async function addPlaceToPlan(
     }
 
     const response = await apiFetch<CommonResponse<PlaceRegisterApiResponse>>(
-      "/api/v1/place2/place/register",
+      "/api/v1/place2/register",
       {
         method: "POST",
         body: JSON.stringify({
