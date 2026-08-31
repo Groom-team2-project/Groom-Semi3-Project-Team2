@@ -5,18 +5,38 @@ import { AppBar } from "@/components/ui/AppBar";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PlaceRow } from "@/components/plan/PlaceRow";
+import { PlanNotFound } from "@/components/plan/PlanNotFound";
 import { getSavedPlaces } from "@/lib/api";
+import { ApiError } from "@/lib/api/client";
 import type { Place } from "@/lib/api";
 
 export default function PlaceListPage({ params }: { params: Promise<{ planId: string }> }) {
   const { planId } = use(params);
   const [places, setPlaces] = useState<Place[] | null>(null);
+  const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
-    getSavedPlaces(planId).then(setPlaces);
+    let cancelled = false;
+    getSavedPlaces(planId)
+      .then((saved) => {
+        if (!cancelled) setPlaces(saved);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        if (error instanceof ApiError && (error.status === 403 || error.status === 404)) {
+          setForbidden(true);
+          return;
+        }
+        setPlaces([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [planId]);
 
   const returnPath = encodeURIComponent(`/plans/${planId}/places`);
+
+  if (forbidden) return <PlanNotFound />;
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -38,7 +58,9 @@ export default function PlaceListPage({ params }: { params: Promise<{ planId: st
               tag={
                 p.usage.includes("vote_candidate")
                   ? { label: "투표 후보", color: "orange" }
-                  : { label: "일정", color: "blue" }
+                  : p.usage.includes("schedule")
+                    ? { label: "일정", color: "blue" }
+                    : { label: "저장됨", color: "gray" }
               }
             />
           ))}

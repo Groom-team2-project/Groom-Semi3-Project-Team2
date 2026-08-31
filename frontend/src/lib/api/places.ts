@@ -32,8 +32,12 @@ interface PlaceDocumentListApiResponse {
   isEnd: boolean;
 }
 
-interface PlaceRegisterApiResponse {
+interface PlaceApiResponse {
   placeId: number;
+  name: string;
+  category: string | null;
+  address: string | null;
+  roadAddress: string | null;
 }
 
 export interface PlaceSearchLocation {
@@ -66,6 +70,30 @@ function mapPlaceDocument(place: PlaceDocumentApiResponse): PlaceSearchResult {
     placeUrl: place.placeUrl ?? undefined,
     selectionToken: place.selectionToken,
     emoji: CATEGORY_EMOJI[place.categoryGroupCode ?? ""] ?? "📍",
+  };
+}
+
+function placeEmoji(category: string | null | undefined, categoryGroupCode?: string | null): string {
+  if (categoryGroupCode && CATEGORY_EMOJI[categoryGroupCode]) {
+    return CATEGORY_EMOJI[categoryGroupCode];
+  }
+  if (category?.includes("카페")) return "☕";
+  if (category?.includes("음식점")) return "🍽️";
+  if (category?.includes("숙박")) return "🏨";
+  if (category?.includes("관광")) return "🏖️";
+  return "📍";
+}
+
+function mapSavedPlace(planId: string, place: PlaceApiResponse): Place {
+  return {
+    id: String(place.placeId),
+    planId,
+    name: place.name,
+    address: place.roadAddress || place.address || "주소 정보 없음",
+    emoji: placeEmoji(place.category),
+    category: place.category ?? undefined,
+    source: "KAKAO_LOCAL",
+    usage: ["saved"],
   };
 }
 
@@ -106,11 +134,13 @@ async function searchCategory(
   return response.data.places.map(mapPlaceDocument);
 }
 
-/** GET /api/v1/plans/{planId}/places — 이 계획에서 저장한 장소 (일정/투표에서 재사용) */
+/** GET /api/v1/plans/{planId}/places — 이 계획에서 저장한 장소 */
 export async function getSavedPlaces(planId: string): Promise<Place[]> {
   if (!USE_MOCK) {
-    // 선택 장소 저장 API가 준비되기 전에는 서버에 저장된 계획별 장소가 없다.
-    return [];
+    const response = await apiFetch<CommonResponse<PlaceApiResponse[]>>(
+      `/api/v1/plans/${planId}/places`,
+    );
+    return response.data.map((place) => mapSavedPlace(planId, place));
   }
   await simulateLatency(150);
   return store.places.filter((p) => p.planId === planId);
@@ -218,8 +248,8 @@ export async function addPlaceToPlan(
       );
     }
 
-    const response = await apiFetch<CommonResponse<PlaceRegisterApiResponse>>(
-      "/api/v1/place2/place/register",
+    const response = await apiFetch<CommonResponse<PlaceApiResponse>>(
+      `/api/v1/plans/${planId}/places`,
       {
         method: "POST",
         body: JSON.stringify({
@@ -229,13 +259,7 @@ export async function addPlaceToPlan(
     );
 
     return {
-      id: String(response.data.placeId),
-      planId,
-      name: result.name,
-      address: result.address,
-      emoji: result.emoji,
-      category: result.category,
-      source: "KAKAO_LOCAL",
+      ...mapSavedPlace(planId, response.data),
       usage: [usage],
     };
   }
