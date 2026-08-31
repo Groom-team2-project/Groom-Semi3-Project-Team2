@@ -128,7 +128,7 @@ async function searchCategory(
     size: "15",
   });
   const response = await apiFetch<CommonResponse<PlaceDocumentListApiResponse>>(
-    `/api/v1/place2/category/${encodeURIComponent(category)}?${params.toString()}`,
+    `/api/v1/place/category/${encodeURIComponent(category)}?${params.toString()}`,
   );
 
   return response.data.places.map(mapPlaceDocument);
@@ -165,7 +165,7 @@ export async function searchPlacesByKeyword(keyword: string): Promise<PlaceSearc
   if (!USE_MOCK) {
     const params = new URLSearchParams({ keyword: normalizedKeyword, page: "1", size: "15" });
     const response = await apiFetch<CommonResponse<PlaceDocumentListApiResponse>>(
-      `/api/v1/place2/search?${params.toString()}`,
+      `/api/v1/place/search?${params.toString()}`,
     );
     return response.data.places.map(mapPlaceDocument);
   }
