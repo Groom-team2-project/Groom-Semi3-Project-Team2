@@ -21,7 +21,7 @@ import java.math.BigDecimal;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/place2")
+@RequestMapping("/api/v1/place")
 public class PlaceController {
     private final PlaceService placeService;
 
