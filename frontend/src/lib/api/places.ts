@@ -248,8 +248,8 @@ export async function addPlaceToPlan(
       );
     }
 
-    const response = await apiFetch<CommonResponse<PlaceApiResponse>>(
-      `/api/v1/plans/${planId}/places`,
+    const response = await apiFetch<CommonResponse<{ placeId: number }>>(
+      "/api/v1/place2/place/register",
       {
         method: "POST",
         body: JSON.stringify({
@@ -258,10 +258,27 @@ export async function addPlaceToPlan(
       },
     );
 
-    return {
-      ...mapSavedPlace(planId, response.data),
+    const place: Place = {
+      id: String(response.data.placeId),
+      planId,
+      name: result.name,
+      address: result.address,
+      emoji: result.emoji,
+      category: result.category,
+      source: "KAKAO_LOCAL",
       usage: [usage],
     };
+
+    if (usage === "saved") {
+      await apiFetch(`/api/v1/plans/${planId}/places`, {
+        method: "POST",
+        body: JSON.stringify({
+          selectionToken: result.selectionToken,
+        }),
+      });
+    }
+
+    return place;
   }
 
   await simulateLatency(200);
