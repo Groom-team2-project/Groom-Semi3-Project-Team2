@@ -127,6 +127,7 @@ export interface VoteOption {
 }
 
 export interface Vote {
+  creatorId: string;
   id: string;
   planId: string;
   title: string;
