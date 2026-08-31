@@ -1,22 +1,25 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppBar } from "@/components/ui/AppBar";
 import { Button } from "@/components/ui/Button";
 import { Field, FieldInput, FieldTextarea } from "@/components/ui/FieldInput";
+import { Toast } from "@/components/ui/Toast";
 import { PlaceRow } from "@/components/plan/PlaceRow";
 import { PlaceSearchTrigger } from "@/components/plan/PlaceSearchTrigger";
 import { PlanNotFound } from "@/components/plan/PlanNotFound";
 import { usePlan } from "@/lib/hooks/usePlan";
 import { useFormDraft } from "@/lib/formDraft";
 import { consumePickedPlace } from "@/lib/pickedPlace";
+import { getScheduleMutationErrorMessage } from "@/lib/scheduleError";
 import { createSchedule } from "@/lib/api";
 import { dateRangeToDayCount, dayIndexToDate, formatDateShort } from "@/lib/utils";
 
 interface Draft {
   day: number;
   time: string;
+  placeId: string;
   placeName: string;
   placeAddress: string;
   emoji: string;
@@ -37,17 +40,26 @@ export default function ScheduleNewPage({
   const { draft, setDraft, clearDraft } = useFormDraft<Draft>(`tripmate_schedule_new_${planId}`, {
     day: Number(dayParam) || 1,
     time: "09:00",
+    placeId: "",
     placeName: "",
     placeAddress: "",
     emoji: "📍",
     memo: "",
   });
   const [pending, setPending] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const closeToast = useCallback(() => setToast(null), []);
 
   useEffect(() => {
     const picked = consumePickedPlace();
     if (picked) {
-      setDraft((d) => ({ ...d, placeName: picked.name, placeAddress: picked.address, emoji: picked.emoji }));
+      setDraft((draft) => ({
+        ...draft,
+        placeId: picked.id,
+        placeName: picked.name,
+        placeAddress: picked.address,
+        emoji: picked.emoji,
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -55,9 +67,10 @@ export default function ScheduleNewPage({
   if (isLoading) return null;
   if (!plan) return <PlanNotFound />;
 
-  const dayCount = dateRangeToDayCount(plan.startDate, plan.endDate);
+  const planStartDate = plan.startDate;
+  const dayCount = dateRangeToDayCount(planStartDate, plan.endDate);
   const returnPath = encodeURIComponent(`/plans/${planId}/schedules/new?day=${draft.day}`);
-  const canSubmit = draft.placeName.trim().length > 0 && draft.time && !pending;
+  const canSubmit = draft.placeId.length > 0 && draft.placeName.trim().length > 0 && Boolean(draft.time) && !pending;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -65,7 +78,9 @@ export default function ScheduleNewPage({
     try {
       await createSchedule(planId, {
         day: draft.day,
+        date: dayIndexToDate(planStartDate, draft.day),
         time: draft.time,
+        placeId: draft.placeId,
         placeName: draft.placeName,
         placeAddress: draft.placeAddress || undefined,
         emoji: draft.emoji,
@@ -73,6 +88,8 @@ export default function ScheduleNewPage({
       });
       clearDraft();
       router.push(`/plans/${planId}/timeline?day=${draft.day}`);
+    } catch (error) {
+      setToast(getScheduleMutationErrorMessage(error, "등록"));
     } finally {
       setPending(false);
     }
@@ -90,7 +107,7 @@ export default function ScheduleNewPage({
           >
             {Array.from({ length: dayCount }, (_, i) => i + 1).map((day) => (
               <option key={day} value={day}>
-                Day {day} · {formatDateShort(dayIndexToDate(plan.startDate, day))}
+                Day {day} · {formatDateShort(dayIndexToDate(planStartDate, day))}
               </option>
             ))}
           </select>
@@ -126,6 +143,7 @@ export default function ScheduleNewPage({
           {pending ? "저장하는 중..." : "저장하기"}
         </Button>
       </div>
+      <Toast message={toast} onClose={closeToast} />
     </div>
   );
 }

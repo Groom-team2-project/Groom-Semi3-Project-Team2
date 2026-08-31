@@ -76,7 +76,9 @@ public enum ErrorCode {
     KAKAO_LOCAL_API_ERROR(HttpStatus.BAD_GATEWAY, "카카오 장소 검색에 실패했습니다."),
 
     //place
-    PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "장소를 찾을 수 없습니다.");
+    PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "장소를 찾을 수 없습니다."),
+    INVALID_PLACE_SELECTION_TOKEN(HttpStatus.BAD_REQUEST, "유효하지 않은 장소 선택 정보입니다."),
+    PLACE_SELECTION_TOKEN_EXPIRED(HttpStatus.BAD_REQUEST, "장소 선택 정보가 만료되었습니다. 다시 검색해주세요.");
 
     private final HttpStatus status;
     private final String message;

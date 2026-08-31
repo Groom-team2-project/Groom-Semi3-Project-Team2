@@ -21,8 +21,9 @@ public class PlaceDocumentResponse {
     private final BigDecimal latitude;
     private final String phone;
     private final String placeUrl;
+    private final String selectionToken;
 
-    public static PlaceDocumentResponse from(KakaoDocument document) {
+    public static PlaceDocumentResponse from(KakaoDocument document, String selectionToken) {
         return new PlaceDocumentResponse(
                 document.getId(),
                 document.getPlaceName(),
@@ -34,7 +35,8 @@ public class PlaceDocumentResponse {
                 document.getX(),
                 document.getY(),
                 document.getPhone(),
-                document.getPlaceUrl()
+                document.getPlaceUrl(),
+                selectionToken
         );
     }
 }
