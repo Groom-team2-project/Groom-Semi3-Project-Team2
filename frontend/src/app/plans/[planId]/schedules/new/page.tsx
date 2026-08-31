@@ -14,11 +14,15 @@ import { useFormDraft } from "@/lib/formDraft";
 import { consumePickedPlace } from "@/lib/pickedPlace";
 import { getScheduleMutationErrorMessage } from "@/lib/scheduleError";
 import { createSchedule } from "@/lib/api";
+import type { ReservationStatus } from "@/lib/api";
 import { dateRangeToDayCount, dayIndexToDate, formatDateShort } from "@/lib/utils";
 
 interface Draft {
   day: number;
-  time: string;
+  title: string;
+  startTime: string;
+  endTime: string;
+  reservationStatus: ReservationStatus;
   placeId: string;
   placeName: string;
   placeAddress: string;
@@ -39,7 +43,10 @@ export default function ScheduleNewPage({
   const { plan, isLoading } = usePlan(planId);
   const { draft, setDraft, clearDraft } = useFormDraft<Draft>(`tripmate_schedule_new_${planId}`, {
     day: Number(dayParam) || 1,
-    time: "09:00",
+    title: "",
+    startTime: "09:00",
+    endTime: "",
+    reservationStatus: "NOT_REQUIRED",
     placeId: "",
     placeName: "",
     placeAddress: "",
@@ -70,20 +77,19 @@ export default function ScheduleNewPage({
   const planStartDate = plan.startDate;
   const dayCount = dateRangeToDayCount(planStartDate, plan.endDate);
   const returnPath = encodeURIComponent(`/plans/${planId}/schedules/new?day=${draft.day}`);
-  const canSubmit = draft.placeId.length > 0 && draft.placeName.trim().length > 0 && Boolean(draft.time) && !pending;
+  const canSubmit = draft.title.trim().length > 0 && Boolean(draft.startTime) && !pending;
 
   async function handleSubmit() {
     if (!canSubmit) return;
     setPending(true);
     try {
+      const date = dayIndexToDate(planStartDate, draft.day);
       await createSchedule(planId, {
-        day: draft.day,
-        date: dayIndexToDate(planStartDate, draft.day),
-        time: draft.time,
-        placeId: draft.placeId,
-        placeName: draft.placeName,
-        placeAddress: draft.placeAddress || undefined,
-        emoji: draft.emoji,
+        title: draft.title.trim(),
+        startAt: `${date}T${draft.startTime}:00`,
+        endAt: draft.endTime ? `${date}T${draft.endTime}:00` : undefined,
+        reservationStatus: draft.reservationStatus,
+        placeId: draft.placeId || undefined,
         memo: draft.memo || undefined,
       });
       clearDraft();
@@ -99,6 +105,15 @@ export default function ScheduleNewPage({
     <div className="flex min-h-dvh flex-col">
       <AppBar title="일정 추가" backHref={`/plans/${planId}/timeline?day=${draft.day}`} />
       <div className="flex flex-1 flex-col gap-3 px-4 pb-8">
+        <Field label="일정 제목">
+          <FieldInput
+            maxLength={200}
+            placeholder="예: 성산일출봉 일출 관람"
+            value={draft.title}
+            onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
+          />
+        </Field>
+
         <Field label="날짜">
           <select
             value={draft.day}
@@ -113,7 +128,7 @@ export default function ScheduleNewPage({
           </select>
         </Field>
 
-        <Field label="장소">
+        <Field label="장소" optional>
           <PlaceSearchTrigger
             href={`/plans/${planId}/places/search?return=${returnPath}&usage=schedule`}
             label="카카오 장소 검색으로 추가하기"
@@ -126,12 +141,41 @@ export default function ScheduleNewPage({
           </Field>
         )}
 
-        <Field label="시간">
-          <FieldInput type="time" value={draft.time} onChange={(e) => setDraft((d) => ({ ...d, time: e.target.value }))} />
+        <Field label="시작 시간">
+          <FieldInput
+            type="time"
+            value={draft.startTime}
+            onChange={(event) => setDraft((current) => ({ ...current, startTime: event.target.value }))}
+          />
         </Field>
 
-        <Field label="메모">
+        <Field label="종료 시간" optional>
+          <FieldInput
+            type="time"
+            value={draft.endTime}
+            onChange={(event) => setDraft((current) => ({ ...current, endTime: event.target.value }))}
+          />
+        </Field>
+
+        <Field label="예약 상태">
+          <select
+            value={draft.reservationStatus}
+            onChange={(event) => setDraft((current) => ({
+              ...current,
+              reservationStatus: event.target.value as ReservationStatus,
+            }))}
+            className="w-full rounded-xl border border-gray-200 bg-gray-100 px-3.5 py-3 text-[14.5px] text-ink"
+          >
+            <option value="NOT_REQUIRED">예약 불필요</option>
+            <option value="UNRESERVED">예약 전</option>
+            <option value="RESERVED">예약 완료</option>
+            <option value="CANCELLED">예약 취소</option>
+          </select>
+        </Field>
+
+        <Field label="메모" optional>
           <FieldTextarea
+            maxLength={1000}
             placeholder="예약 필요, 웨이팅 있음 등"
             value={draft.memo}
             onChange={(e) => setDraft((d) => ({ ...d, memo: e.target.value }))}
