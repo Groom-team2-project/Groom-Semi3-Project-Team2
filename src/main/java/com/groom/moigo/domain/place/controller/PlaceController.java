@@ -76,7 +76,7 @@ public class PlaceController {
                 .body(CommonResponse.success(response, "카테고리 장소 목록 조회 성공"));
     }
 
-    @PostMapping("/place/register")
+    @PostMapping("/register")
     public ResponseEntity<CommonResponse<PlaceRegisterResponse>> registerPlace(
             @Valid @RequestBody PlaceRegisterRequest request
     ) {
