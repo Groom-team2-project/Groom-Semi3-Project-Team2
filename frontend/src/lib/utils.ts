@@ -1,9 +1,20 @@
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
+function parseIsoDate(iso: string): { year: number; month: number; day: number } {
+  const [year, month, day] = iso.split("-").map(Number);
+  return { year, month, day };
+}
+
+function isoDateToUtcMs(iso: string): number {
+  const { year, month, day } = parseIsoDate(iso);
+  return Date.UTC(year, month - 1, day);
+}
+
 /** "2026-08-14" -> "8.14(금)" */
 export function formatDateShort(iso: string): string {
-  const d = new Date(iso + "T00:00:00");
-  return `${d.getMonth() + 1}.${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
+  const { year, month, day } = parseIsoDate(iso);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return `${month}.${day}(${WEEKDAYS[weekday]})`;
 }
 
 /** "2026-08-14" ~ "2026-08-17" -> "8.14(금) - 8.17(월)" */
@@ -13,29 +24,28 @@ export function formatDateRange(startIso: string, endIso: string): string {
 
 /** 오늘 기준 D-day 문자열. 과거면 null */
 export function formatDday(targetIso: string, todayIso = todayISO()): string | null {
-  const today = new Date(todayIso + "T00:00:00");
-  const target = new Date(targetIso + "T00:00:00");
-  const diff = Math.round((target.getTime() - today.getTime()) / 86400000);
+  const diff = Math.round((isoDateToUtcMs(targetIso) - isoDateToUtcMs(todayIso)) / 86400000);
   if (diff < 0) return null;
   if (diff === 0) return "D-Day";
   return `D-${diff}`;
 }
 
-export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+export function todayISO(now = new Date()): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 /** 여행 시작일 기준 Day 번호 -> 실제 날짜 ISO */
 export function dayIndexToDate(startIso: string, dayIndex: number): string {
-  const d = new Date(startIso + "T00:00:00");
-  d.setDate(d.getDate() + (dayIndex - 1));
+  const d = new Date(isoDateToUtcMs(startIso));
+  d.setUTCDate(d.getUTCDate() + (dayIndex - 1));
   return d.toISOString().slice(0, 10);
 }
 
 export function dateRangeToDayCount(startIso: string, endIso: string): number {
-  const start = new Date(startIso + "T00:00:00");
-  const end = new Date(endIso + "T00:00:00");
-  return Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+  return Math.round((isoDateToUtcMs(endIso) - isoDateToUtcMs(startIso)) / 86400000) + 1;
 }
 
 /** ISO datetime -> "3시간 후 마감" 같은 상대 마감 문자열 */

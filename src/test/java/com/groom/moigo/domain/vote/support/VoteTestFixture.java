@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -17,8 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 투표 테스트가 필요로 하는 선행 데이터를 만든다.
  *
- * <p>계획·장소·일정 도메인은 아직 엔티티를 제공하지 않는데 마이그레이션에는 FK 제약이 있다. 그래서 해당 행만 JDBC로 직접 넣는다. 도메인 구현이 머지되면 각
- * 리포지토리를 쓰도록 바꾼다.
+ * <p>다른 도메인의 선행 데이터는 JDBC로 직접 넣는다. 투표 테스트가 그쪽 서비스의 검증 규칙까지 따라가지 않도록 하기 위함이다.
  *
  * <p>각 생성 메서드는 {@code REQUIRES_NEW}로 즉시 커밋함. {@code @Transactional} 테스트(테스트 종료 시 롤백)가
  * 쓰는 커넥션과 분리해두지 않으면, {@code ActivityLogServiceImpl.record()}처럼 REQUIRES_NEW로 별도 커넥션을 쓰는
@@ -38,6 +38,7 @@ public class VoteTestFixture {
 	private final SimpleJdbcInsert memberInsert;
 	private final SimpleJdbcInsert placeInsert;
 	private final SimpleJdbcInsert scheduleInsert;
+	private final JdbcTemplate jdbcTemplate;
 
 	@Autowired
 	public VoteTestFixture(DataSource dataSource) {
@@ -55,6 +56,7 @@ public class VoteTestFixture {
 				new SimpleJdbcInsert(dataSource)
 						.withTableName("schedules")
 						.usingGeneratedKeyColumns("schedule_id");
+		this.jdbcTemplate = new JdbcTemplate(dataSource);
 	}
 
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -135,5 +137,12 @@ public class VoteTestFixture {
 		values.put("created_at", now);
 		values.put("updated_at", now);
 		return scheduleInsert.executeAndReturnKey(values).longValue();
+	}
+
+	/** 일정을 소프트 삭제 상태로 만든다. */
+	public void softDeleteSchedule(Long scheduleId) {
+		jdbcTemplate
+				.update("update schedules set deleted_at = ? where schedule_id = ?",
+						LocalDateTime.now(), scheduleId);
 	}
 }

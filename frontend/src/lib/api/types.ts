@@ -68,16 +68,26 @@ export interface Place {
 /** 카카오 로컬 API 검색 결과 (아직 저장 전) */
 export interface PlaceSearchResult {
   kakaoId: string;
+  selectionToken?: string;
   name: string;
   address: string;
+  landLotAddress?: string;
   emoji: string;
   category?: string;
+  categoryGroupCode?: string;
+  categoryGroupName?: string;
+  roadAddress?: string;
+  longitude?: number;
+  latitude?: number;
+  phone?: string;
+  placeUrl?: string;
   distanceMeters?: number;
 }
 
 export interface Schedule {
   id: string;
   planId: string;
+  placeId?: string;
   day: number; // Day 1, 2, 3 ...
   date: string; // ISO date
   time: string; // "09:00"
@@ -117,6 +127,7 @@ export interface VoteOption {
 }
 
 export interface Vote {
+  creatorId: string;
   id: string;
   planId: string;
   title: string;
