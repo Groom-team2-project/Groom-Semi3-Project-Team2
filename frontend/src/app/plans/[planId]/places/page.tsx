@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PlaceRow } from "@/components/plan/PlaceRow";
 import { PlanNotFound } from "@/components/plan/PlanNotFound";
-import { getSavedPlaces } from "@/lib/api";
+import { getSavedPlaces, removePlaceFromPlan } from "@/lib/api";
 import { ApiError } from "@/lib/api/client";
 import type { Place } from "@/lib/api";
 import { setPickedPlace } from "@/lib/pickedPlace";
@@ -63,6 +63,11 @@ export default function PlaceListPage({
     router.push(pickReturn);
   }
 
+  async function handleRemove(place: Place) {
+    await removePlaceFromPlan(planId, place.id);
+    setPlaces((current) => current?.filter((item) => item.id !== place.id) ?? []);
+  }
+
   if (forbidden) return <PlanNotFound />;
 
   return (
@@ -85,6 +90,7 @@ export default function PlaceListPage({
               name={p.name}
               address={p.address}
               onClick={pickReturn ? () => handleSelect(p) : undefined}
+              onRemove={pickReturn ? undefined : () => void handleRemove(p)}
               tag={
                 pickReturn
                   ? undefined
@@ -92,7 +98,7 @@ export default function PlaceListPage({
                     ? { label: "투표 후보", color: "orange" }
                     : p.usage.includes("schedule")
                       ? { label: "일정", color: "blue" }
-                      : { label: "저장됨", color: "gray" }
+                      : undefined
               }
             />
           ))}
