@@ -34,6 +34,7 @@ interface PlaceDocumentListApiResponse {
 
 interface PlaceApiResponse {
   placeId: number;
+  kakaoPlaceId?: string | null;
   name: string;
   category: string | null;
   address: string | null;
@@ -92,6 +93,7 @@ function mapSavedPlace(planId: string, place: PlaceApiResponse): Place {
     address: place.roadAddress || place.address || "주소 정보 없음",
     emoji: placeEmoji(place.category),
     category: place.category ?? undefined,
+    kakaoId: place.kakaoPlaceId ?? undefined,
     source: "KAKAO_LOCAL",
     usage: ["saved"],
   };
@@ -248,42 +250,27 @@ export async function addPlaceToPlan(
       );
     }
 
-    const response = await apiFetch<CommonResponse<{ placeId: number }>>(
-      "/api/v1/place2/place/register",
+    const response = await apiFetch<CommonResponse<PlaceApiResponse>>(
+      `/api/v1/plans/${planId}/places`,
       {
         method: "POST",
         body: JSON.stringify({
           selectionToken: result.selectionToken,
+          usage,
         }),
       },
     );
 
-    const place: Place = {
-      id: String(response.data.placeId),
-      planId,
-      name: result.name,
-      address: result.address,
-      emoji: result.emoji,
-      category: result.category,
-      source: "KAKAO_LOCAL",
+    return {
+      ...mapSavedPlace(planId, response.data),
       usage: [usage],
     };
-
-    if (usage === "saved") {
-      await apiFetch(`/api/v1/plans/${planId}/places`, {
-        method: "POST",
-        body: JSON.stringify({
-          selectionToken: result.selectionToken,
-        }),
-      });
-    }
-
-    return place;
   }
 
   await simulateLatency(200);
   const existing = store.places.find((p) => p.planId === planId && p.name === result.name);
   if (existing) {
+    if (!existing.kakaoId) existing.kakaoId = result.kakaoId;
     if (!existing.usage.includes(usage)) existing.usage.push(usage);
     return existing;
   }
@@ -294,9 +281,20 @@ export async function addPlaceToPlan(
     address: result.address,
     emoji: result.emoji,
     category: result.category,
+    kakaoId: result.kakaoId,
     source: "KAKAO_LOCAL",
     usage: [usage],
   };
   store.places.push(place);
   return place;
+}
+
+/** DELETE /api/v1/plans/{planId}/places/{placeId} */
+export async function removePlaceFromPlan(planId: string, placeId: string): Promise<void> {
+  if (!USE_MOCK) {
+    await apiFetch(`/api/v1/plans/${planId}/places/${placeId}`, { method: "DELETE" });
+    return;
+  }
+  await simulateLatency(150);
+  store.places = store.places.filter((p) => !(p.planId === planId && p.id === placeId));
 }
