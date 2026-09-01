@@ -7,6 +7,7 @@ export function PlaceRow({
   tag,
   onClick,
   onAdd,
+  onRemove,
   addDisabled = false,
 }: {
   emoji: string;
@@ -15,6 +16,7 @@ export function PlaceRow({
   tag?: { label: string; color: "blue" | "gray" | "orange" };
   onClick?: () => void;
   onAdd?: () => void;
+  onRemove?: () => void;
   addDisabled?: boolean;
 }) {
   const content = (
@@ -37,6 +39,19 @@ export function PlaceRow({
           className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] border border-gray-200 bg-white text-[17px] font-bold text-primary disabled:cursor-not-allowed disabled:opacity-50"
         >
           +
+        </button>
+      )}
+      {onRemove && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          aria-label="삭제"
+          className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] border border-gray-200 bg-white text-[13px] font-bold text-gray-500"
+        >
+          ×
         </button>
       )}
     </>

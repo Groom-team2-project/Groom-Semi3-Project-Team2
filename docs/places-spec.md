@@ -5,6 +5,7 @@
 - 새 명세의 필드 구성을 기준으로 구현하며 기존 V1 마이그레이션은 수정하지 않는다.
 - 모든 API 응답은 프로젝트 공통 형식인 `CommonResponse<T>`로 감싼다. 아래 API별 JSON 예시는 일부가 `data` 중심으로 축약되어 있다.
 - Place는 Plan에 종속되지 않는 공용 장소 데이터다. Schedule과 Vote에서는 내부 `placeId`로 참조한다.
+- 특정 Plan에 저장한 장소 목록은 `plan_places`로 관리한다. API는 `docs/plan-spec.md`의 PlanPlace를 따른다.
 - 사용자는 Place를 직접 생성·수정·삭제하지 않는다. 카카오 Local 검색 과정에서 저장 또는 갱신한다.
 - Schedule에 Place를 연결하는 권한은 Schedule 서비스에서 Plan 편집 권한으로 검증한다.
 

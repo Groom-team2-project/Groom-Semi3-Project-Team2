@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Segmented } from "@/components/ui/Segmented";
 import { Toast } from "@/components/ui/Toast";
 import { PlaceRow } from "@/components/plan/PlaceRow";
-import { addPlaceToPlan, searchPlacesByKeyword, searchPlacesNearby, NEARBY_CATEGORIES } from "@/lib/api";
+import { addPlaceToPlan, getSavedPlaces, searchPlacesByKeyword, searchPlacesNearby, NEARBY_CATEGORIES } from "@/lib/api";
 import { ApiError, USE_MOCK } from "@/lib/api/client";
 import type { PlaceSearchLocation, PlaceSearchResult, PlaceUsage } from "@/lib/api";
 import { setPickedPlace } from "@/lib/pickedPlace";
@@ -82,8 +82,24 @@ export default function PlaceSearchPage({
   const [hasSearched, setHasSearched] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [location, setLocation] = useState<PlaceSearchLocation | null>(null);
+  const [savedKakaoIds, setSavedKakaoIds] = useState<Set<string>>(new Set());
   const destination = safeReturnPath(returnPath, planId);
   const closeToast = useCallback(() => setToast(null), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSavedPlaces(planId)
+      .then((saved) => {
+        if (cancelled) return;
+        setSavedKakaoIds(new Set(saved.map((place) => place.kakaoId).filter((id): id is string => Boolean(id))));
+      })
+      .catch(() => {
+        if (!cancelled) setSavedKakaoIds(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [planId]);
 
   useEffect(() => {
     if (mode !== "keyword") return;
@@ -193,6 +209,9 @@ export default function PlaceSearchPage({
     setAddingId(result.kakaoId);
     try {
       const place = await addPlaceToPlan(planId, result, (usage as PlaceUsage) ?? "saved");
+      if (result.kakaoId) {
+        setSavedKakaoIds((current) => new Set(current).add(result.kakaoId));
+      }
       setPickedPlace(place);
       router.push(destination);
     } catch (error) {
@@ -239,6 +258,11 @@ export default function PlaceSearchPage({
                   address={`${r.address}${r.category ? ` · ${r.category}` : ""}`}
                   onAdd={() => handleAdd(r)}
                   addDisabled={addingId !== null}
+                  tag={
+                    savedKakaoIds.has(r.kakaoId)
+                      ? { label: "저장됨", color: "gray" }
+                      : undefined
+                  }
                 />
               ))}
             </div>
@@ -269,6 +293,11 @@ export default function PlaceSearchPage({
                   address={`${r.distanceMeters !== undefined ? `${r.distanceMeters}m · ` : ""}${r.address}`}
                   onAdd={() => handleAdd(r)}
                   addDisabled={addingId !== null}
+                  tag={
+                    savedKakaoIds.has(r.kakaoId)
+                      ? { label: "저장됨", color: "gray" }
+                      : undefined
+                  }
                 />
               ))}
             </div>

@@ -54,4 +54,10 @@ public class PlacePersistenceService {
         return placeRepository.findByKakaoPlaceId(kakaoPlaceId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLACE_NOT_FOUND));
     }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public PlaceEntity findByPlaceId(Long placeId) {
+        return placeRepository.findByPlaceIdAndDeletedAtIsNull(placeId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PLACE_NOT_FOUND));
+    }
 }
