@@ -64,7 +64,7 @@ function mapVote(res: VoteApiResponse): Vote {
 export interface CreateVoteInput {
   title: string;
   deadline: string; // ISO datetime
-  options: Array<{ placeName: string; placeAddress?: string; emoji?: string }>;
+  options: Array<{ placeName: string; placeAddress?: string; emoji?: string; placeId?: string }>;
 }
 
 /** GET /api/v1/plans/{planId}/votes */
@@ -100,6 +100,7 @@ export async function createVote(planId: string, input: CreateVoteInput): Promis
         placeName: o.placeName,
         placeAddress: o.placeAddress,
         emoji: o.emoji,
+        placeId: o.placeId,
       })),
     }),
   });
@@ -124,6 +125,8 @@ export interface VoteOptionInput {
   placeName: string;
   placeAddress?: string;
   emoji?: string;
+  /** 계획에 저장된 장소 ID. 후보를 실제 장소와 이어 둔다. */
+  placeId?: string;
 }
 
 /** PATCH /api/v1/plans/{planId}/votes/{voteId} — 생성자만, 진행 중일 때만 */
