@@ -41,8 +41,9 @@ export default function RouteMapPage({
     );
   }, [planId, day]);
 
-  const legs = schedules.slice(1).map((to, i) => {
-    const from = schedules[i];
+  const locatedSchedules = schedules.filter((schedule) => Boolean(schedule.placeId));
+  const legs = locatedSchedules.slice(1).map((to, i) => {
+    const from = locatedSchedules[i];
     const km = estimateDistanceKm(i + 1);
     const minutes = Math.max(3, Math.round(km * MODE_META[mode].speedMinPerKm));
     return { from, to, km, minutes };
@@ -72,12 +73,16 @@ export default function RouteMapPage({
 
       {legs.length === 0 ? (
         <div className="px-4">
-          <EmptyState emoji="🗺️" title="동선을 계산할 일정이 부족해요" description="같은 날짜에 일정이 2개 이상 있어야 동선을 볼 수 있어요" />
+          <EmptyState
+            emoji="🗺️"
+            title="동선을 계산할 일정이 부족해요"
+            description="같은 날짜에 장소가 선택된 일정이 2개 이상 있어야 동선을 볼 수 있어요"
+          />
         </div>
       ) : (
         <>
           <div className="relative bg-gray-100">
-            <KakaoRouteMap schedules={schedules} />
+            <KakaoRouteMap schedules={locatedSchedules} />
             <div className="absolute left-2.5 top-2.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[10.5px] font-bold text-gray-700">
               드래그해서 지도 이동 · 휠/버튼으로 확대·축소
             </div>

@@ -137,6 +137,7 @@ export default function ScheduleEditPage({
     );
   }
 
+  const originalSchedule = original;
   const planStartDate = plan.startDate;
   const dayCount = dateRangeToDayCount(planStartDate, plan.endDate);
   const returnPath = encodeURIComponent(`/plans/${planId}/schedules/${scheduleId}/edit`);
@@ -158,9 +159,9 @@ export default function ScheduleEditPage({
         reservationStatus: draft.reservationStatus,
         placeId: draft.placeId || undefined,
         memo: draft.memo || undefined,
-        clearPlace: Boolean(original.placeId) && !draft.placeId,
-        clearMemo: Boolean(original.memo) && !draft.memo,
-        clearEndAt: Boolean(original.endAt) && !draft.endTime,
+        clearPlace: Boolean(originalSchedule.placeId) && !draft.placeId,
+        clearMemo: Boolean(originalSchedule.memo) && !draft.memo,
+        clearEndAt: Boolean(originalSchedule.endAt) && !draft.endTime,
       });
       clearDraft();
       router.push(`/plans/${planId}/schedules/${scheduleId}`);

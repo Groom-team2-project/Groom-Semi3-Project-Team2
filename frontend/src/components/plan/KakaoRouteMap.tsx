@@ -99,6 +99,11 @@ function findPosition(
   schedule: Schedule,
 ): Promise<KakaoLatLng | null> {
   return new Promise((resolve) => {
+    if (!schedule.placeId) {
+      resolve(null);
+      return;
+    }
+
     const useResult = (results: Array<{ x: string; y: string }>, status: string) => {
       if (status !== maps.services.Status.OK || results.length === 0) {
         resolve(null);
