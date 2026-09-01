@@ -21,7 +21,7 @@ import java.math.BigDecimal;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/place2")
+@RequestMapping("/api/v1/place")
 public class PlaceController {
     private final PlaceService placeService;
 
@@ -76,7 +76,7 @@ public class PlaceController {
                 .body(CommonResponse.success(response, "카테고리 장소 목록 조회 성공"));
     }
 
-    @PostMapping("/place/register")
+    @PostMapping("/register")
     public ResponseEntity<CommonResponse<PlaceRegisterResponse>> registerPlace(
             @Valid @RequestBody PlaceRegisterRequest request
     ) {

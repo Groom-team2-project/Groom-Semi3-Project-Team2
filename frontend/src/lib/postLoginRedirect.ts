@@ -1,6 +1,10 @@
 const DEFAULT_POST_LOGIN_REDIRECT = "/plans";
 const POST_LOGIN_REDIRECT_KEY = "postLoginRedirect";
 
+export function shouldRedirectToLoginOn401(pathname: string): boolean {
+  return pathname !== "/login" && !pathname.startsWith("/oauth/");
+}
+
 type RedirectStorage = Pick<Storage, "getItem" | "removeItem" | "setItem">;
 
 export function savePostLoginRedirect(
