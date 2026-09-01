@@ -223,7 +223,7 @@ COMPOSE_DB_URL=jdbc:mysql://RDS엔드포인트:3306/moigo?serverTimezone=Asia/Se
 │   │   │   ├── domain/
 │   │   │   │   ├── auth/          # 인증·인가 (카카오 로그인, JWT)
 │   │   │   │   ├── user/          # 유저 엔티티
-│   │   │   │   ├── plan/          # 여행 계획·멤버·초대
+│   │   │   │   ├── plan/          # 여행 계획·멤버·초대·계획 장소
 │   │   │   │   ├── place/         # 장소 검색·저장
 │   │   │   │   ├── schedule/      # 일정·댓글
 │   │   │   │   └── vote/          # 투표
