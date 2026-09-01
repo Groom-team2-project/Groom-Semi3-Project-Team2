@@ -3,8 +3,10 @@ package com.groom.moigo.domain.schedule.service;
 import com.groom.moigo.domain.place.dto.SchedulePlaceResponse;
 import com.groom.moigo.domain.place.entity.PlaceEntity;
 import com.groom.moigo.domain.place.repository.PlaceRepository;
+import com.groom.moigo.domain.plan.entity.MemberEntity;
 import com.groom.moigo.domain.plan.entity.PlanEntity;
 import com.groom.moigo.domain.plan.repository.PlanRepository;
+import com.groom.moigo.domain.plan.service.PlanAccessService;
 import com.groom.moigo.domain.schedule.dto.*;
 import com.groom.moigo.domain.schedule.entity.ScheduleEntity;
 import com.groom.moigo.domain.schedule.repository.ScheduleRepository;
@@ -28,14 +30,18 @@ public class ScheduleService {
     private final ScheduleRepository scheduleRepository;
     private final PlanRepository planRepository;
     private final PlaceRepository placeRepository;
+    private final PlanAccessService planAccessService;
     private static final int FIRST_SORT_ORDER = 1;
     private static final int SORT_ORDER_STEP = 1;
 
 
     @Transactional
-    public ScheduleResponse createSchedule(Long planId, ScheduleCreateRequest request){
+    public ScheduleResponse createSchedule(Long userId, Long planId, ScheduleCreateRequest request){
         PlanEntity plan = planRepository.findByIdForUpdate(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
+
+        MemberEntity member = planAccessService.requireJoinedMember(planId, userId);
+        planAccessService.requireEditable(member);
 
         int nextSortOrder = scheduleRepository.findMaxSortOrderByPlanId(planId)
                 .map(last -> last + SORT_ORDER_STEP)
@@ -58,9 +64,11 @@ public class ScheduleService {
         return ScheduleResponse.from(saveSchedule, place);
     }
 
-    public ScheduleListResponse getSchedules(Long planId) {
+    public ScheduleListResponse getSchedules(Long userId, Long planId) {
         PlanEntity plan = planRepository.findByIdAndNotDeleted(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
+
+        MemberEntity member = planAccessService.requireJoinedMember(planId, userId);
 
         List<ScheduleEntity> schedule = scheduleRepository.findAllByPlanIdAndDeletedAtIsNullOrderBySortOrderAsc(planId);
         List<ScheduleSummaryResponse> responses = schedule.stream()
@@ -69,9 +77,11 @@ public class ScheduleService {
         return new ScheduleListResponse(planId, responses);
     }
 
-    public ScheduleResponse getSchedule(Long planId, Long scheduleId) {
+    public ScheduleResponse getSchedule(Long userId, Long planId, Long scheduleId) {
         PlanEntity plan = planRepository.findByIdAndNotDeleted(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
+
+        MemberEntity member = planAccessService.requireJoinedMember(planId, userId);
 
         ScheduleEntity schedule = scheduleRepository.findByScheduleIdAndPlanIdAndDeletedAtIsNull(scheduleId, planId)
                 .orElseThrow(()-> new BusinessException(ErrorCode.SCHEDULE_NOT_FOUND));
@@ -81,9 +91,12 @@ public class ScheduleService {
     }
 
     @Transactional
-    public ScheduleResponse updateSchedule(Long planId, ScheduleUpdateRequest request, Long scheduleId) {
+    public ScheduleResponse updateSchedule(Long userId, Long planId, ScheduleUpdateRequest request, Long scheduleId) {
         PlanEntity plan = planRepository.findByIdAndNotDeleted(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
+
+        MemberEntity member = planAccessService.requireJoinedMember(planId, userId);
+        planAccessService.requireEditable(member);
 
         ScheduleEntity schedule = scheduleRepository.findByScheduleIdAndPlanIdAndDeletedAtIsNull(scheduleId, planId)
                 .orElseThrow(()-> new BusinessException(ErrorCode.SCHEDULE_NOT_FOUND));
@@ -119,9 +132,12 @@ public class ScheduleService {
     }
 
     @Transactional
-    public ScheduleOrderResponse orderSchedule(Long planId, ScheduleOrderRequest request) {
+    public ScheduleOrderResponse orderSchedule(Long userId, Long planId, ScheduleOrderRequest request) {
         PlanEntity plan = planRepository.findByIdForUpdate(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
+
+        MemberEntity member = planAccessService.requireJoinedMember(planId, userId);
+        planAccessService.requireEditable(member);
 
         List<ScheduleEntity> schedules = scheduleRepository.findAllByPlanIdAndDeletedAtIsNullOrderBySortOrderAsc(planId);
 
@@ -165,9 +181,12 @@ public class ScheduleService {
     }
 
     @Transactional
-    public ScheduleDeleteResponse deleteSchedule(Long planId, Long scheduleId) {
+    public ScheduleDeleteResponse deleteSchedule(Long userId, Long planId, Long scheduleId) {
         PlanEntity plan = planRepository.findByIdForUpdate(planId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
+
+        MemberEntity member = planAccessService.requireJoinedMember(planId, userId);
+        planAccessService.requireEditable(member);
 
         //활성 일정을 기존 순서대로 조회
         List<ScheduleEntity> schedules = scheduleRepository.findAllByPlanIdAndDeletedAtIsNullOrderBySortOrderAsc(planId);
