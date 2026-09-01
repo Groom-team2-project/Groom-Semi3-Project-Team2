@@ -142,7 +142,8 @@ function DayCard({
   schedules: Schedule[];
 }) {
   const summary = schedules.length
-    ? schedules
+    ? [...schedules]
+        .sort((a, b) => a.time.localeCompare(b.time))
         .map((s) => (s.linkedVoteId ? `(투표중) ${s.placeName}` : s.placeName))
         .join(" → ")
     : "아직 일정이 없어요";
