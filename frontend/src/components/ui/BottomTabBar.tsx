@@ -8,7 +8,7 @@ export function BottomTabBar({ planId }: { planId: string | null }) {
   const pathname = usePathname();
 
   const tabs = [
-    { key: "home", label: "홈", icon: "🏠", href: planId ? `/plans/${planId}` : "/plans" },
+    { key: "home", label: "홈", icon: "🏠", href: "/plans" },
     { key: "timeline", label: "일정", icon: "🗓", href: planId ? `/plans/${planId}/timeline` : "/plans" },
     { key: "votes", label: "투표", icon: "🗳️", href: planId ? `/plans/${planId}/votes` : "/plans" },
     { key: "profile", label: "내정보", icon: "👤", href: "/profile" },
@@ -20,7 +20,10 @@ export function BottomTabBar({ planId }: { planId: string | null }) {
       className="sticky bottom-0 z-10 grid flex-shrink-0 grid-cols-4 border-t border-gray-200 bg-white/95 backdrop-blur"
     >
       {tabs.map((tab) => {
-        const active = pathname === tab.href || (tab.key !== "home" && pathname.startsWith(tab.href) && tab.href !== "/plans");
+        const active =
+          tab.key === "home"
+            ? pathname === "/plans" || (planId != null && pathname === `/plans/${planId}`)
+            : pathname === tab.href || (pathname.startsWith(tab.href) && tab.href !== "/plans");
         return (
           <Link
             key={tab.key}
