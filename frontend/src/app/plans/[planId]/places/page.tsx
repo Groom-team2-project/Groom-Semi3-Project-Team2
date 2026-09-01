@@ -1,16 +1,26 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppBar } from "@/components/ui/AppBar";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Toast } from "@/components/ui/Toast";
 import { PlaceRow } from "@/components/plan/PlaceRow";
 import { PlanNotFound } from "@/components/plan/PlanNotFound";
 import { getSavedPlaces, removePlaceFromPlan } from "@/lib/api";
 import { ApiError } from "@/lib/api/client";
 import type { Place } from "@/lib/api";
 import { setPickedPlace } from "@/lib/pickedPlace";
+
+function removePlaceErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return "장소를 삭제하지 못했습니다.";
+  if (error.status === 0) return "네트워크 연결을 확인한 뒤 다시 시도해 주세요.";
+  if (error.status === 403) return "이 계획에서 장소를 삭제할 권한이 없습니다.";
+  if (error.status === 404) return "삭제할 장소나 계획을 찾을 수 없습니다.";
+  if (error.status >= 500) return "서버에 문제가 있어 장소를 삭제하지 못했습니다.";
+  return error.message || "장소를 삭제하지 못했습니다.";
+}
 
 function safeReturnPath(value: string | undefined, planId: string): string | null {
   if (!value) return null;
@@ -35,6 +45,8 @@ export default function PlaceListPage({
   const pickReturn = safeReturnPath(returnQuery, planId);
   const [places, setPlaces] = useState<Place[] | null>(null);
   const [forbidden, setForbidden] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const closeToast = useCallback(() => setToast(null), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,8 +76,12 @@ export default function PlaceListPage({
   }
 
   async function handleRemove(place: Place) {
-    await removePlaceFromPlan(planId, place.id);
-    setPlaces((current) => current?.filter((item) => item.id !== place.id) ?? []);
+    try {
+      await removePlaceFromPlan(planId, place.id);
+      setPlaces((current) => current?.filter((item) => item.id !== place.id) ?? []);
+    } catch (error) {
+      setToast(removePlaceErrorMessage(error));
+    }
   }
 
   if (forbidden) return <PlanNotFound />;
@@ -108,6 +124,7 @@ export default function PlaceListPage({
           🔍 새 장소 검색해서 추가
         </Button>
       </div>
+      <Toast message={toast} onClose={closeToast} />
     </div>
   );
 }

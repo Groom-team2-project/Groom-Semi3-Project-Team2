@@ -256,6 +256,7 @@ export async function addPlaceToPlan(
         method: "POST",
         body: JSON.stringify({
           selectionToken: result.selectionToken,
+          usage,
         }),
       },
     );
