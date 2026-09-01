@@ -5,6 +5,7 @@ import { AppBar } from "@/components/ui/AppBar";
 import { Button } from "@/components/ui/Button";
 import { Segmented } from "@/components/ui/Segmented";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { KakaoRouteMap } from "@/components/plan/KakaoRouteMap";
 import { getSchedules } from "@/lib/api";
 import type { Schedule } from "@/lib/api";
 
@@ -40,8 +41,9 @@ export default function RouteMapPage({
     );
   }, [planId, day]);
 
-  const legs = schedules.slice(1).map((to, i) => {
-    const from = schedules[i];
+  const locatedSchedules = schedules.filter((schedule) => Boolean(schedule.placeId));
+  const legs = locatedSchedules.slice(1).map((to, i) => {
+    const from = locatedSchedules[i];
     const km = estimateDistanceKm(i + 1);
     const minutes = Math.max(3, Math.round(km * MODE_META[mode].speedMinPerKm));
     return { from, to, km, minutes };
@@ -71,14 +73,18 @@ export default function RouteMapPage({
 
       {legs.length === 0 ? (
         <div className="px-4">
-          <EmptyState emoji="🗺️" title="동선을 계산할 일정이 부족해요" description="같은 날짜에 일정이 2개 이상 있어야 동선을 볼 수 있어요" />
+          <EmptyState
+            emoji="🗺️"
+            title="동선을 계산할 일정이 부족해요"
+            description="같은 날짜에 장소가 선택된 일정이 2개 이상 있어야 동선을 볼 수 있어요"
+          />
         </div>
       ) : (
         <>
           <div className="relative bg-gray-100">
-            <RouteSvg count={legs.length + 1} />
+            <KakaoRouteMap schedules={locatedSchedules} />
             <div className="absolute left-2.5 top-2.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[10.5px] font-bold text-gray-700">
-              {MODE_META[mode].label} · 직선거리 보정 추정
+              드래그해서 지도 이동 · 휠/버튼으로 확대·축소
             </div>
           </div>
           <div className="flex flex-1 flex-col gap-3 px-4 pt-3.5 pb-8">
@@ -108,38 +114,5 @@ export default function RouteMapPage({
         </>
       )}
     </div>
-  );
-}
-
-function RouteSvg({ count }: { count: number }) {
-  const points = Array.from({ length: Math.min(count, 4) }, (_, i) => {
-    const x = 40 + i * 74;
-    const y = 44 + (i % 2 === 0 ? 0 : 44) + (i % 3 === 2 ? 20 : 0);
-    return { x, y };
-  });
-  const line = points.map((p) => `${p.x},${p.y}`).join(" ");
-
-  return (
-    <svg viewBox="0 0 328 220" role="img" aria-label="경로 지도" className="block h-auto w-full">
-      <rect width="328" height="220" fill="#E7ECF3" />
-      <path d="M0 168 L328 150 L328 220 L0 220 Z" fill="#CFDDEE" />
-      <g stroke="#D6DEE8" strokeWidth="7" strokeLinecap="round">
-        <line x1="-10" y1="46" x2="338" y2="38" />
-        <line x1="-10" y1="108" x2="338" y2="98" />
-        <line x1="96" y1="-10" x2="110" y2="230" />
-        <line x1="238" y1="-10" x2="250" y2="230" />
-      </g>
-      <polyline points={line} fill="none" stroke="#3182F6" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="9 6" />
-      <g fontSize="11" textAnchor="middle" fontWeight="700">
-        {points.map((p, i) => (
-          <g key={i}>
-            <circle cx={p.x} cy={p.y} r="13" fill="#3182F6" />
-            <text x={p.x} y={p.y + 4} fill="#fff">
-              {i + 1}
-            </text>
-          </g>
-        ))}
-      </g>
-    </svg>
   );
 }

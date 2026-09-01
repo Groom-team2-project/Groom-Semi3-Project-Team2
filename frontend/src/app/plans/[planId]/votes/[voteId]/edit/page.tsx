@@ -56,6 +56,7 @@ export default function VoteEditPage({
       placeName: picked.name,
       placeAddress: picked.address,
       emoji: picked.emoji,
+      placeId: picked.id,
     })
       .then(() => getVote(planId, voteId))
       .then(setVote)
