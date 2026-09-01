@@ -270,6 +270,7 @@ export async function addPlaceToPlan(
   await simulateLatency(200);
   const existing = store.places.find((p) => p.planId === planId && p.name === result.name);
   if (existing) {
+    if (!existing.kakaoId) existing.kakaoId = result.kakaoId;
     if (!existing.usage.includes(usage)) existing.usage.push(usage);
     return existing;
   }
@@ -280,6 +281,7 @@ export async function addPlaceToPlan(
     address: result.address,
     emoji: result.emoji,
     category: result.category,
+    kakaoId: result.kakaoId,
     source: "KAKAO_LOCAL",
     usage: [usage],
   };
