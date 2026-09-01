@@ -12,6 +12,7 @@ import { consumePickedPlace } from "@/lib/pickedPlace";
 import { createVote } from "@/lib/api";
 
 interface Candidate {
+  placeId?: string;
   name: string;
   address: string;
   emoji: string;
@@ -45,7 +46,7 @@ export default function VoteCreatePage({ params }: { params: Promise<{ planId: s
       setDraft((d) =>
         d.candidates.some((c) => c.name === picked.name)
           ? d
-          : { ...d, candidates: [...d.candidates, { name: picked.name, address: picked.address, emoji: picked.emoji }] },
+          : { ...d, candidates: [...d.candidates, { name: picked.name, address: picked.address, emoji: picked.emoji, placeId: picked.id }] },
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -65,7 +66,12 @@ export default function VoteCreatePage({ params }: { params: Promise<{ planId: s
       const vote = await createVote(planId, {
         title: draft.title.trim(),
         deadline: new Date(draft.deadline).toISOString(),
-        options: draft.candidates.map((c) => ({ placeName: c.name, placeAddress: c.address, emoji: c.emoji })),
+        options: draft.candidates.map((c) => ({
+          placeName: c.name,
+          placeAddress: c.address,
+          emoji: c.emoji,
+          placeId: c.placeId,
+        })),
       });
       clearDraft();
       router.push(`/plans/${planId}/votes/${vote.id}`);
