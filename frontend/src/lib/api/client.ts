@@ -1,3 +1,5 @@
+import { savePostLoginRedirect, shouldRedirectToLoginOn401 } from "../postLoginRedirect.ts";
+
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 // 빈 base URL은 Netlify rewrite처럼 같은 출처의 /api를 호출한다는 뜻이다.
@@ -102,6 +104,13 @@ export async function apiFetch<T>(
           return apiFetch<T>(path, init, { retryOnUnauthorized: false });
         } catch {
           // 재발급 실패 시 원래 요청의 인증 오류를 반환합니다.
+        }
+      }
+      if (typeof window !== "undefined") {
+        const locationPath = window.location.pathname;
+        if (shouldRedirectToLoginOn401(locationPath)) {
+          savePostLoginRedirect(`${locationPath}${window.location.search}`);
+          window.location.replace("/login");
         }
       }
     }

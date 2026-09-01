@@ -34,6 +34,12 @@ Plan 도메인은 사용자가 여행 계획을 만들고, 다른 사용자와 �
 - 초대 코드를 이용한 Plan 참여
 - 초대 링크 만료 상태 관리
 
+### 2.4 PlanPlace
+
+- 이 Plan에 저장한 장소 목록 조회
+- 카카오 검색 결과를 이 Plan에 저장
+- 이 Plan에서 장소 연결 삭제 (`places` 공용 행은 삭제하지 않음)
+
 ## 3. 공통 응답 형식
 
 ```json
@@ -73,6 +79,9 @@ Plan 도메인은 사용자가 여행 계획을 만들고, 다른 사용자와 �
 | 초대 링크 취소 | O | X | X | X |
 | 초대 코드 조회 | 인증 필요 | 인증 필요 | 인증 필요 | 인증된 사용자라면 가능 |
 | 초대 코드로 참여 | 이미 참여 중이면 X | 이미 참여 중이면 X | 이미 참여 중이면 X | O |
+| 계획 장소 목록 조회 | O | O | O | X |
+| 계획에 장소 저장 | O | O | X | X |
+| 계획에서 장소 삭제 | O | O | X | X |
 
 ## 5. 데이터 모델
 
@@ -123,6 +132,25 @@ UNIQUE(plan_id, user_id)
 | `created_at` | DATETIME(6) | NOT NULL | 생성 시각 |
 
 > V2 마이그레이션에서는 기존 데이터 호환을 위해 `inviter_id`가 DB상 `NULL` 허용으로 추가되어 있으나, 현재 JPA Entity와 신규 생성 로직은 발급자를 필수값으로 사용한다.
+
+### 5.4 PlanPlace
+
+이 Plan에 저장한 장소의 연결만 담는다. 장소 본문은 `places`에 두고, 여기서는 `plan_id`와 `place_id`만 가진다.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+| --- | --- | --- | --- |
+| `plan_place_id` | BIGINT | PK, AUTO_INCREMENT | 연결 식별자 |
+| `plan_id` | BIGINT | FK → `plans.plan_id`, NOT NULL | 저장한 Plan |
+| `place_id` | BIGINT | FK → `places.place_id`, NOT NULL | 공용 Place |
+| `created_at` | DATETIME(6) | NOT NULL | 이 Plan에 저장한 시각 |
+
+제약:
+
+```text
+UNIQUE(plan_id, place_id)
+```
+
+같은 Plan에 같은 장소를 두 번 저장하지 않는다. 삭제 시 이 행만 제거하고 `places`는 남긴다.
 
 ## 6. 상태 및 역할 값
 
@@ -909,6 +937,158 @@ Member 없음
 
 ---
 
+### 7.4 PlanPlace API
+
+카카오 검색·공용 `places` 저장은 Place API(`POST /api/v1/place/register` 등)를 사용한다. 아래 API는 **이 Plan에 연결했는지**만 다룬다.
+
+저장 시 서버가 `selectionToken`으로 Place를 등록(또는 갱신)한 뒤 `plan_places`에 연결한다.
+
+#### GET `/api/v1/plans/{planId}/places`
+
+이 Plan에 저장한 장소 목록을 조회한다.
+
+해당 Plan에 `JOINED` 상태로 참여 중인 사용자라면 역할과 관계없이 조회할 수 있다.
+
+최신 저장 순으로 반환한다. 소프트 삭제된 Place는 목록에서 제외한다.
+
+##### Response Body
+
+장소가 없는 경우에도 `200 OK`와 빈 배열을 반환한다.
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "placeId": 15,
+      "kakaoPlaceId": "123456789",
+      "name": "성산일출봉",
+      "category": "관광명소",
+      "categoryCode": null,
+      "categoryName": null,
+      "address": "제주특별자치도 서귀포시 성산읍 성산리 1번지",
+      "roadAddress": "제주특별자치도 서귀포시 성산읍 일출로 284-12",
+      "longitude": 126.9415,
+      "latitude": 33.4580,
+      "phone": null,
+      "placeUrl": "https://place.map.kakao.com/123456789"
+    }
+  ],
+  "errorCode": null,
+  "message": "계획 장소 목록 조회 성공"
+}
+```
+
+##### Error Code
+
+| 상태 | 오류 코드 | 조건 |
+| --- | --- | --- |
+| 403 | `PLAN_ACCESS_DENIED` | 요청자가 Plan의 `JOINED` 멤버가 아님 |
+| 404 | `PLAN_NOT_FOUND` | Plan이 없거나 삭제됨 |
+
+---
+
+#### POST `/api/v1/plans/{planId}/places`
+
+카카오 검색에서 받은 `selectionToken`으로 공용 Place를 저장하거나 갱신한 뒤, 이 Plan에 연결한다.
+
+`OWNER`, `EDITOR`만 실행할 수 있다. 이미 연결된 장소면 중복 행을 만들지 않고 기존 연결을 유지한다.
+
+##### Request Body
+
+```json
+{
+  "selectionToken": "eyJhbGciOiJIUzI1NiJ9..."
+}
+```
+
+##### 요청 필드
+
+| 필드 | 타입 | 필수 | 검증 | 설명 |
+| --- | --- | --- | --- | --- |
+| `selectionToken` | String | O | 공백 불가, 최대 4096자 | 카카오 검색 응답의 장소 선택 토큰 |
+
+##### 처리 순서
+
+```text
+1. 인증 사용자 확인
+2. Plan 존재 확인
+3. JOINED 멤버 확인
+4. OWNER 또는 EDITOR 확인
+5. selectionToken으로 Place 등록 또는 갱신
+6. plan_places에 (plan_id, place_id) 저장. 이미 있으면 무시
+7. Place 응답 반환
+```
+
+##### Response Body
+
+성공 상태: `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "placeId": 15,
+    "kakaoPlaceId": "123456789",
+    "name": "성산일출봉",
+    "category": "관광명소",
+    "categoryCode": null,
+    "categoryName": null,
+    "address": "제주특별자치도 서귀포시 성산읍 성산리 1번지",
+    "roadAddress": "제주특별자치도 서귀포시 성산읍 일출로 284-12",
+    "longitude": 126.9415,
+    "latitude": 33.4580,
+    "phone": null,
+    "placeUrl": "https://place.map.kakao.com/123456789"
+  },
+  "errorCode": null,
+  "message": "계획에 장소 저장 성공"
+}
+```
+
+##### Error Code
+
+| 상태 | 오류 코드 | 조건 |
+| --- | --- | --- |
+| 400 | `INVALID_INPUT_VALUE` | `selectionToken` 누락 또는 길이 초과 |
+| 400 | `INVALID_PLACE_SELECTION_TOKEN` | 토큰이 유효하지 않음 |
+| 403 | `PLAN_ACCESS_DENIED` | 요청자가 Plan의 `JOINED` 멤버가 아님 |
+| 403 | `PLAN_UPDATE_FORBIDDEN` | `VIEWER`가 저장을 요청함 |
+| 404 | `PLAN_NOT_FOUND` | Plan이 없거나 삭제됨 |
+| 404 | `PLACE_NOT_FOUND` | 등록 직후 Place를 찾지 못함 |
+
+---
+
+#### DELETE `/api/v1/plans/{planId}/places/{placeId}`
+
+이 Plan과 장소의 연결만 삭제한다. 공용 `places` 행은 삭제하지 않는다.
+
+`OWNER`, `EDITOR`만 실행할 수 있다.
+
+##### Response Body
+
+성공 상태: `200 OK`
+
+```json
+{
+  "success": true,
+  "data": null,
+  "errorCode": null,
+  "message": "계획에서 장소 삭제 성공"
+}
+```
+
+##### Error Code
+
+| 상태 | 오류 코드 | 조건 |
+| --- | --- | --- |
+| 403 | `PLAN_ACCESS_DENIED` | 요청자가 Plan의 `JOINED` 멤버가 아님 |
+| 403 | `PLAN_UPDATE_FORBIDDEN` | `VIEWER`가 삭제를 요청함 |
+| 404 | `PLAN_NOT_FOUND` | Plan이 없거나 삭제됨 |
+| 404 | `PLACE_NOT_FOUND` | 이 Plan에 해당 장소 연결이 없음 |
+
+---
+
 ## 8. 테스트 시나리오
 
 ### Plan
@@ -939,6 +1119,14 @@ Member 없음
 - 이전에 나간 멤버가 다시 참여하면 기존 Member 행을 재사용하고 `EDITOR/JOINED` 상태로 변경한다.
 - 이미 참여 중인 사용자, 모집 정원을 초과한 사용자, 만료·취소된 링크를 사용한 사용자는 참여할 수 없다.
 - 동일 초대 링크는 만료·취소되기 전까지 모집 정원 범위에서 여러 사용자가 사용할 수 있다.
+
+### PlanPlace
+
+- Plan 참여자는 이 Plan에 저장한 장소 목록을 조회할 수 있다.
+- `OWNER`, `EDITOR`는 카카오 검색 토큰으로 장소를 이 Plan에 저장할 수 있다.
+- 같은 장소를 다시 저장해도 `plan_places`에 중복 행이 생기지 않는다.
+- `VIEWER`는 목록만 볼 수 있고 저장·삭제는 할 수 없다.
+- 계획에서 장소를 삭제해도 공용 `places`는 남고, 연결 행만 제거된다.
 
 ---
 

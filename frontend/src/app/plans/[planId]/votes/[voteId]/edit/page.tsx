@@ -152,6 +152,11 @@ export default function VoteEditPage({
             href={`/plans/${planId}/places/search?return=${returnPath}&usage=vote_candidate`}
             label="카카오 장소 검색으로 후보 추가"
           />
+          <div className="h-2" />
+          <PlaceSearchTrigger
+            href={`/plans/${planId}/places?return=${returnPath}`}
+            label="저장된 장소 불러오기"
+          />
         </Field>
 
         {vote.options.map((option) => (

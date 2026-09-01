@@ -75,6 +75,8 @@ function placeEmoji(category: string | null | undefined): string {
 
 function mapSchedule(response: ScheduleApiResponse, planId: string, planStartDate: string): Schedule {
   const date = response.startAt.slice(0, 10);
+  const roadAddress = response.place?.roadAddress?.trim();
+  const landAddress = response.place?.address?.trim();
   return {
     id: String(response.scheduleId),
     planId,
@@ -85,7 +87,7 @@ function mapSchedule(response: ScheduleApiResponse, planId: string, planStartDat
     time: response.startAt.slice(11, 16),
     endAt: response.endAt ?? undefined,
     placeName: response.place?.name ?? response.title,
-    placeAddress: response.place?.roadAddress ?? response.place?.address ?? undefined,
+    placeAddress: roadAddress || landAddress || undefined,
     emoji: placeEmoji(response.place?.category),
     memo: response.memo ?? undefined,
     reservationStatus: response.reservationStatus,

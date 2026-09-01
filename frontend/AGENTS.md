@@ -115,7 +115,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - 화면: `src/app/plans/[planId]/places/page.tsx`(저장된 장소 목록),
   `src/app/plans/[planId]/places/search/page.tsx`(카카오 키워드/내 주변 검색)
 - 컴포넌트: `src/components/plan/PlaceRow.tsx`, `PlaceSearchTrigger.tsx`
-- API: `src/lib/api/places.ts` (`searchPlacesByKeyword`, `searchPlacesNearby`, `addPlaceToPlan`)
+- API: `src/lib/api/places.ts` (`searchPlacesByKeyword`, `searchPlacesNearby`, `getSavedPlaces`, `addPlaceToPlan`, `removePlaceFromPlan`)
 - 검색 결과를 다른 화면(일정 생성, 투표 생성)으로 되돌려주는 로직: `src/lib/pickedPlace.ts`
   (`setPickedPlace`/`consumePickedPlace`, sessionStorage 기반)
 - 타입: `Place`, `PlaceSearchResult`

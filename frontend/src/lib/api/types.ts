@@ -61,6 +61,7 @@ export interface Place {
   address: string;
   emoji: string;
   category?: string;
+  kakaoId?: string;
   source: PlaceSource;
   usage: PlaceUsage[];
 }
