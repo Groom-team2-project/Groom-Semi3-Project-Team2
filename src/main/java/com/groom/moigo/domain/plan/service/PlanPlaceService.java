@@ -8,14 +8,12 @@ import com.groom.moigo.domain.place.repository.PlaceRepository;
 import com.groom.moigo.domain.place.service.PlacePersistenceService;
 import com.groom.moigo.domain.place.service.PlaceService;
 import com.groom.moigo.domain.plan.entity.MemberEntity;
-import com.groom.moigo.domain.plan.entity.PlanEntity;
 import com.groom.moigo.domain.plan.entity.PlanPlaceEntity;
 import com.groom.moigo.domain.plan.repository.PlanPlaceRepository;
 import com.groom.moigo.domain.plan.repository.PlanRepository;
 import com.groom.moigo.global.error.BusinessException;
 import com.groom.moigo.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,21 +58,14 @@ public class PlanPlaceService {
 
     @Transactional
     public PlaceResponse savePlace(Long userId, Long planId, PlaceRegisterRequest request) {
-        PlanEntity plan = planRepository.findByIdAndNotDeleted(planId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
+        requirePlanExists(planId);
         MemberEntity member = planAccessService.requireJoinedMember(planId, userId);
         planAccessService.requireEditable(member);
 
         PlaceRegisterResponse registered = placeService.registerPlace(request);
         Long placeId = registered.getPlaceId();
         PlaceEntity place = placePersistenceService.findByPlaceId(placeId);
-
-        if (!planPlaceRepository.existsByPlan_PlanIdAndPlaceId(planId, placeId)) {
-            try {
-                planPlaceRepository.saveAndFlush(PlanPlaceEntity.create(plan, placeId));
-            } catch (DataIntegrityViolationException ignored) {
-            }
-        }
+        planPlaceRepository.upsert(planId, placeId);
 
         return PlaceResponse.from(place);
     }
