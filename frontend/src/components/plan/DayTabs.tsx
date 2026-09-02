@@ -81,10 +81,16 @@ export function DayTabs({
   function endDrag(event: React.PointerEvent<HTMLDivElement>) {
     const el = scrollRef.current;
     const origin = dragOriginRef.current;
-    if (el && origin?.captured && origin.pointerId === event.pointerId) {
+    const didDrag = origin?.captured && origin.pointerId === event.pointerId;
+    if (el && didDrag) {
       el.releasePointerCapture(event.pointerId);
     }
     dragOriginRef.current = null;
+    if (didDrag) {
+      window.setTimeout(() => {
+        draggedRef.current = false;
+      }, 0);
+    }
   }
 
   // 드래그가 끝난 직후 발생하는 click까지 탭 전환으로 처리되지 않도록 막는다.
