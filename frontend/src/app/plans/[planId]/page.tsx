@@ -142,6 +142,7 @@ function DayCard({
   schedules: Schedule[];
 }) {
   const summary = schedules.length
+
     ? [...schedules]
         .sort((a, b) => a.time.localeCompare(b.time))
         .map((s) => (s.linkedVoteId ? `(투표중) ${s.placeName}` : s.placeName))

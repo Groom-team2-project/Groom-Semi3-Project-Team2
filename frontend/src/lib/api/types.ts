@@ -89,16 +89,21 @@ export interface Schedule {
   id: string;
   planId: string;
   placeId?: string;
+  title?: string;
   day: number; // Day 1, 2, 3 ...
   date: string; // ISO date
   time: string; // "09:00"
+  endAt?: string;
   placeName: string;
   placeAddress?: string;
   emoji: string;
   memo?: string;
+  reservationStatus?: ReservationStatus;
   kakaoRouteUrl?: string;
   linkedVoteId?: string; // 투표중인 자리인 경우
 }
+
+export type ReservationStatus = "NOT_REQUIRED" | "UNRESERVED" | "RESERVED" | "CANCELLED";
 
 export interface Comment {
   id: string;

@@ -14,8 +14,9 @@ export function TimelineStop({ schedule, onClick }: { schedule: Schedule; onClic
       >
         <div className="min-w-0 flex-1">
           <div className="truncate text-[14.5px] font-bold">
-            {schedule.emoji} {schedule.placeName}
+            {schedule.emoji} {schedule.title ?? schedule.placeName}
           </div>
+
           <div className="truncate text-[12px] leading-relaxed text-gray-500">
             {schedule.placeAddress || "주소 정보 없음"}
           </div>

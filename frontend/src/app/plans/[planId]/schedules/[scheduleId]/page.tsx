@@ -11,6 +11,13 @@ import { ApiError, USE_MOCK } from "@/lib/api/client";
 import { store } from "@/lib/api/store";
 import type { Comment, Schedule } from "@/lib/api";
 
+const RESERVATION_LABEL = {
+  NOT_REQUIRED: "예약 불필요",
+  UNRESERVED: "예약 전",
+  RESERVED: "예약 완료",
+  CANCELLED: "예약 취소",
+} as const;
+
 function getCommentPostError(error: unknown): string {
   if (!(error instanceof ApiError)) return "댓글 등록에 실패했어요. 다시 시도해 주세요.";
 
@@ -192,10 +199,14 @@ export default function ScheduleDetailPage({
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <AppBar title={`${schedule.emoji} ${schedule.placeName}`} backHref={`/plans/${planId}/timeline?day=${schedule.day}`} />
+      <AppBar title={`${schedule.emoji} ${schedule.title ?? schedule.placeName}`} backHref={`/plans/${planId}/timeline?day=${schedule.day}`} />
       <div className="flex flex-1 flex-col gap-3 px-4 pb-8">
         <div className="text-[12.5px] text-gray-500">
-          📍 {schedule.placeAddress ?? "장소 정보 없음"} · {schedule.time}
+          📍 {schedule.placeId ? `${schedule.placeName} · ${schedule.placeAddress ?? "주소 정보 없음"}` : "장소 정보 없음"}
+        </div>
+        <div className="text-[12.5px] text-gray-500">
+          🕐 {schedule.time}{schedule.endAt ? ` ~ ${schedule.endAt.slice(11, 16)}` : ""}
+          {schedule.reservationStatus ? ` · ${RESERVATION_LABEL[schedule.reservationStatus]}` : ""}
         </div>
         {schedule.memo && <div className="rounded-xl bg-gray-100 px-3.5 py-3 text-[13.5px] text-gray-700">{schedule.memo}</div>}
 
