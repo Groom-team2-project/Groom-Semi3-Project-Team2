@@ -12,6 +12,7 @@ interface ActivityApiResponse {
   targetType: string;
   targetId: number;
   scheduleId: number | null;
+  targetDeleted: boolean;
   summary: string;
   nickname: string;
   createdAt: string;
@@ -70,6 +71,7 @@ function mapActivity(response: ActivityApiResponse): ActivityLog {
     targetType: response.targetType.toLowerCase() as ActivityLog["targetType"],
     targetId: String(response.targetId),
     scheduleId: response.scheduleId ? String(response.scheduleId) : undefined,
+    targetDeleted: response.targetDeleted,
     createdAt: response.createdAt,
   };
 }
@@ -106,7 +108,7 @@ export async function getActivities(planId: string, query: ActivityQuery = {}): 
       .map((activity) => {
         if (activity.targetType !== "comment" || !activity.targetId) return activity;
         const comment = store.comments.find((item) => item.id === activity.targetId);
-        return { ...activity, scheduleId: comment?.scheduleId };
+        return { ...activity, scheduleId: comment?.scheduleId, targetDeleted: !comment || comment.deleted };
       });
     return toMockPage(activities, query);
   }
@@ -133,10 +135,12 @@ export async function getMyActivities(query: ActivityQuery = {}): Promise<Activi
     const activities = store.activities
       .filter((activity) => activity.actorName === store.me.name)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .map((activity) => ({
-        ...activity,
-        planTitle: store.getPlan(activity.planId)?.title ?? "삭제된 계획",
-      }));
+      .map((activity) => {
+        const planTitle = store.getPlan(activity.planId)?.title ?? "삭제된 계획";
+        if (activity.targetType !== "comment" || !activity.targetId) return { ...activity, planTitle };
+        const comment = store.comments.find((item) => item.id === activity.targetId);
+        return { ...activity, planTitle, scheduleId: comment?.scheduleId, targetDeleted: !comment || comment.deleted };
+      });
     return toMockPage(activities, query);
   }
 

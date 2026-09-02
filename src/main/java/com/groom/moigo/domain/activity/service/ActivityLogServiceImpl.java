@@ -153,27 +153,35 @@ public class ActivityLogServiceImpl implements ActivityLogService {
                         logs.stream().map(ActivityLogEntity::getUserId).filter(java.util.Objects::nonNull).distinct().toList()
                 ).stream()
                 .collect(Collectors.toMap(UserEntity::getUserId, Function.identity()));
-        Map<Long, Long> scheduleIdsByCommentId = commentRepository.findAllById(
+        Map<Long, CommentEntity> commentsById = commentRepository.findAllById(
                         logs.stream()
                                 .filter(log -> log.getTargetType() == ActivityTargetType.COMMENT)
                                 .map(ActivityLogEntity::getTargetId)
                                 .toList()
                 ).stream()
-                .collect(Collectors.toMap(CommentEntity::getCommentId, CommentEntity::getScheduleId));
+                .collect(Collectors.toMap(CommentEntity::getCommentId, Function.identity()));
         Map<Long, String> planTitlesById = planRepository.findAllById(
                         logs.stream().map(ActivityLogEntity::getPlanId).distinct().toList()
                 ).stream()
                 .collect(Collectors.toMap(PlanEntity::getPlanId, PlanEntity::getTitle));
 
         return logs.stream()
-                .map(log -> ActivityResponse.from(
-                        log,
-                        usersById.get(log.getUserId()),
-                        planTitlesById.getOrDefault(log.getPlanId(), "삭제된 계획"),
-                        log.getTargetType() == ActivityTargetType.COMMENT
-                                ? scheduleIdsByCommentId.get(log.getTargetId())
-                                : null
-                ))
+                .map(log -> {
+                    // 댓글은 소프트 삭제라 로그가 남는다. 삭제된 댓글은 이동할 수 없으므로 목록에서 미리 구분해준다.
+                    CommentEntity comment = log.getTargetType() == ActivityTargetType.COMMENT
+                            ? commentsById.get(log.getTargetId())
+                            : null;
+                    boolean targetDeleted = log.getTargetType() == ActivityTargetType.COMMENT
+                            && (comment == null || comment.isDeleted());
+
+                    return ActivityResponse.from(
+                            log,
+                            usersById.get(log.getUserId()),
+                            planTitlesById.getOrDefault(log.getPlanId(), "삭제된 계획"),
+                            comment == null ? null : comment.getScheduleId(),
+                            targetDeleted
+                    );
+                })
                 .toList();
     }
 }

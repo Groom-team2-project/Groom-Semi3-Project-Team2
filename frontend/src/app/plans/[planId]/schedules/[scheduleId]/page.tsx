@@ -142,7 +142,7 @@ export default function ScheduleDetailPage({
   async function handleDelete(commentId: string) {
     await deleteComment(planId, scheduleId, commentId);
     setComments((prev) => prev.map((comment) => comment.id === commentId
-      ? { ...comment, deleted: true, text: "삭제된 댓글입니다.", authorName: "삭제된 사용자" }
+      ? { ...comment, deleted: true, text: "삭제된 댓글입니다." }
       : comment));
   }
 
