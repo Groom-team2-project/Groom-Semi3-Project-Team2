@@ -18,7 +18,8 @@ interface SchedulePlaceApiResponse {
   address: string | null;
   roadAddress: string | null;
   phone: string | null;
-  placeUrl: string | null;
+  placeUrl?: string | null;
+  place_url?: string | null;
 }
 
 interface ScheduleApiResponse {
@@ -30,7 +31,6 @@ interface ScheduleApiResponse {
   endAt: string | null;
   reservationStatus: ReservationStatus;
   sortOrder: number;
-  kakaoRouteUrl?: string | null;
 }
 
 interface ScheduleListApiResponse {
@@ -88,10 +88,11 @@ function mapSchedule(response: ScheduleApiResponse, planId: string, planStartDat
     endAt: response.endAt ?? undefined,
     placeName: response.place?.name ?? response.title,
     placeAddress: roadAddress || landAddress || undefined,
+    placePhone: response.place?.phone?.trim() || undefined,
+    placeUrl: response.place?.placeUrl?.trim() || response.place?.place_url?.trim() || undefined,
     emoji: placeEmoji(response.place?.category),
     memo: response.memo ?? undefined,
     reservationStatus: response.reservationStatus,
-    kakaoRouteUrl: response.kakaoRouteUrl ?? undefined,
   };
 }
 
@@ -146,9 +147,7 @@ export interface CreateScheduleInput {
 export async function getSchedules(planId: string): Promise<Schedule[]> {
   if (USE_MOCK) {
     await simulateLatency(180);
-    return store.schedules
-      .filter((schedule) => schedule.planId === planId)
-      .sort((left, right) => left.day - right.day || left.time.localeCompare(right.time));
+    return store.schedules.filter((schedule) => schedule.planId === planId);
   }
 
   const [response, planStartDate] = await Promise.all([
@@ -161,6 +160,32 @@ export async function getSchedules(planId: string): Promise<Schedule[]> {
 export async function getSchedulesByDay(planId: string, day: number): Promise<Schedule[]> {
   const all = await getSchedules(planId);
   return all.filter((schedule) => schedule.day === day);
+}
+
+/** PATCH /api/v1/plans/{planId}/schedules/order */
+export async function reorderSchedules(planId: string, scheduleIds: string[]): Promise<void> {
+  if (USE_MOCK) {
+    await simulateLatency(180);
+    const requestedIds = new Set(scheduleIds);
+    const reordered = scheduleIds
+      .map((id) => store.schedules.find((schedule) => schedule.planId === planId && schedule.id === id))
+      .filter((schedule): schedule is Schedule => Boolean(schedule));
+
+    if (reordered.length !== scheduleIds.length) {
+      throw new Error("Schedule not found");
+    }
+
+    const otherSchedules = store.schedules.filter(
+      (schedule) => schedule.planId !== planId || !requestedIds.has(schedule.id),
+    );
+    store.schedules = [...otherSchedules, ...reordered];
+    return;
+  }
+
+  await apiFetch<CommonResponse<unknown>>(`/api/v1/plans/${planId}/schedules/order`, {
+    method: "PATCH",
+    body: JSON.stringify({ scheduleIds: scheduleIds.map(Number) }),
+  });
 }
 
 /** GET /api/v1/plans/{planId}/schedules/{scheduleId} */
@@ -202,6 +227,8 @@ export async function createSchedule(planId: string, input: CreateScheduleInput)
       endAt: input.endAt,
       placeName: place?.name ?? input.title,
       placeAddress: place?.address,
+      placePhone: place?.phone,
+      placeUrl: place?.placeUrl,
       emoji: place?.emoji ?? "📍",
       memo: input.memo,
       reservationStatus: input.reservationStatus,
@@ -259,11 +286,15 @@ export async function updateSchedule(
       schedule.placeId = undefined;
       schedule.placeName = schedule.title ?? schedule.placeName;
       schedule.placeAddress = undefined;
+      schedule.placePhone = undefined;
+      schedule.placeUrl = undefined;
       schedule.emoji = "📍";
     } else if (place) {
       schedule.placeId = place.id;
       schedule.placeName = place.name;
       schedule.placeAddress = place.address;
+      schedule.placePhone = place.phone;
+      schedule.placeUrl = place.placeUrl;
       schedule.emoji = place.emoji;
     }
     store.recordActivity(planId, "schedule_updated", `'${schedule.title ?? schedule.placeName}' 일정을 수정했어요`, "schedule", schedule.id);

@@ -46,9 +46,6 @@ public class ScheduleEntity {
     @Column(name = "sort_order", nullable = false)
     private Integer sortOrder;
 
-    @Column(name = "kakao_route_url", length = 500)
-    private String kakaoRouteUrl;
-
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

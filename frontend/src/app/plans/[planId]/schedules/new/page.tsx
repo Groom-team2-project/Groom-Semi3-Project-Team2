@@ -4,7 +4,7 @@ import { use, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppBar } from "@/components/ui/AppBar";
 import { Button } from "@/components/ui/Button";
-import { Field, FieldInput, FieldTextarea } from "@/components/ui/FieldInput";
+import { Field, FieldInput, FieldTextarea, TimeFieldInput } from "@/components/ui/FieldInput";
 import { Toast } from "@/components/ui/Toast";
 import { PlaceRow } from "@/components/plan/PlaceRow";
 import { PlaceSearchTrigger } from "@/components/plan/PlaceSearchTrigger";
@@ -28,6 +28,10 @@ interface Draft {
   placeAddress: string;
   emoji: string;
   memo: string;
+}
+
+function isSelectableTime(value: string): boolean {
+  return /^([01]\d|2[0-3]):(?:[0-5]0|[0-5]5)$/.test(value);
 }
 
 export default function ScheduleNewPage({
@@ -81,6 +85,10 @@ export default function ScheduleNewPage({
 
   async function handleSubmit() {
     if (!canSubmit) return;
+    if (!isSelectableTime(draft.startTime) || (draft.endTime && !isSelectableTime(draft.endTime))) {
+      setToast("시간은 5분 단위로 선택해 주세요.");
+      return;
+    }
     if (draft.endTime && draft.endTime < draft.startTime) {
       setToast("종료 시간은 시작 시간과 같거나 늦어야 해요.");
       return;
@@ -151,18 +159,17 @@ export default function ScheduleNewPage({
         )}
 
         <Field label="시작 시간">
-          <FieldInput
-            type="time"
+          <TimeFieldInput
             value={draft.startTime}
-            onChange={(event) => setDraft((current) => ({ ...current, startTime: event.target.value }))}
+            onChange={(startTime) => setDraft((current) => ({ ...current, startTime }))}
           />
         </Field>
 
         <Field label="종료 시간" optional>
-          <FieldInput
-            type="time"
+          <TimeFieldInput
             value={draft.endTime}
-            onChange={(event) => setDraft((current) => ({ ...current, endTime: event.target.value }))}
+            optional
+            onChange={(endTime) => setDraft((current) => ({ ...current, endTime }))}
           />
         </Field>
 

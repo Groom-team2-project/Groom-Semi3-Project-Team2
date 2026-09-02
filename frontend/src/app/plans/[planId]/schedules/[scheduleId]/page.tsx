@@ -201,8 +201,34 @@ export default function ScheduleDetailPage({
     <div className="flex min-h-dvh flex-col">
       <AppBar title={`${schedule.emoji} ${schedule.title ?? schedule.placeName}`} backHref={`/plans/${planId}/timeline?day=${schedule.day}`} />
       <div className="flex flex-1 flex-col gap-3 px-4 pb-8">
-        <div className="text-[12.5px] text-gray-500">
-          📍 {schedule.placeId ? `${schedule.placeName} · ${schedule.placeAddress ?? "주소 정보 없음"}` : "장소 정보 없음"}
+        <div className="rounded-xl bg-gray-100 px-3.5 py-3 text-[12.5px] leading-relaxed text-gray-700">
+          {schedule.placeId ? (
+            <dl className="grid grid-cols-[58px_1fr] gap-x-2 gap-y-1.5">
+              <dt className="font-bold text-gray-500">장소</dt>
+              <dd className="font-semibold text-ink">{schedule.placeName}</dd>
+              <dt className="font-bold text-gray-500">주소</dt>
+              <dd>{schedule.placeAddress || "주소 정보 없음"}</dd>
+              <dt className="font-bold text-gray-500">전화</dt>
+              <dd>{schedule.placePhone || "전화번호 없음"}</dd>
+              <dt className="font-bold text-gray-500">장소 URL</dt>
+              <dd className="min-w-0 break-all">
+                {schedule.placeUrl ? (
+                  <a
+                    href={schedule.placeUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-semibold text-primary-dark underline underline-offset-2"
+                  >
+                    {schedule.placeUrl}
+                  </a>
+                ) : (
+                  "장소 URL 없음"
+                )}
+              </dd>
+            </dl>
+          ) : (
+            <p className="text-gray-500">연결된 장소 정보가 없어요.</p>
+          )}
         </div>
         <div className="text-[12.5px] text-gray-500">
           🕐 {schedule.time}{schedule.endAt ? ` ~ ${schedule.endAt.slice(11, 16)}` : ""}
