@@ -2,6 +2,8 @@ import { getComments, getSchedule } from "@/lib/api";
 import type { ActivityLog } from "@/lib/api";
 
 export async function getActivityDestination(planId: string, activity: ActivityLog): Promise<string | null> {
+  if (activity.targetDeleted) return null;
+
   if (activity.targetType === "schedule" && activity.targetId) {
     const schedule = await getSchedule(planId, activity.targetId);
     return schedule ? `/plans/${planId}/schedules/${activity.targetId}` : null;

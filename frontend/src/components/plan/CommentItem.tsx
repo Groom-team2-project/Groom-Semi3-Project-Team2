@@ -18,31 +18,35 @@ export function CommentItem({
   onDelete,
   onLike,
 }: CommentItemProps) {
+  if (comment.deleted) {
+    return (
+      <div className={`${showDivider ? "border-b border-gray-200" : ""} py-2.5 text-[13px] text-gray-500`}>
+        삭제된 댓글입니다.
+      </div>
+    );
+  }
+
   return (
     <div className={`${showDivider ? "border-b border-gray-200" : ""} flex gap-2 py-2.5`}>
       <div className="h-[26px] w-[26px] shrink-0 rounded-full" style={{ background: comment.authorColor }} />
       <div className="min-w-0">
         <div className="flex items-center gap-1.5">
-          <span className="text-[12px] font-bold">{comment.deleted ? "삭제된 사용자" : comment.authorName}</span>
+          <span className="text-[12px] font-bold">{comment.authorName}</span>
           <span className="text-[10.5px] text-gray-500">{formatRelativeTime(comment.createdAt)}</span>
-          {!comment.deleted && (
-            <div className="ml-auto flex items-center gap-2 text-[11px]">
-              <button type="button" className="text-primary" onClick={onReply}>답글</button>
-              {canDelete && <button type="button" className="text-red" onClick={onDelete}>삭제</button>}
-            </div>
-          )}
+          <div className="ml-auto flex items-center gap-2 text-[11px]">
+            <button type="button" className="text-primary" onClick={onReply}>답글</button>
+            {canDelete && <button type="button" className="text-red" onClick={onDelete}>삭제</button>}
+          </div>
         </div>
         <div className="mt-0.5 text-[13px] text-gray-700">{comment.text}</div>
-        {!comment.deleted && (
-          <button
-            type="button"
-            onClick={onLike}
-            className={`mt-1 flex items-center gap-1 text-[11px] ${comment.likedByMe ? "font-bold text-primary" : "text-gray-500"}`}
-          >
-            <span>{comment.likedByMe ? "👍" : "👍🏻"}</span>
-            <span>{comment.likeCount > 0 ? comment.likeCount : "좋아요"}</span>
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onLike}
+          className={`mt-1 flex items-center gap-1 text-[11px] ${comment.likedByMe ? "font-bold text-primary" : "text-gray-500"}`}
+        >
+          <span>{comment.likedByMe ? "👍" : "👍🏻"}</span>
+          <span>{comment.likeCount > 0 ? comment.likeCount : "좋아요"}</span>
+        </button>
       </div>
     </div>
   );
