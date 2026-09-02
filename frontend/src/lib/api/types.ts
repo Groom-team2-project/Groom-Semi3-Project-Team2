@@ -179,5 +179,7 @@ export interface ActivityLog {
   targetType?: "schedule" | "vote" | "member" | "comment" | "invitation";
   targetId?: string;
   scheduleId?: string;
+  /** 대상이 삭제되어 이동할 수 없는 활동(현재는 댓글 대상만 판별) */
+  targetDeleted?: boolean;
   createdAt: string; // ISO datetime
 }

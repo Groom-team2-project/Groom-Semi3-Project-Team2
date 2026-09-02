@@ -1,6 +1,7 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { AppBar } from "@/components/ui/AppBar";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -18,19 +19,33 @@ export default function RouteMapPage({
   const { planId } = use(params);
   const { day: dayParam } = use(searchParams);
   const day = Number(dayParam) || 1;
+
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
+  const [selectedScheduleId, setSelectedScheduleId] =
+    useState<string | null>(null);
 
   useEffect(() => {
     getSchedules(planId).then((all) =>
-      setSchedules(all.filter((s) => s.day === day)),
+      setSchedules(
+        all
+          .filter((schedule) => schedule.day === day)
+          .sort((a, b) => a.time.localeCompare(b.time)),
+      ),
     );
   }, [planId, day]);
 
-  const locatedSchedules = schedules.filter((schedule) =>
-    Boolean(schedule.placeId || schedule.placeAddress),
+  const locatedSchedules = useMemo(
+    () =>
+      schedules.filter((schedule) =>
+        Boolean(schedule.placeId || schedule.placeAddress),
+      ),
+    [schedules],
   );
-  const selectedSchedule = locatedSchedules.find((schedule) => schedule.id === selectedScheduleId) ?? null;
+
+  const selectedSchedule =
+    locatedSchedules.find(
+      (schedule) => schedule.id === selectedScheduleId,
+    ) ?? null;
 
   const toggleSchedule = useCallback((scheduleId: string) => {
     setSelectedScheduleId((current) => current === scheduleId ? null : scheduleId);
