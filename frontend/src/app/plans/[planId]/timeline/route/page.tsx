@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import { AppBar } from "@/components/ui/AppBar";
 import { Button } from "@/components/ui/Button";
 import { Segmented } from "@/components/ui/Segmented";
@@ -41,7 +41,10 @@ export default function RouteMapPage({
     );
   }, [planId, day]);
 
-  const locatedSchedules = schedules.filter((schedule) => Boolean(schedule.placeId));
+  const locatedSchedules = useMemo(
+    () => schedules.filter((schedule) => Boolean(schedule.placeId)),
+    [schedules],
+  );
   const legs = locatedSchedules.slice(1).map((to, i) => {
     const from = locatedSchedules[i];
     const km = estimateDistanceKm(i + 1);
