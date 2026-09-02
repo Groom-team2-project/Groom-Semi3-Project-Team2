@@ -1,26 +1,12 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { AppBar } from "@/components/ui/AppBar";
-import { Button } from "@/components/ui/Button";
-import { Segmented } from "@/components/ui/Segmented";
+import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { KakaoRouteMap } from "@/components/plan/KakaoRouteMap";
 import { getSchedules } from "@/lib/api";
 import type { Schedule } from "@/lib/api";
-
-type Mode = "walk" | "car" | "transit";
-
-const MODE_META: Record<Mode, { label: string; speedMinPerKm: number; icon: string }> = {
-  walk: { label: "도보", speedMinPerKm: 13, icon: "🚶" },
-  car: { label: "자동차", speedMinPerKm: 2.2, icon: "🚗" },
-  transit: { label: "대중교통", speedMinPerKm: 4.5, icon: "🚇" },
-};
-
-/** 실제 좌표가 없으니, 순서 기반으로 그럴듯한 거리(추정치)를 만들어낸다. */
-function estimateDistanceKm(seed: number): number {
-  return Math.round((1.2 + ((seed * 37) % 30) / 10) * 10) / 10;
-}
 
 export default function RouteMapPage({
   params,
@@ -33,85 +19,145 @@ export default function RouteMapPage({
   const { day: dayParam } = use(searchParams);
   const day = Number(dayParam) || 1;
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [mode, setMode] = useState<Mode>("car");
+  const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null);
 
   useEffect(() => {
     getSchedules(planId).then((all) =>
-      setSchedules(all.filter((s) => s.day === day).sort((a, b) => a.time.localeCompare(b.time))),
+      setSchedules(all.filter((s) => s.day === day)),
     );
   }, [planId, day]);
 
-  const locatedSchedules = schedules.filter((schedule) => Boolean(schedule.placeId));
-  const legs = locatedSchedules.slice(1).map((to, i) => {
-    const from = locatedSchedules[i];
-    const km = estimateDistanceKm(i + 1);
-    const minutes = Math.max(3, Math.round(km * MODE_META[mode].speedMinPerKm));
-    return { from, to, km, minutes };
-  });
+  const locatedSchedules = schedules.filter((schedule) =>
+    Boolean(schedule.placeId || schedule.placeAddress),
+  );
+  const selectedSchedule = locatedSchedules.find((schedule) => schedule.id === selectedScheduleId) ?? null;
 
-  const totalKm = Math.round(legs.reduce((sum, l) => sum + l.km, 0) * 10) / 10;
-  const totalMin = legs.reduce((sum, l) => sum + l.minutes, 0);
+  const toggleSchedule = useCallback((scheduleId: string) => {
+    setSelectedScheduleId((current) => current === scheduleId ? null : scheduleId);
+  }, []);
 
   return (
     <div className="flex min-h-dvh flex-col">
       <AppBar
-        title={`Day ${day} 동선`}
-        subtitle={legs.length > 0 ? `${MODE_META[mode].label} · 이동 ${totalMin}분 · 총 ${totalKm}km (추정)` : "동선 정보 없음"}
+        title={`Day ${day} 장소 지도`}
+        subtitle={locatedSchedules.length > 0 ? `일정 장소 ${locatedSchedules.length}곳` : "표시할 장소 없음"}
         backHref={`/plans/${planId}/timeline?day=${day}`}
       />
-      <div className="px-4 pb-3">
-        <Segmented
-          value={mode}
-          onChange={setMode}
-          options={[
-            { value: "walk", label: "🚶 도보" },
-            { value: "car", label: "🚗 자동차" },
-            { value: "transit", label: "🚇 대중교통" },
-          ]}
-        />
-      </div>
 
-      {legs.length === 0 ? (
+      {locatedSchedules.length === 0 ? (
         <div className="px-4">
           <EmptyState
             emoji="🗺️"
-            title="동선을 계산할 일정이 부족해요"
-            description="같은 날짜에 장소가 선택된 일정이 2개 이상 있어야 동선을 볼 수 있어요"
+            title="지도에 표시할 장소가 없어요"
+            description="일정에 장소를 선택하면 지도에 마커로 표시돼요"
           />
         </div>
       ) : (
-        <>
-          <div className="relative bg-gray-100">
-            <KakaoRouteMap schedules={locatedSchedules} />
+        <div className="flex min-h-0 flex-1 flex-col bg-gray-100">
+          <div className="relative h-[46dvh] min-h-[300px] shrink-0 border-b border-gray-200">
+            <KakaoRouteMap
+              schedules={locatedSchedules}
+              selectedScheduleId={selectedScheduleId}
+              onSelectSchedule={toggleSchedule}
+            />
             <div className="absolute left-2.5 top-2.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[10.5px] font-bold text-gray-700">
-              드래그해서 지도 이동 · 휠/버튼으로 확대·축소
+              숫자 순서대로 연결된 동선 · 마커를 누르면 상세 보기
             </div>
           </div>
-          <div className="flex flex-1 flex-col gap-3 px-4 pt-3.5 pb-8">
-            <div className="rounded-2xl border border-dashed border-primary bg-primary-soft p-3.5 text-[13px] text-primary-dark">
-              ⚠️ 카카오모빌리티 Directions API는 별도 승인 절차가 필요해, 도보·자동차는 직선거리에 보정계수를 적용해
-              추정합니다. P2 스트레치 기능입니다.
+
+          <section className="flex min-h-0 flex-1 flex-col bg-white" aria-label="일정 목록 및 상세">
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+              <div>
+                <h2 className="text-[15px] font-bold text-ink">
+                  {selectedSchedule ? "선택한 일정" : `Day ${day} 일정`}
+                </h2>
+                <p className="mt-0.5 text-[11.5px] text-gray-500">
+                  {selectedSchedule ? "마커를 다시 누르거나 아래 버튼으로 목록에 돌아갈 수 있어요" : "시간 순서대로 둘러보세요"}
+                </p>
+              </div>
+              <span className="rounded-full bg-primary-soft px-2.5 py-1 text-[11px] font-bold text-primary-dark">
+                {locatedSchedules.length}곳
+              </span>
             </div>
-            <div className="flex flex-col gap-2">
-              {legs.map((leg, i) => (
-                <div key={i} className="rounded-2xl bg-gray-100 px-3.5 py-3 text-[13px] text-ink">
-                  <div className="mb-0.5 text-[11.5px] text-gray-500">
-                    {leg.from.placeName} → {leg.to.placeName}
+
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
+              {selectedSchedule ? (
+                <Card className="gap-3 border-primary bg-primary-soft">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-[13px] font-bold text-white">
+                      {locatedSchedules.findIndex((schedule) => schedule.id === selectedSchedule.id) + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="truncate text-[15px] font-bold text-ink">
+                          {selectedSchedule.emoji} {selectedSchedule.title ?? selectedSchedule.placeName}
+                        </h3>
+                        <time className="shrink-0 font-mono text-[12px] font-bold text-primary">
+                          {selectedSchedule.time}{selectedSchedule.endAt ? ` ~ ${selectedSchedule.endAt.slice(11, 16)}` : ""}
+                        </time>
+                      </div>
+                      <dl className="mt-3 grid grid-cols-[58px_1fr] gap-x-2 gap-y-1.5 border-t border-gray-200 pt-3 text-[12px] leading-relaxed">
+                        <dt className="font-bold text-gray-500">장소</dt>
+                        <dd className="font-semibold text-ink">{selectedSchedule.placeName}</dd>
+                        <dt className="font-bold text-gray-500">주소</dt>
+                        <dd className="text-gray-700">{selectedSchedule.placeAddress || "주소 정보 없음"}</dd>
+                        <dt className="font-bold text-gray-500">전화</dt>
+                        <dd className="min-w-0 text-gray-700">{selectedSchedule.placePhone || "전화번호 없음"}</dd>
+                        <dt className="font-bold text-gray-500">장소 URL</dt>
+                        <dd className="min-w-0 break-all">
+                          {selectedSchedule.placeUrl ? (
+                            <a
+                              href={selectedSchedule.placeUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-semibold text-primary-dark underline underline-offset-2"
+                            >
+                              {selectedSchedule.placeUrl}
+                            </a>
+                          ) : (
+                            <span className="text-gray-700">장소 URL 없음</span>
+                          )}
+                        </dd>
+                      </dl>
+                    </div>
                   </div>
-                  {MODE_META[mode].icon} 약 {leg.minutes}분 · {leg.km}km (추정)
+                  {selectedSchedule.memo && (
+                    <p className="rounded-xl bg-white px-3.5 py-3 text-[13px] leading-relaxed text-gray-700">
+                      {selectedSchedule.memo}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => toggleSchedule(selectedSchedule.id)}
+                    className="w-full rounded-xl bg-white py-2.5 text-center text-[12px] font-bold text-primary-dark active:opacity-80"
+                  >
+                    전체 일정 보기
+                  </button>
+                </Card>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {locatedSchedules.map((schedule, index) => (
+                    <Card key={schedule.id} onClick={() => toggleSchedule(schedule.id)} className="flex-row items-center gap-3 py-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-[13px] font-bold text-primary-dark">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="truncate font-bold text-ink">
+                            {schedule.emoji} {schedule.title ?? schedule.placeName}
+                          </h3>
+                          <time className="shrink-0 font-mono text-[12px] font-bold text-primary">{schedule.time}</time>
+                        </div>
+                        <p className="truncate text-[12px] text-gray-500">{schedule.placeAddress || schedule.placeName}</p>
+                      </div>
+                      <span aria-hidden="true" className="text-gray-300">›</span>
+                    </Card>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-            <div className="flex gap-2">
-              <Button href={`/plans/${planId}/timeline?day=${day}`} variant="ghost" size="sm">
-                일정으로 돌아가기
-              </Button>
-              <Button variant="primary" size="sm" onClick={() => window.alert("카카오맵 길안내는 실제 API 연동 후 제공돼요")}>
-                카카오맵에서 {MODE_META[mode].label} 길안내
-              </Button>
-            </div>
-          </div>
-        </>
+          </section>
+        </div>
       )}
     </div>
   );

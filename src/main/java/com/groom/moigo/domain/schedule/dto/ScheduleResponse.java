@@ -21,7 +21,6 @@ public class ScheduleResponse {
     private LocalDateTime endAt;
     private ReservationStatus reservationStatus;
     private Integer sortOrder;
-    private String kakaoRouteUrl;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime deletedAt;
@@ -37,7 +36,6 @@ public class ScheduleResponse {
                 schedule.getEndAt(),
                 schedule.getReservationStatus(),
                 schedule.getSortOrder(),
-                schedule.getKakaoRouteUrl(),
                 schedule.getCreatedAt(),
                 schedule.getUpdatedAt(),
                 schedule.getDeletedAt()

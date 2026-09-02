@@ -15,6 +15,7 @@ public class ScheduleSummaryResponse {
     private Long scheduleId;
     private SchedulePlaceResponse place;
     private String title;
+    private String memo;
     private Integer sortOrder;
     private LocalDateTime startAt;
     private LocalDateTime endAt;
@@ -25,6 +26,7 @@ public class ScheduleSummaryResponse {
                 schedule.getScheduleId(),
                 place,
                 schedule.getTitle(),
+                schedule.getMemo(),
                 schedule.getSortOrder(),
                 schedule.getStartAt(),
                 schedule.getEndAt(),

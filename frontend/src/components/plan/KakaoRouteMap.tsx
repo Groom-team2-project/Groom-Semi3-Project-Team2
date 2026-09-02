@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Schedule } from "@/lib/api";
 
 type KakaoLatLng = object;
+type KakaoMarkerImage = object;
 
 interface KakaoMapInstance {
   getLevel(): number;
@@ -15,10 +16,17 @@ interface KakaoBounds {
   extend(position: KakaoLatLng): void;
 }
 
+interface KakaoMarker {
+  setImage(image: KakaoMarkerImage): void;
+  setZIndex(zIndex: number): void;
+}
+
 interface KakaoMapsApi {
   load(callback: () => void): void;
   LatLng: new (latitude: number, longitude: number) => KakaoLatLng;
   LatLngBounds: new () => KakaoBounds;
+  Size: new (width: number, height: number) => object;
+  MarkerImage: new (src: string, size: object) => KakaoMarkerImage;
   Map: new (
     container: HTMLElement,
     options: {
@@ -32,7 +40,20 @@ interface KakaoMapsApi {
     map: KakaoMapInstance;
     position: KakaoLatLng;
     title: string;
+    image?: KakaoMarkerImage;
+  }) => KakaoMarker;
+  Polyline: new (options: {
+    map: KakaoMapInstance;
+    path: KakaoLatLng[];
+    strokeWeight: number;
+    strokeColor: string;
+    strokeOpacity: number;
+    strokeStyle: "solid" | "shortdash" | "shortdot" | "shortdashdot" | "longdash" | "longdot" | "longdashdot" | "dash" | "dot" | "dashdot";
+    zIndex: number;
   }) => object;
+  event: {
+    addListener(target: KakaoMarker, eventName: "click", handler: () => void): void;
+  };
   services: {
     Status: { OK: string };
     Geocoder: new () => {
@@ -50,9 +71,16 @@ interface KakaoMapsApi {
   };
 }
 
+declare global {
+  interface Window {
+    kakao?: {
+      maps?: KakaoMapsApi;
+    };
+  }
+}
+
 function getKakaoMaps(): KakaoMapsApi | undefined {
-  const kakao = window.Kakao as (typeof window.Kakao & { maps?: KakaoMapsApi }) | undefined;
-  return kakao?.maps;
+  return window.kakao?.maps;
 }
 
 function loadKakaoMaps(): Promise<KakaoMapsApi> {
@@ -99,7 +127,7 @@ function findPosition(
   schedule: Schedule,
 ): Promise<KakaoLatLng | null> {
   return new Promise((resolve) => {
-    if (!schedule.placeId) {
+    if (!schedule.placeName && !schedule.placeAddress) {
       resolve(null);
       return;
     }
@@ -127,9 +155,39 @@ function findPosition(
   });
 }
 
-export function KakaoRouteMap({ schedules }: { schedules: Schedule[] }) {
+function createMarkerImage(
+  maps: KakaoMapsApi,
+  order: number,
+  selected: boolean,
+): KakaoMarkerImage {
+  const width = selected ? 48 : 36;
+  const height = selected ? 58 : 44;
+  const fill = selected ? "#1B64DA" : "#3182F6";
+  const fontSize = selected ? 17 : 13;
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <path fill="${fill}" stroke="#FFFFFF" stroke-width="3" d="M${width / 2} 2C${width * 0.25} 2 4 ${width * 0.23} 4 ${width * 0.48}c0 ${width * 0.31} ${width / 2} ${height - 4} ${width / 2} ${height - 4}s${width / 2}-${height - 4 - width * 0.48} ${width / 2}-${height - 4 - width * 0.48}C${width - 4} ${width * 0.23} ${width * 0.75} 2 ${width / 2} 2Z"/>
+      <circle cx="${width / 2}" cy="${width * 0.45}" r="${width * 0.22}" fill="#FFFFFF"/>
+      <text x="${width / 2}" y="${width * 0.45 + fontSize * 0.36}" text-anchor="middle" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="700" fill="${fill}">${order}</text>
+    </svg>`;
+  const src = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  return new maps.MarkerImage(src, new maps.Size(width, height));
+}
+
+export function KakaoRouteMap({
+  schedules,
+  selectedScheduleId,
+  onSelectSchedule,
+}: {
+  schedules: Schedule[];
+  selectedScheduleId: string | null;
+  onSelectSchedule: (scheduleId: string) => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<KakaoMapInstance | null>(null);
+  const mapsRef = useRef<KakaoMapsApi | null>(null);
+  const markersRef = useRef<Array<{ marker: KakaoMarker; scheduleId: string; order: number }>>([]);
+  const selectedScheduleIdRef = useRef(selectedScheduleId);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -139,14 +197,18 @@ export function KakaoRouteMap({ schedules }: { schedules: Schedule[] }) {
       try {
         const maps = await loadKakaoMaps();
         if (cancelled || !containerRef.current) return;
+        const container = containerRef.current;
+        container.replaceChildren();
 
-        const map = new maps.Map(containerRef.current, {
+        const map = new maps.Map(container, {
           center: new maps.LatLng(37.5665, 126.978),
           level: 6,
           draggable: true,
           scrollwheel: true,
         });
         mapRef.current = map;
+        mapsRef.current = maps;
+        markersRef.current = [];
 
         const positions = await Promise.all(
           schedules.map(async (schedule) => ({
@@ -157,13 +219,34 @@ export function KakaoRouteMap({ schedules }: { schedules: Schedule[] }) {
         if (cancelled) return;
 
         const bounds = new maps.LatLngBounds();
+        const routePath: KakaoLatLng[] = [];
         let markerCount = 0;
-        positions.forEach(({ schedule, position }) => {
+        positions.forEach(({ schedule, position }, index) => {
           if (!position) return;
-          new maps.Marker({ map, position, title: schedule.placeName });
+          routePath.push(position);
+          const marker = new maps.Marker({
+            map,
+            position,
+            title: schedule.placeName,
+            image: createMarkerImage(maps, index + 1, selectedScheduleIdRef.current === schedule.id),
+          });
+          marker.setZIndex(selectedScheduleIdRef.current === schedule.id ? 10 : 1);
+          maps.event.addListener(marker, "click", () => onSelectSchedule(schedule.id));
+          markersRef.current.push({ marker, scheduleId: schedule.id, order: index + 1 });
           bounds.extend(position);
           markerCount += 1;
         });
+        if (routePath.length > 1) {
+          new maps.Polyline({
+            map,
+            path: routePath,
+            strokeWeight: 4,
+            strokeColor: "#3182F6",
+            strokeOpacity: 0.75,
+            strokeStyle: "solid",
+            zIndex: 0,
+          });
+        }
         if (markerCount > 0) map.setBounds(bounds);
       } catch (cause) {
         if (!cancelled) {
@@ -176,8 +259,22 @@ export function KakaoRouteMap({ schedules }: { schedules: Schedule[] }) {
     return () => {
       cancelled = true;
       mapRef.current = null;
+      mapsRef.current = null;
+      markersRef.current = [];
     };
-  }, [schedules]);
+  }, [schedules, onSelectSchedule]);
+
+  useEffect(() => {
+    selectedScheduleIdRef.current = selectedScheduleId;
+    const maps = mapsRef.current;
+    if (!maps) return;
+
+    markersRef.current.forEach(({ marker, scheduleId, order }) => {
+      const selected = selectedScheduleId === scheduleId;
+      marker.setImage(createMarkerImage(maps, order, selected));
+      marker.setZIndex(selected ? 10 : 1);
+    });
+  }, [selectedScheduleId]);
 
   function changeZoom(delta: number) {
     const map = mapRef.current;
@@ -187,8 +284,8 @@ export function KakaoRouteMap({ schedules }: { schedules: Schedule[] }) {
   }
 
   return (
-    <div className="relative h-[260px] overflow-hidden bg-gray-100">
-      <div ref={containerRef} className="h-full w-full" aria-label="일정 경로 지도" />
+    <div className="relative h-full min-h-[300px] overflow-hidden bg-gray-100">
+      <div ref={containerRef} className="absolute inset-0" aria-label="일정 장소 지도" />
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100 px-8 text-center text-[13px] text-gray-700">
           {error}
