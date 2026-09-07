@@ -3,13 +3,17 @@ package com.groom.moigo.domain.comment.controller;
 import com.groom.moigo.domain.auth.security.AuthMember;
 import com.groom.moigo.domain.comment.dto.CommentCreateRequest;
 import com.groom.moigo.domain.comment.dto.CommentLikeResponse;
+import com.groom.moigo.domain.comment.dto.CommentPageResponse;
 import com.groom.moigo.domain.comment.dto.CommentResponse;
 import com.groom.moigo.domain.comment.service.CommentService;
 import com.groom.moigo.domain.plan.entity.MemberEntity;
 import com.groom.moigo.domain.plan.service.PlanAccessService;
 import com.groom.moigo.global.response.CommonResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -18,13 +22,16 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 
-import java.util.List;
+import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/api/v1/plans/{planId}/schedules/{scheduleId}/comments")
 @RequiredArgsConstructor
+@Validated
 public class CommentController {
     private final CommentService commentService;
     private final PlanAccessService planAccessService;
@@ -48,15 +55,20 @@ public class CommentController {
     }
 
     @GetMapping
-    public ResponseEntity<CommonResponse<List<CommentResponse>>> getComments(
+    public ResponseEntity<CommonResponse<CommentPageResponse>> getComments(
             @PathVariable Long planId,
             @PathVariable Long scheduleId,
-            @AuthenticationPrincipal AuthMember authMember
+            @AuthenticationPrincipal AuthMember authMember,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime cursorCreatedAt,
+            @RequestParam(required = false) Long cursorCommentId
     ) {
         Long userId = authMember.userId();
         planAccessService.requireJoinedMember(planId, userId);
 
-        List<CommentResponse> response = commentService.getComments(planId, scheduleId, userId);
+        CommentPageResponse response = commentService.getComments(
+                planId, scheduleId, userId, size, cursorCreatedAt, cursorCommentId
+        );
 
         return ResponseEntity.ok(
                 CommonResponse.success(response, "댓글 목록 조회 성공")
