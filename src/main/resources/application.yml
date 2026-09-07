@@ -123,6 +123,7 @@ spring:
   datasource:
     hikari:
       data-source-properties:
+        sslMode: VERIFY_IDENTITY
         trustCertificateKeyStoreUrl: file:/app/certs/rds-truststore.p12
         trustCertificateKeyStoreType: PKCS12
         fallbackToSystemTrustStore: false

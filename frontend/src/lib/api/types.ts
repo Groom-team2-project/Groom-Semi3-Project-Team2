@@ -59,6 +59,8 @@ export interface Place {
   planId: string;
   name: string;
   address: string;
+  phone?: string;
+  placeUrl?: string;
   emoji: string;
   category?: string;
   kakaoId?: string;
@@ -96,10 +98,11 @@ export interface Schedule {
   endAt?: string;
   placeName: string;
   placeAddress?: string;
+  placePhone?: string;
+  placeUrl?: string;
   emoji: string;
   memo?: string;
   reservationStatus?: ReservationStatus;
-  kakaoRouteUrl?: string;
   linkedVoteId?: string; // 투표중인 자리인 경우
 }
 

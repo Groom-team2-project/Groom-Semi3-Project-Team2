@@ -27,6 +27,49 @@ export function FieldInput({ className, ...rest }: InputHTMLAttributes<HTMLInput
   return <input className={cx(inputClass, className)} {...rest} />;
 }
 
+const HOURS = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, "0"));
+const MINUTES = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0"));
+
+export function TimeFieldInput({
+  value,
+  onChange,
+  optional = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  optional?: boolean;
+}) {
+  const [selectedHour = "", selectedMinute = ""] = value.split(":");
+  const minute = MINUTES.includes(selectedMinute) ? selectedMinute : "";
+
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <select
+        aria-label="시 선택"
+        value={selectedHour}
+        onChange={(event) => {
+          const hour = event.target.value;
+          onChange(hour ? `${hour}:${minute || "00"}` : "");
+        }}
+        className={cx(inputClass, "font-mono")}
+      >
+        {optional && <option value="">설정 안 함</option>}
+        {HOURS.map((hour) => <option key={hour} value={hour}>{hour}시</option>)}
+      </select>
+      <select
+        aria-label="분 선택"
+        value={minute}
+        disabled={!selectedHour}
+        onChange={(event) => onChange(`${selectedHour}:${event.target.value}`)}
+        className={cx(inputClass, "font-mono disabled:cursor-not-allowed disabled:opacity-50")}
+      >
+        {!minute && <option value="">분 선택</option>}
+        {MINUTES.map((item) => <option key={item} value={item}>{item}분</option>)}
+      </select>
+    </div>
+  );
+}
+
 export function FieldTextarea({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea className={cx(inputClass, "min-h-[84px] resize-none", className)} {...rest} />;
 }

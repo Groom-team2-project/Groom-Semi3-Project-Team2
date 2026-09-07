@@ -57,8 +57,7 @@
   "startAt": "2026-08-15T09:00:00",
   "endTime": "11:00",
   "memo": "입장권 확인",
-  "reservationStatus": "NOT_REQUIRED",
-  "kakaoRouteUrl": "https://map.kakao.com/..."
+  "reservationStatus": "NOT_REQUIRED"
 }
 ```
 
@@ -81,7 +80,6 @@
   "endTime": "11:00",
   "memo": "입장권 확인",
   "reservationStatus": "NOT_REQUIRED",
-  "kakaoRouteUrl": "https://map.kakao.com/...",
   "createdAt": "2026-08-11T15:30:00.123456",
   "updatedAt": "2026-08-11T15:30:00.123456"
 }
@@ -183,7 +181,6 @@ GET /api/v1/schedules/31?includeDeleted=true
   "endTime": "11:00",
   "memo": "입장권 확인",
   "reservationStatus": "NOT_REQUIRED",
-  "kakaoRouteUrl": "https://map.kakao.com/...",
   "createdAt": "2026-08-11T15:30:00.123456",
   "updatedAt": "2026-08-11T15:30:00.123456",
   "deletedAt": null
@@ -247,7 +244,6 @@ GET /api/v1/schedules/31?includeDeleted=true
   "endTime": "08:00",
   "memo": null,
   "reservationStatus": "RESERVED",
-  "kakaoRouteUrl": "https://map.kakao.com/...",
   "createdAt": "2026-08-11T15:30:00.123456",
   "updatedAt": "2026-08-11T16:10:00.123456"
 }
