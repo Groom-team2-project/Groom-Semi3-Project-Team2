@@ -11,6 +11,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 @Entity
 @Table(name = "comments")
@@ -55,7 +56,7 @@ public class CommentEntity {
             Long parentCommentId
     ) {
         CommentEntity comment = new CommentEntity();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
 
         comment.planId = planId;
         comment.scheduleId = scheduleId;
@@ -71,6 +72,6 @@ public class CommentEntity {
 
     public void delete() {
         this.deleted = true;
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
     }
 }

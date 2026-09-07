@@ -13,6 +13,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 @Entity
 @Table(name = "activity_logs")
@@ -63,7 +64,9 @@ public class ActivityLogEntity {
         log.targetType = targetType;
         log.targetId = targetId;
         log.summary = summary;
-        log.createdAt = LocalDateTime.now();
+        // created_at 컬럼은 DATETIME(6)이라 마이크로초까지만 저장됨.
+        // 리눅스에서는 now()가 나노초까지 나오므로, 그대로 두면 메모리 값과 DB 저장값이 달라져 커서 페이지네이션의 동등 비교가 어긋나게 됨.
+        log.createdAt = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
         return log;
     }
 }

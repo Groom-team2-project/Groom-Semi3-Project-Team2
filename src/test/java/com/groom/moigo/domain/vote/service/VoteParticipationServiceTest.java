@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.groom.moigo.domain.activity.entity.ActivityActionType;
+import com.groom.moigo.domain.activity.entity.ActivityTargetType;
 import com.groom.moigo.domain.activity.repository.ActivityLogRepository;
 import com.groom.moigo.domain.plan.entity.MemberRole;
 import com.groom.moigo.domain.vote.dto.request.VoteCreateRequest;
@@ -111,9 +112,11 @@ class VoteParticipationServiceTest {
 				planId, id(vote.id()), firstId, single(vote.options().get(0).id()));
 
 		// 누가 무엇을 골랐는지 드러나지 않아야 하므로 참여 관련 이력은 만들지 않는다. 투표 생성 이력만 남는다.
-		// 활동 기록이 REQUIRES_NEW로 즉시 커밋되어 다른 테스트가 남긴 행이 섞이므로 이번 투표로 걸러서 본다.
+		// 활동 기록이 REQUIRES_NEW로 즉시 커밋되어 다른 테스트가 남긴 행이 섞인다. targetId는 대상 종류별로
+		// 따로 매겨지므로(댓글 5번과 투표 5번이 공존) targetType까지 함께 걸러야 이번 투표의 이력만 남는다.
 		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getTargetId().equals(Long.valueOf(vote.id())))
+				.filteredOn(log -> log.getTargetType() == ActivityTargetType.VOTE
+						&& log.getTargetId().equals(Long.valueOf(vote.id())))
 				.extracting(log -> log.getActionType())
 				.containsExactly(ActivityActionType.VOTE_CREATED);
 	}
