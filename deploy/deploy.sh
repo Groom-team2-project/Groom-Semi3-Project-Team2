@@ -51,9 +51,9 @@ aws ecr get-login-password --region "${DEPLOY_REGION}" \
 echo "[3/6] 백엔드 이미지 다운로드"
 docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" pull backend
 
-echo "[4/6] 백엔드와 MySQL 실행"
+echo "[4/6] 백엔드 실행"
 DEPLOYMENT_STARTED=1
-docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d mysql backend
+docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" up -d backend
 
 echo "[5/6] 백엔드 헬스체크 대기"
 for attempt in $(seq 1 30); do
