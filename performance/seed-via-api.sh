@@ -33,6 +33,15 @@ require PLAN_ID
 require ACCESS_TOKEN
 
 BASE_URL="${BASE_URL%/}"
+
+# 모든 요청이 Bearer 토큰을 실어 보내므로, 네트워크를 타는 주소는 HTTPS만 허용
+if [[ "${BASE_URL}" != https://* \
+      && "${BASE_URL}" != http://localhost* \
+      && "${BASE_URL}" != http://127.0.0.1* ]]; then
+  echo "BASE_URL은 HTTPS URL이어야 합니다 (로컬 http://localhost 제외)." >&2
+  exit 1
+fi
+
 COUNT="${COUNT:-300}"
 CONCURRENCY="${CONCURRENCY:-4}"
 
@@ -99,9 +108,13 @@ post_comment() {
 export -f post_comment
 export API AUTH_HEADER SCHEDULE_ID
 
+# 일부만 성공하면 요청한 COUNT보다 적은 데이터로 커서를 계산하게 되므로 실패 시 중단
 seq 1 "${COUNT}" \
   | xargs -P "${CONCURRENCY}" -I {} bash -c 'post_comment {}' \
-  || echo "  일부 요청이 실패했습니다. 아래 확인 결과를 보고 판단하세요." >&2
+  || {
+    echo "  일부 요청이 실패했습니다. 시드 데이터가 불완전하므로 중단합니다." >&2
+    exit 1
+  }
 
 echo "      완료"
 echo
@@ -151,7 +164,8 @@ echo "────────────────────────�
 echo
 echo "export BASE_URL=${BASE_URL}"
 echo "export PLAN_ID=${PLAN_ID}"
-echo "export ACCESS_TOKEN=${ACCESS_TOKEN}"
+# 토큰 값은 터미널 기록·CI 로그에 남지 않도록 출력하지 X
+echo "# ACCESS_TOKEN은 이 스크립트를 실행한 셸에 이미 설정되어 있습니다."
 echo "export DEEP_CURSOR_CREATED_AT=${DEEP_AT}"
 echo "export DEEP_CURSOR_LOG_ID=${DEEP_ID}"
 echo

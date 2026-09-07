@@ -97,6 +97,13 @@ export default function ScheduleDetailPage({
     document.getElementById(`comment-${focusCommentId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [comments, focusCommentId]);
 
+  useEffect(() => {
+    if (!focusCommentId || comments.length === 0) return;
+    if (comments.some((comment) => comment.id === focusCommentId)) return;
+    if (!commentsHasNext || loadingMoreComments) return;
+    void loadMoreComments();
+  });
+
   async function loadMoreComments() {
     if (!commentsCursor || loadingMoreComments) return;
     setLoadingMoreComments(true);
