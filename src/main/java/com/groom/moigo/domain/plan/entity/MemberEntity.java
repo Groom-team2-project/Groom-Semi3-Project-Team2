@@ -1,6 +1,8 @@
 package com.groom.moigo.domain.plan.entity;
 
 import com.groom.moigo.domain.user.entity.UserEntity;
+import com.groom.moigo.global.error.BusinessException;
+import com.groom.moigo.global.error.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -71,8 +73,11 @@ public class MemberEntity {
     }
 
     public void rejoin(MemberRole newRole) {
+        if (newRole == null) {
+            throw new BusinessException(ErrorCode.MEMBER_ROLE_REQUIRED);
+        }
         if (this.status == MemberStatus.JOINED) {
-            throw new IllegalStateException("이미 참여 중인 멤버입니다.");
+            throw new BusinessException(ErrorCode.MEMBER_ALREADY_JOINED);
         }
         this.role = newRole;
         this.status = MemberStatus.JOINED;
@@ -88,25 +93,28 @@ public class MemberEntity {
     }
 
     public void changeRole(MemberRole newRole) {
+        if (newRole == null) {
+            throw new BusinessException(ErrorCode.MEMBER_ROLE_REQUIRED);
+        }
         if (this.role == MemberRole.OWNER) {
-            throw new IllegalStateException("OWNER 권한은 변경할 수 없습니다.");
+            throw new BusinessException(ErrorCode.OWNER_ROLE_CANNOT_BE_CHANGED);
         }
         if (newRole == MemberRole.OWNER) {
-            throw new IllegalStateException("OWNER 권한은 다른 회원에게 부여할 수 없습니다.");
+            throw new BusinessException(ErrorCode.OWNER_ROLE_CANNOT_BE_ASSIGNED);
         }
         this.role = newRole;
     }
 
     public void leave() {
         if (this.role == MemberRole.OWNER) {
-            throw new IllegalStateException("OWNER는 계획에서 나갈 수 없습니다.");
+            throw new BusinessException(ErrorCode.OWNER_CANNOT_LEAVE);
         }
         this.status = MemberStatus.LEFT;
     }
 
     public void remove() {
         if (this.role == MemberRole.OWNER) {
-            throw new IllegalStateException("OWNER는 내보낼 수 없습니다.");
+            throw new BusinessException(ErrorCode.OWNER_CANNOT_BE_REMOVED);
         }
         this.status = MemberStatus.LEFT;
     }

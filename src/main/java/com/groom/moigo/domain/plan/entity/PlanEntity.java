@@ -1,6 +1,8 @@
 package com.groom.moigo.domain.plan.entity;
 
 import com.groom.moigo.domain.user.entity.UserEntity;
+import com.groom.moigo.global.error.BusinessException;
+import com.groom.moigo.global.error.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -90,15 +92,22 @@ public class PlanEntity {
         this.recruitmentCount = nextRecruitmentCount;
     }
 
-    private static void validate(String title, LocalDate startDate, LocalDate endDate, Integer recruitmentCount) {
+    private static void validate(
+            String title,
+            LocalDate startDate,
+            LocalDate endDate,
+            Integer recruitmentCount
+    ) {
         if (title == null || title.isBlank()) {
-            throw new IllegalArgumentException("제목은 비어 있을 수 없습니다.");
+            throw new BusinessException(ErrorCode.INVALID_PLAN_TITLE);
         }
+
         if (startDate.isAfter(endDate)) {
-            throw new IllegalArgumentException("시작일은 종료일보다 늦을 수 없습니다.");
+            throw new BusinessException(ErrorCode.INVALID_PLAN_DATE);
         }
+
         if (recruitmentCount != null && recruitmentCount < 1) {
-            throw new IllegalArgumentException("모집 인원은 1 이상이어야 합니다.");
+            throw new BusinessException(ErrorCode.INVALID_RECRUITMENT_COUNT);
         }
     }
 
