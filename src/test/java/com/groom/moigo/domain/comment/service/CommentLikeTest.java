@@ -92,8 +92,10 @@ class CommentLikeTest {
     void likedByMeIsPerViewer() {
         commentService.toggleLike(planId, scheduleId, commentId, authorId);
 
-        List<CommentResponse> asAuthor = commentService.getComments(planId, scheduleId, authorId);
-        List<CommentResponse> asOther = commentService.getComments(planId, scheduleId, otherUserId);
+        List<CommentResponse> asAuthor = commentService
+                .getComments(planId, scheduleId, authorId, 20, null, null).comments();
+        List<CommentResponse> asOther = commentService
+                .getComments(planId, scheduleId, otherUserId, 20, null, null).comments();
 
         assertThat(asAuthor.getFirst().likeCount()).isEqualTo(1);
         assertThat(asAuthor.getFirst().likedByMe()).isTrue();

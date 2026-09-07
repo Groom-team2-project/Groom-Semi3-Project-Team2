@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.groom.moigo.domain.activity.entity.ActivityActionType;
+import com.groom.moigo.domain.activity.entity.ActivityTargetType;
 import com.groom.moigo.domain.activity.repository.ActivityLogRepository;
 import com.groom.moigo.domain.plan.entity.MemberRole;
 import com.groom.moigo.domain.vote.dto.request.VoteCreateRequest;
@@ -116,8 +117,10 @@ class VoteServiceTest {
 
 		// activityLogRepository.save()가 REQUIRES_NEW로 즉시 커밋되어 테스트가 끝나도 롤백되지 않으므로, 반복 실행하면
 		// 이 테이블에는 이전 실행이 남긴 행이 쌓여있다. findAll()로 통째로 보지 않고 이번에 만든 투표의 로그만 걸러본다.
+		// targetId는 대상 종류별로 따로 매겨지므로(댓글 5번과 투표 5번이 공존) targetType까지 함께 걸러야 한다.
 		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getTargetId().equals(Long.valueOf(response.id())))
+				.filteredOn(log -> log.getTargetType() == ActivityTargetType.VOTE
+						&& log.getTargetId().equals(Long.valueOf(response.id())))
 				.singleElement()
 				.satisfies(
 						log -> {

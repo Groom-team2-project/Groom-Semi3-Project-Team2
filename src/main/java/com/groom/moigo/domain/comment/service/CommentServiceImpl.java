@@ -6,6 +6,7 @@ import com.groom.moigo.domain.activity.entity.ActivityTargetType;
 import com.groom.moigo.domain.activity.service.ActivityLogService;
 import com.groom.moigo.domain.comment.dto.CommentCreateRequest;
 import com.groom.moigo.domain.comment.dto.CommentLikeResponse;
+import com.groom.moigo.domain.comment.dto.CommentPageResponse;
 import com.groom.moigo.domain.comment.dto.CommentResponse;
 import com.groom.moigo.domain.comment.entity.CommentEntity;
 import com.groom.moigo.domain.comment.entity.CommentLikeEntity;
@@ -16,14 +17,17 @@ import com.groom.moigo.domain.user.repository.UserRepository;
 import com.groom.moigo.global.error.BusinessException;
 import com.groom.moigo.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -73,13 +77,32 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CommentResponse> getComments(Long planId, Long scheduleId, Long userId) {
+    public CommentPageResponse getComments(
+            Long planId,
+            Long scheduleId,
+            Long userId,
+            int size,
+            LocalDateTime cursorCreatedAt,
+            Long cursorCommentId
+    ) {
         validateScheduleInPlan(planId, scheduleId);
+        validateCursor(cursorCreatedAt, cursorCommentId);
 
-        List<CommentEntity> comments = commentRepository.findByScheduleIdOrderByCreatedAtAsc(scheduleId)
-                .stream()
-                .filter(comment -> comment.getPlanId().equals(planId))
-                .toList();
+        // 부모 댓글만 커서로 끊어 읽음. 마지막 한 건은 hasNext 판단에만 쓰고 응답에서 잘라냄
+        List<CommentEntity> rootPage = commentRepository.findRootCommentsByCursor(
+                planId, scheduleId, cursorCreatedAt, cursorCommentId, PageRequest.of(0, size + 1)
+        );
+        boolean hasNext = rootPage.size() > size;
+        List<CommentEntity> roots = hasNext ? rootPage.subList(0, size) : rootPage;
+
+        // 대댓글은 부모에 딸려 함께 내려감. 페이지 경계에서 트리가 잘리지 않게 하기 위함!
+        List<CommentEntity> replies = roots.isEmpty()
+                ? List.of()
+                : commentRepository.findByParentCommentIdInOrderByCreatedAtAsc(
+                        roots.stream().map(CommentEntity::getCommentId).toList()
+                );
+
+        List<CommentEntity> comments = Stream.concat(roots.stream(), replies.stream()).toList();
 
         Map<Long, UserEntity> usersById = userRepository.findAllById(
                         comments.stream()
@@ -90,9 +113,11 @@ public class CommentServiceImpl implements CommentService {
                 ).stream()
                 .collect(Collectors.toMap(UserEntity::getUserId, Function.identity()));
 
-        List<CommentLikeEntity> likes = commentLikeRepository.findByCommentIdIn(
-                comments.stream().map(CommentEntity::getCommentId).toList()
-        );
+        List<CommentLikeEntity> likes = comments.isEmpty()
+                ? List.of()
+                : commentLikeRepository.findByCommentIdIn(
+                        comments.stream().map(CommentEntity::getCommentId).toList()
+                );
         Map<Long, Long> likeCountByCommentId = likes.stream()
                 .collect(Collectors.groupingBy(CommentLikeEntity::getCommentId, Collectors.counting()));
         Set<Long> likedCommentIds = likes.stream()
@@ -100,7 +125,7 @@ public class CommentServiceImpl implements CommentService {
                 .map(CommentLikeEntity::getCommentId)
                 .collect(Collectors.toSet());
 
-        return comments.stream()
+        List<CommentResponse> responses = comments.stream()
                 .map(comment -> {
                     long likeCount = likeCountByCommentId.getOrDefault(comment.getCommentId(), 0L);
                     boolean likedByMe = likedCommentIds.contains(comment.getCommentId());
@@ -120,6 +145,25 @@ public class CommentServiceImpl implements CommentService {
                     return CommentResponse.from(comment, user, likeCount, likedByMe);
                 })
                 .toList();
+
+        // 대댓글은 커서 대상이 X
+        CommentEntity lastRoot = hasNext ? roots.getLast() : null;
+
+        return new CommentPageResponse(
+                responses,
+                lastRoot == null ? null : lastRoot.getCreatedAt(),
+                lastRoot == null ? null : lastRoot.getCommentId(),
+                hasNext
+        );
+    }
+
+    private void validateCursor(LocalDateTime cursorCreatedAt, Long cursorCommentId) {
+        if ((cursorCreatedAt == null) != (cursorCommentId == null)) {
+            throw new BusinessException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "댓글 커서는 생성 시각과 댓글 ID를 함께 전달해야 합니다."
+            );
+        }
     }
 
     @Override
