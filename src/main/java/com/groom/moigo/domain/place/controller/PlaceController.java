@@ -9,9 +9,7 @@ import com.groom.moigo.domain.place.service.PlaceService;
 import com.groom.moigo.domain.place.validation.ValidEnum;
 import com.groom.moigo.global.response.CommonResponse;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,10 +26,23 @@ public class PlaceController {
     @GetMapping("/search")
     public ResponseEntity<CommonResponse<PlaceDocumentListResponse>> searchPlaces(
             @NotBlank @RequestParam String keyword,
+            @ValidEnum(target = PlaceCategory.class) @PathVariable@RequestParam(required = false) String categoryGroupCode,
+            @DecimalMin("-180") @DecimalMax("180") @RequestParam(required = false) BigDecimal southWestLongitude,
+            @DecimalMin("-90") @DecimalMax("90") @RequestParam(required = false) BigDecimal southWestLatitude,
+            @DecimalMin("-180") @DecimalMax("180") @RequestParam(required = false) BigDecimal northEastLongitude,
+            @DecimalMin("-90") @DecimalMax("90") @RequestParam(required = false) BigDecimal northEastLatitude,
             @Min(1) @Max(45) @RequestParam(defaultValue = "1") int page,
             @Min(1) @Max(15) @RequestParam(defaultValue = "15") int size
     ){
-        PlaceDocumentListResponse response = placeService.searchPlaces(keyword, page, size);
+        PlaceDocumentListResponse response = placeService.searchPlaces(
+                keyword,
+                categoryGroupCode,
+                southWestLongitude,
+                southWestLatitude,
+                northEastLongitude,
+                northEastLatitude,
+                page,
+                size);
 
         return ResponseEntity.status(HttpStatus.OK)
                 .body(CommonResponse.success(response, "장소 조회 성공"));
@@ -56,10 +67,10 @@ public class PlaceController {
             * */
 
             @ValidEnum(target = PlaceCategory.class) @PathVariable String categoryGroupCode,
-            @RequestParam BigDecimal southWestLongitude,
-            @RequestParam BigDecimal southWestLatitude,
-            @RequestParam BigDecimal northEastLongitude,
-            @RequestParam BigDecimal northEastLatitude,
+            @DecimalMin("-180") @DecimalMax("180") @RequestParam BigDecimal southWestLongitude,
+            @DecimalMin("-90") @DecimalMax("90") @RequestParam BigDecimal southWestLatitude,
+            @DecimalMin("-180") @DecimalMax("180") @RequestParam BigDecimal northEastLongitude,
+            @DecimalMin("-90") @DecimalMax("90") @RequestParam BigDecimal northEastLatitude,
             @Min(1) @Max(45) @RequestParam(defaultValue = "1") int page,
             @Min(1) @Max(15) @RequestParam(defaultValue = "15") int size
     ) {

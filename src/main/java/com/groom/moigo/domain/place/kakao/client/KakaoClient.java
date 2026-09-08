@@ -42,7 +42,9 @@ public class KakaoClient {
             String sort,
             BigDecimal latitude,
             BigDecimal longitude,
-            Integer radius
+            Integer radius,
+            String categoryGroupCode,
+            String rect
     ) {
         try {
             KakaoSearchResponse response = restClient.get()
@@ -55,6 +57,8 @@ public class KakaoClient {
                             .queryParamIfPresent("x", java.util.Optional.ofNullable(longitude))
                             .queryParamIfPresent("y", java.util.Optional.ofNullable(latitude))
                             .queryParamIfPresent("radius", java.util.Optional.ofNullable(radius))
+                            .queryParamIfPresent("category_group_code", java.util.Optional.ofNullable(categoryGroupCode))
+                            .queryParamIfPresent("rect", java.util.Optional.ofNullable(rect))
                             .build())
                     .retrieve()
                     .body(KakaoSearchResponse.class);
