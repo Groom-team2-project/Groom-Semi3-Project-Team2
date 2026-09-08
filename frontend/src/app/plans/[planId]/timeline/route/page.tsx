@@ -52,7 +52,7 @@ export default function RouteMapPage({
   }, []);
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex h-dvh min-h-0 flex-col overflow-hidden">
       <AppBar
         title={`Day ${day} 장소 지도`}
         subtitle={locatedSchedules.length > 0 ? `일정 장소 ${locatedSchedules.length}곳` : "표시할 장소 없음"}
@@ -69,7 +69,7 @@ export default function RouteMapPage({
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col bg-gray-100">
-          <div className="relative h-[46dvh] min-h-[300px] shrink-0 border-b border-gray-200">
+          <div className="relative isolate h-[40dvh] min-h-0 shrink-0 overflow-hidden border-b border-gray-200">
             <KakaoRouteMap
               schedules={locatedSchedules}
               selectedScheduleId={selectedScheduleId}
@@ -80,8 +80,8 @@ export default function RouteMapPage({
             </div>
           </div>
 
-          <section className="flex min-h-0 flex-1 flex-col bg-white" aria-label="일정 목록 및 상세">
-            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+          <section className="relative min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain bg-white" aria-label="일정 목록 및 상세" tabIndex={0}>
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3">
               <div>
                 <h2 className="text-[15px] font-bold text-ink">
                   {selectedSchedule ? "선택한 일정" : `Day ${day} 일정`}
@@ -95,7 +95,7 @@ export default function RouteMapPage({
               </span>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
+            <div className="px-4 py-3">
               {selectedSchedule ? (
                 <Card className="gap-3 border-primary bg-primary-soft">
                   <div className="flex items-start gap-3">

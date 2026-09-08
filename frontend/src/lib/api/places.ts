@@ -1,3 +1,5 @@
+import { buildMapSearchPath, type MapPlaceQuery } from "../mapPlaceSearch.ts";
+export type { MapPlaceQuery, PlaceSearchBounds } from "../mapPlaceSearch.ts";
 import { generateId } from "@/lib/utils";
 import { store, simulateLatency } from "./store";
 import { apiFetch, ApiError, USE_MOCK } from "./client";
@@ -297,4 +299,37 @@ export async function removePlaceFromPlan(planId: string, placeId: string): Prom
   }
   await simulateLatency(150);
   store.places = store.places.filter((p) => !(p.planId === planId && p.id === placeId));
+}
+
+
+// 지도 검색은 페이지 정보를 유지해 동일한 조건으로 다음 결과를 가져온다.
+export interface PlaceSearchPageResult {
+  places: PlaceSearchResult[];
+  totalCount: number;
+  hasNext: boolean;
+}
+
+export async function searchMapPlaces(query: MapPlaceQuery, page = 1): Promise<PlaceSearchPageResult> {
+  const keyword = query.keyword?.trim();
+  if (!keyword && !query.category) return { places: [], totalCount: 0, hasNext: false };
+  if (!keyword && !query.bounds) throw new ApiError("지도 영역을 확인해 주세요.", 400, "INVALID_INPUT_VALUE");
+  if (USE_MOCK) {
+    await simulateLatency(200);
+    const places = KEYWORD_POOL.map((place, index) => ({
+      ...place, kakaoId: `mock-map-${index}`,
+      categoryGroupCode: ["FD6", "FD6", "FD6", "AT4", "CE7", "AT4", "AD5"][index],
+      latitude: 33.39 + index * 0.005, longitude: 126.24 + index * 0.005,
+    })).filter((place) => (!keyword || place.name.includes(keyword) || place.address.includes(keyword))
+      && (!query.category || place.categoryGroupCode === query.category)
+      && (!query.bounds || (place.latitude >= query.bounds.southWestLatitude
+        && place.latitude <= query.bounds.northEastLatitude && place.longitude >= query.bounds.southWestLongitude
+        && place.longitude <= query.bounds.northEastLongitude)));
+    return { places: places.slice((page - 1) * 15, page * 15), totalCount: places.length, hasNext: page * 15 < places.length };
+  }
+  const response = await apiFetch<CommonResponse<PlaceDocumentListApiResponse>>(buildMapSearchPath(query, page)!);
+  return {
+    places: response.data.places.map(mapPlaceDocument),
+    totalCount: response.data.totalCount,
+    hasNext: !response.data.isEnd && page < 45 && page * 15 < response.data.pageableCount,
+  };
 }
