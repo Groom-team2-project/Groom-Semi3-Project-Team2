@@ -134,6 +134,8 @@ public class ScheduleService {
         LocalDateTime previousStartAt = schedule.getStartAt();
         LocalDateTime previousEndAt = schedule.getEndAt();
         Long previousPlaceId = schedule.getPlaceId();
+        String previousTitle = schedule.getTitle();
+        String previousMemo = schedule.getMemo();
 
         schedule.update(
                 request.getPlaceId(),
@@ -152,15 +154,22 @@ public class ScheduleService {
                 !Objects.equals(previousStartAt, schedule.getStartAt())
                         || !Objects.equals(previousEndAt, schedule.getEndAt())
                         || !Objects.equals(previousPlaceId, schedule.getPlaceId());
+        boolean detailChanged =
+                !Objects.equals(previousTitle, schedule.getTitle())
+                        || !Objects.equals(previousMemo, schedule.getMemo());
 
-        recordActivity(
-                planId, userId,
-                movedInTimeOrPlace
-                        ? ActivityActionType.SCHEDULE_UPDATED
-                        : ActivityActionType.SCHEDULE_DETAIL_UPDATED,
-                schedule.getScheduleId(),
-                movedInTimeOrPlace ? "일정의 시간이나 장소를 변경했어요." : "일정 내용을 수정했어요."
-        );
+        // 실제로 바뀐 게 없으면(예약 상태만 같은 값으로 다시 보낸 경우 등) 기록하지 않는다.
+        if (movedInTimeOrPlace) {
+            recordActivity(
+                    planId, userId, ActivityActionType.SCHEDULE_UPDATED,
+                    schedule.getScheduleId(), "일정의 시간이나 장소를 변경했어요."
+            );
+        } else if (detailChanged) {
+            recordActivity(
+                    planId, userId, ActivityActionType.SCHEDULE_DETAIL_UPDATED,
+                    schedule.getScheduleId(), "일정 내용을 수정했어요."
+            );
+        }
 
         return ScheduleResponse.from(schedule, place);
     }
