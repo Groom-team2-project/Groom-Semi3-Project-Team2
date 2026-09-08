@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { RoutePosition } from "@/lib/routeDistance";
 import type { Schedule } from "@/lib/api";
 
 import { loadKakaoMaps, type KakaoLatLng, type KakaoMapsApi, type KakaoMapInstance, type KakaoMarker, type KakaoMarkerImage } from "@/lib/kakaoMaps";
@@ -61,10 +62,12 @@ export function KakaoRouteMap({
   schedules,
   selectedScheduleId,
   onSelectSchedule,
+  onPositionsResolved,
 }: {
   schedules: Schedule[];
   selectedScheduleId: string | null;
   onSelectSchedule: (scheduleId: string) => void;
+  onPositionsResolved?: (positions: Record<string, RoutePosition | null>) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<KakaoMapInstance | null>(null);
@@ -101,6 +104,10 @@ export function KakaoRouteMap({
         );
         if (cancelled) return;
 
+        onPositionsResolved?.(Object.fromEntries(positions.map(({ schedule, position }) => [
+          schedule.id,
+          position ? { latitude: position.getLat(), longitude: position.getLng() } : null,
+        ])));
         const bounds = new maps.LatLngBounds();
         const routePath: KakaoLatLng[] = [];
         let markerCount = 0;
@@ -133,6 +140,7 @@ export function KakaoRouteMap({
         if (markerCount > 0) map.setBounds(bounds);
       } catch (cause) {
         if (!cancelled) {
+          onPositionsResolved?.(Object.fromEntries(schedules.map((schedule) => [schedule.id, null])));
           setError(cause instanceof Error ? cause.message : "지도를 불러오지 못했습니다.");
         }
       }
@@ -145,7 +153,7 @@ export function KakaoRouteMap({
       mapsRef.current = null;
       markersRef.current = [];
     };
-  }, [schedules, onSelectSchedule]);
+  }, [schedules, onSelectSchedule, onPositionsResolved]);
 
   useEffect(() => {
     selectedScheduleIdRef.current = selectedScheduleId;
