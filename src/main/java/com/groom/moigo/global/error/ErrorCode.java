@@ -24,9 +24,11 @@ public enum ErrorCode {
 
     //member
     MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "멤버를 찾을 수 없습니다."),
+    MEMBER_ROLE_REQUIRED(HttpStatus.BAD_REQUEST, "멤버 권한은 비어 있을 수 없습니다."),
     MEMBER_ALREADY_JOINED(HttpStatus.CONFLICT, "이미 참여 중인 계획입니다."),
     MEMBER_ACCESS_DENIED(HttpStatus.FORBIDDEN, "멤버 관리 권한이 없습니다."),
     OWNER_ROLE_CANNOT_BE_CHANGED(HttpStatus.FORBIDDEN, "OWNER 권한은 변경할 수 없습니다."),
+    OWNER_ROLE_CANNOT_BE_ASSIGNED(HttpStatus.FORBIDDEN, "OWNER 권한은 다른 회원에게 부여할 수 없습니다."),
     OWNER_CANNOT_LEAVE(HttpStatus.FORBIDDEN, "OWNER는 계획에서 나갈 수 없습니다."),
     OWNER_CANNOT_BE_REMOVED(HttpStatus.FORBIDDEN, "OWNER는 내보낼 수 없습니다."),
 

@@ -167,6 +167,17 @@ export type ActivityType =
   | "comment_deleted"
   | "comment_liked";
 
+export interface CommentCursor {
+  createdAt: string;
+  commentId: string;
+}
+
+export interface CommentPage {
+  comments: Comment[];
+  nextCursor?: CommentCursor;
+  hasNext: boolean;
+}
+
 export interface ActivityLog {
   id: string;
   planId: string;

@@ -2,7 +2,7 @@ import { generateId } from "@/lib/utils";
 import { store, simulateLatency } from "./store";
 import { apiFetch, ApiError, USE_MOCK } from "./client";
 import { getPlan } from "./plans";
-import type { Comment, ReservationStatus, Schedule } from "./types";
+import type { Comment, CommentCursor, CommentPage, ReservationStatus, Schedule } from "./types";
 
 interface CommonResponse<T> {
   success: boolean;
@@ -51,6 +51,13 @@ interface CommentApiResponse {
   createdAt: string;
   likeCount: number;
   likedByMe: boolean;
+}
+
+interface CommentPageApiResponse {
+  comments: CommentApiResponse[];
+  nextCursorCreatedAt: string | null;
+  nextCursorCommentId: number | null;
+  hasNext: boolean;
 }
 
 interface CommentLikeApiResponse {
@@ -341,18 +348,54 @@ export async function deleteSchedule(planId: string, scheduleId: string): Promis
 }
 
 /** GET /api/v1/plans/{planId}/schedules/{scheduleId}/comments */
-export async function getComments(planId: string, scheduleId: string): Promise<Comment[]> {
+export async function getComments(
+  planId: string,
+  scheduleId: string,
+  query: { size?: number; cursor?: CommentCursor } = {},
+): Promise<CommentPage> {
+  const size = query.size ?? 20;
+
   if (USE_MOCK) {
     await simulateLatency(150);
-    return store.comments
+    const all = store.comments
       .filter((comment) => comment.scheduleId === scheduleId)
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+
+    const roots = all.filter((comment) => !comment.parentCommentId);
+    const startIndex = query.cursor
+      ? roots.findIndex((comment) => comment.id === query.cursor?.commentId) + 1
+      : 0;
+    const pageRoots = roots.slice(Math.max(startIndex, 0), startIndex + size);
+    const rootIds = new Set(pageRoots.map((comment) => comment.id));
+    const replies = all.filter((comment) => comment.parentCommentId && rootIds.has(comment.parentCommentId));
+    const hasNext = startIndex + size < roots.length;
+    const lastRoot = pageRoots.at(-1);
+
+    return {
+      comments: [...pageRoots, ...replies],
+      nextCursor: hasNext && lastRoot ? { createdAt: lastRoot.createdAt, commentId: lastRoot.id } : undefined,
+      hasNext,
+    };
   }
 
-  const response = await apiFetch<CommonResponse<CommentApiResponse[]>>(
-    `/api/v1/plans/${planId}/schedules/${scheduleId}/comments`,
+  const params = new URLSearchParams({ size: String(size) });
+  if (query.cursor) {
+    params.set("cursorCreatedAt", query.cursor.createdAt);
+    params.set("cursorCommentId", query.cursor.commentId);
+  }
+  const response = await apiFetch<CommonResponse<CommentPageApiResponse>>(
+    `/api/v1/plans/${planId}/schedules/${scheduleId}/comments?${params}`,
   );
-  return response.data.map(mapComment);
+  return {
+    comments: response.data.comments.map(mapComment),
+    nextCursor: response.data.hasNext && response.data.nextCursorCreatedAt && response.data.nextCursorCommentId
+      ? {
+          createdAt: response.data.nextCursorCreatedAt,
+          commentId: String(response.data.nextCursorCommentId),
+        }
+      : undefined,
+    hasNext: response.data.hasNext,
+  };
 }
 
 /** POST /api/v1/plans/{planId}/schedules/{scheduleId}/comments */

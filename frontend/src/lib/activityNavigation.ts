@@ -1,4 +1,4 @@
-import { getComments, getSchedule } from "@/lib/api";
+import { getSchedule } from "@/lib/api";
 import type { ActivityLog } from "@/lib/api";
 
 export async function getActivityDestination(planId: string, activity: ActivityLog): Promise<string | null> {
@@ -10,11 +10,7 @@ export async function getActivityDestination(planId: string, activity: ActivityL
   }
 
   if (activity.targetType === "comment" && activity.targetId && activity.scheduleId) {
-    const comments = await getComments(planId, activity.scheduleId);
-    const comment = comments.find((item) => item.id === activity.targetId);
-    return comment && !comment.deleted
-      ? `/plans/${planId}/schedules/${activity.scheduleId}?commentId=${activity.targetId}`
-      : null;
+    return `/plans/${planId}/schedules/${activity.scheduleId}?commentId=${activity.targetId}`;
   }
 
   if (activity.targetType === "vote" && activity.targetId) return `/plans/${planId}/votes/${activity.targetId}`;

@@ -9,7 +9,7 @@ import { getSchedule, getComments, addComment, deleteComment, toggleCommentLike 
 import { useAuth } from "@/context/AuthContext";
 import { ApiError, USE_MOCK } from "@/lib/api/client";
 import { store } from "@/lib/api/store";
-import type { Comment, Schedule } from "@/lib/api";
+import type { Comment, CommentCursor, Schedule } from "@/lib/api";
 
 const RESERVATION_LABEL = {
   NOT_REQUIRED: "예약 불필요",
@@ -58,6 +58,9 @@ export default function ScheduleDetailPage({
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [commentsError, setCommentsError] = useState("");
+  const [commentsCursor, setCommentsCursor] = useState<CommentCursor | undefined>();
+  const [commentsHasNext, setCommentsHasNext] = useState(false);
+  const [loadingMoreComments, setLoadingMoreComments] = useState(false);
   const [likePendingIds, setLikePendingIds] = useState<Set<string>>(new Set());
   const { user } = useAuth();
   const currentUserId = USE_MOCK ? store.me.id : user?.id;
@@ -81,7 +84,11 @@ export default function ScheduleDetailPage({
       .then(setSchedule)
       .catch(() => setSchedule(null));
     getComments(planId, scheduleId)
-      .then(setComments)
+      .then((page) => {
+        setComments(page.comments);
+        setCommentsCursor(page.nextCursor);
+        setCommentsHasNext(page.hasNext);
+      })
       .catch((error) => setCommentsError(getCommentLoadError(error)));
   }, [planId, scheduleId]);
 
@@ -89,6 +96,29 @@ export default function ScheduleDetailPage({
     if (!focusCommentId || comments.length === 0) return;
     document.getElementById(`comment-${focusCommentId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [comments, focusCommentId]);
+
+  useEffect(() => {
+    if (!focusCommentId || comments.length === 0) return;
+    if (comments.some((comment) => comment.id === focusCommentId)) return;
+    if (!commentsHasNext || loadingMoreComments) return;
+    void loadMoreComments();
+  });
+
+  async function loadMoreComments() {
+    if (!commentsCursor || loadingMoreComments) return;
+    setLoadingMoreComments(true);
+    setCommentsError("");
+    try {
+      const page = await getComments(planId, scheduleId, { cursor: commentsCursor });
+      setComments((previous) => [...previous, ...page.comments]);
+      setCommentsCursor(page.nextCursor);
+      setCommentsHasNext(page.hasNext);
+    } catch (error) {
+      setCommentsError(getCommentLoadError(error));
+    } finally {
+      setLoadingMoreComments(false);
+    }
+  }
 
   async function handlePost() {
     if (!text.trim() || text.length > 60 || posting) return;
@@ -245,11 +275,23 @@ export default function ScheduleDetailPage({
           </Button>
         </div>
 
-        <h3 className="mt-1 text-[13px] text-gray-500">댓글 {comments.length}</h3>
+        <h3 className="mt-1 text-[13px] text-gray-500">
+          댓글 {comments.length}{commentsHasNext ? "+" : ""}
+        </h3>
         {commentsError && <p className="text-[12.5px] text-red">{commentsError}</p>}
         <div>
           {rootComments.map((comment) => renderComments([comment]))}
         </div>
+        {commentsHasNext && (
+          <button
+            type="button"
+            className="rounded-xl bg-gray-100 py-2.5 text-[13px] font-bold text-gray-700 disabled:opacity-50"
+            onClick={loadMoreComments}
+            disabled={loadingMoreComments}
+          >
+            {loadingMoreComments ? "불러오는 중..." : "댓글 더 보기"}
+          </button>
+        )}
         <Button variant="soft" size="sm" onClick={() => openComposer()}>
           댓글 남기기
         </Button>
