@@ -1,5 +1,9 @@
 package com.groom.moigo.domain.plan.service;
 
+import com.groom.moigo.domain.activity.dto.ActivityRecordCommand;
+import com.groom.moigo.domain.activity.entity.ActivityActionType;
+import com.groom.moigo.domain.activity.entity.ActivityTargetType;
+import com.groom.moigo.domain.activity.service.ActivityLogService;
 import com.groom.moigo.domain.plan.dto.InvitationJoinResponse;
 import com.groom.moigo.domain.plan.dto.InvitationResponse;
 import com.groom.moigo.domain.plan.entity.*;
@@ -37,6 +41,7 @@ public class InvitationService {
     private final PlanRepository planRepository;
     private final UserRepository userRepository;
     private final PlanAccessService planAccessService;
+    private final ActivityLogService activityLogService;
 
    // 초대 링크 발급/재발급
     @Transactional
@@ -166,6 +171,14 @@ public class InvitationService {
         } catch (DataIntegrityViolationException e) {
             throw new BusinessException(ErrorCode.MEMBER_ALREADY_JOINED, e);
         }
+
+        // 초대 링크 참여가 계획에 합류하는 유일한 경로라, 멤버 참여 기록은 여기서 남긴다.
+        // 기록 저장이 실패해도 참여 자체는 성공해야 하므로 record() 안에서 별도 트랜잭션으로 처리된다.
+        activityLogService.record(new ActivityRecordCommand(
+                planId, userId, ActivityActionType.MEMBER_JOINED,
+                ActivityTargetType.MEMBER, member.getMemberId(),
+                "계획에 참여했어요."
+        ));
 
         return InvitationJoinResponse.from(member);
     }

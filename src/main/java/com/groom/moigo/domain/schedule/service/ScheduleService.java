@@ -1,5 +1,9 @@
 package com.groom.moigo.domain.schedule.service;
 
+import com.groom.moigo.domain.activity.dto.ActivityRecordCommand;
+import com.groom.moigo.domain.activity.entity.ActivityActionType;
+import com.groom.moigo.domain.activity.entity.ActivityTargetType;
+import com.groom.moigo.domain.activity.service.ActivityLogService;
 import com.groom.moigo.domain.place.dto.SchedulePlaceResponse;
 import com.groom.moigo.domain.place.entity.PlaceEntity;
 import com.groom.moigo.domain.place.repository.PlaceRepository;
@@ -16,7 +20,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -31,6 +37,7 @@ public class ScheduleService {
     private final PlanRepository planRepository;
     private final PlaceRepository placeRepository;
     private final PlanAccessService planAccessService;
+    private final ActivityLogService activityLogService;
     private static final int FIRST_SORT_ORDER = 1;
     private static final int SORT_ORDER_STEP = 1;
 
@@ -60,6 +67,13 @@ public class ScheduleService {
                 .sortOrder(nextSortOrder)
                 .build();
         ScheduleEntity saveSchedule = scheduleRepository.save(schedule);
+
+        recordActivity(
+                planId, userId,
+                ActivityActionType.SCHEDULE_CREATED,
+                saveSchedule.getScheduleId(),
+                "일정을 추가했어요."
+        );
 
         return ScheduleResponse.from(saveSchedule, place);
     }
@@ -115,6 +129,14 @@ public class ScheduleService {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
 
+        // 정책서 2절: 시간·장소·날짜 변경만 공유 피드에 노출하고, 제목·메모는 내 활동에만 남긴다.
+        // 무엇이 바뀌었는지 판단하려면 변경 전 값이 필요하므로 여기서 먼저 담아둔다.
+        LocalDateTime previousStartAt = schedule.getStartAt();
+        LocalDateTime previousEndAt = schedule.getEndAt();
+        Long previousPlaceId = schedule.getPlaceId();
+        String previousTitle = schedule.getTitle();
+        String previousMemo = schedule.getMemo();
+
         schedule.update(
                 request.getPlaceId(),
                 request.getTitle(),
@@ -127,6 +149,27 @@ public class ScheduleService {
                 request.getClearEndAt()
         );
         SchedulePlaceResponse place = getSchedulePlaceResponse(schedule.getPlaceId());
+
+        boolean movedInTimeOrPlace =
+                !Objects.equals(previousStartAt, schedule.getStartAt())
+                        || !Objects.equals(previousEndAt, schedule.getEndAt())
+                        || !Objects.equals(previousPlaceId, schedule.getPlaceId());
+        boolean detailChanged =
+                !Objects.equals(previousTitle, schedule.getTitle())
+                        || !Objects.equals(previousMemo, schedule.getMemo());
+
+        // 실제로 바뀐 게 없으면(예약 상태만 같은 값으로 다시 보낸 경우 등) 기록하지 않는다.
+        if (movedInTimeOrPlace) {
+            recordActivity(
+                    planId, userId, ActivityActionType.SCHEDULE_UPDATED,
+                    schedule.getScheduleId(), "일정의 시간이나 장소를 변경했어요."
+            );
+        } else if (detailChanged) {
+            recordActivity(
+                    planId, userId, ActivityActionType.SCHEDULE_DETAIL_UPDATED,
+                    schedule.getScheduleId(), "일정 내용을 수정했어요."
+            );
+        }
 
         return ScheduleResponse.from(schedule, place);
     }
@@ -177,6 +220,8 @@ public class ScheduleService {
                 .map(ScheduleOrderItemResponse::from)
                 .toList();
 
+        // 표시 순서 변경은 정책서상 내 활동 기록 대상이지만, 한 번에 여러 일정이 바뀌어
+        // 활동 1건이 가리킬 대표 일정을 정할 수 없다. 대상 표현 방식이 정해지면 함께 기록한다.
         return new ScheduleOrderResponse(planId, responses);
     }
 
@@ -208,7 +253,24 @@ public class ScheduleService {
             remainingSchedules.get(index).reorder(FIRST_SORT_ORDER + index);
         }
 
+        recordActivity(
+                planId, userId,
+                ActivityActionType.SCHEDULE_DELETED,
+                scheduleId,
+                "일정을 삭제했어요."
+        );
+
         return ScheduleDeleteResponse.from(scheduleToDelete);
+    }
+
+    /**
+     * 활동 기록을 남긴다. 기록 저장이 실패해도 일정 작업 자체는 그대로 성공해야 하므로
+     * {@code record()} 안에서 별도 트랜잭션으로 처리되고 예외도 삼켜진다(활동 기록 정책서 5절 2항).
+     */
+    private void recordActivity(
+            Long planId, Long userId, ActivityActionType actionType, Long scheduleId, String summary) {
+        activityLogService.record(new ActivityRecordCommand(
+                planId, userId, actionType, ActivityTargetType.SCHEDULE, scheduleId, summary));
     }
 
     private SchedulePlaceResponse getSchedulePlaceResponse(Long placeId) {
