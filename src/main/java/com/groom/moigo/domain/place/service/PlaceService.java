@@ -8,6 +8,8 @@ import com.groom.moigo.domain.place.kakao.dto.KakaoSearchResponse;
 import com.groom.moigo.domain.place.repository.PlaceRepository;
 import com.groom.moigo.domain.place.token.PlaceSelectionClaims;
 import com.groom.moigo.domain.place.token.PlaceSelectionTokenProvider;
+import com.groom.moigo.global.error.BusinessException;
+import com.groom.moigo.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -30,9 +32,21 @@ public class PlaceService {
 
     public PlaceDocumentListResponse searchPlaces(
             String keyword,
+            String categoryGroupCode,
+            BigDecimal southWestLongitude,
+            BigDecimal southWestLatitude,
+            BigDecimal northEastLongitude,
+            BigDecimal northEastLatitude,
             int page,
             int size
     ){
+        String rect = buildRect(
+                southWestLongitude,
+                southWestLatitude,
+                northEastLongitude,
+                northEastLatitude
+        );
+
         KakaoSearchResponse kakaoResponse = kakaoClient.searchByKeyword(
                 keyword,
                 page,
@@ -40,7 +54,9 @@ public class PlaceService {
                 "accuracy",
                 null,
                 null,
-                null);
+                null,
+                categoryGroupCode,
+                rect);
         List<PlaceDocumentResponse> places = kakaoResponse.getDocuments().stream()
                 .map(document -> PlaceDocumentResponse.from(
                         document,
@@ -66,13 +82,16 @@ public class PlaceService {
             int page,
             int size
     ) {
-        String rect = String.join(
-                ",",
-                southWestLongitude.toPlainString(),
-                southWestLatitude.toPlainString(),
-                northEastLongitude.toPlainString(),
-                northEastLatitude.toPlainString()
+        String rect = buildRect(
+                southWestLongitude,
+                southWestLatitude,
+                northEastLongitude,
+                northEastLatitude
         );
+
+        if (rect == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
 
         KakaoSearchResponse kakaoResponse = kakaoClient.searchByCategory(
                 categoryGroupCode,
@@ -113,5 +132,38 @@ public class PlaceService {
             PlaceEntity existing = placePersistenceService.findByKakaoPlaceId(claims.kakaoPlaceId());
             return PlaceRegisterResponse.from(existing);
         }
+    }
+
+    private String buildRect(
+            BigDecimal southWestLongitude,
+            BigDecimal southWestLatitude,
+            BigDecimal northEastLongitude,
+            BigDecimal northEastLatitude
+    ) {
+        boolean allAbsent =
+                southWestLongitude == null && southWestLatitude == null && northEastLongitude == null && northEastLatitude == null;
+
+        if (allAbsent) {
+            return null;
+        }
+
+        boolean partiallyAbsent =
+                southWestLongitude == null || southWestLatitude == null || northEastLongitude == null || northEastLatitude == null;
+
+        if (partiallyAbsent) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        if (southWestLongitude.compareTo(northEastLongitude) >= 0
+                || southWestLatitude.compareTo(northEastLatitude) >= 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+
+        return String.join(",",
+                southWestLongitude.toPlainString(),
+                southWestLatitude.toPlainString(),
+                northEastLongitude.toPlainString(),
+                northEastLatitude.toPlainString()
+        );
     }
 }

@@ -369,6 +369,91 @@ class ScheduleServiceTest {
         );
     }
 
+
+    @Test
+    void detailReturnsPlaceTimesAndReservation() throws Exception {
+        Long placeId = fixture.createPlace("상세 장소");
+        var created = scheduleService.createSchedule(userId, planId, createRequest(placeId));
+        var result = scheduleService.getSchedule(userId, planId, created.getScheduleId());
+        assertThat(result).usingRecursiveComparison().isEqualTo(created);
+    }
+
+    @Test
+    void equalStartAndEndIsAllowedOnCreateAndUpdate() throws Exception {
+        var request = createRequest(null);
+        org.springframework.test.util.ReflectionTestUtils.setField(request, "endAt", request.getStartAt());
+        var created = scheduleService.createSchedule(userId, planId, request);
+        assertThat(created.getEndAt()).isEqualTo(created.getStartAt());
+        var update = updateRequest("{\"startAt\":\"2026-08-16T10:00:00\",\"endAt\":\"2026-08-16T10:00:00\"}");
+        var result = scheduleService.updateSchedule(userId, planId, update, created.getScheduleId());
+        assertThat(result.getEndAt()).isEqualTo(result.getStartAt());
+    }
+
+    @ParameterizedTest(name = "값과 삭제 플래그 동시 전달 거절: {0}")
+    @ValueSource(strings = {"place", "endAt"})
+    void rejectsConflictingClearFlags(String field) throws Exception {
+        Long id = fixture.createSchedule(planId, "기존", 1);
+        var before = scheduleService.getSchedule(userId, planId, id);
+        var payload = field.equals("place") ? Map.of("placeId", 1, "clearPlace", true)
+                : Map.of("endAt", "2026-08-15T11:00:00", "clearEndAt", true);
+        var request = updateRequest(objectMapper.writeValueAsString(payload));
+        assertBusinessError(() -> scheduleService.updateSchedule(userId, planId, request, id), ErrorCode.INVALID_INPUT_VALUE);
+        assertThat(scheduleRepository.findById(id).orElseThrow().getTitle()).isEqualTo(before.getTitle());
+        assertThat(scheduleRepository.findById(id).orElseThrow().getEndAt()).isEqualTo(before.getEndAt());
+    }
+
+    @Test
+    void clearsPlaceAndEndAtThroughService() throws Exception {
+        var created = scheduleService.createSchedule(userId, planId, createRequest(fixture.createPlace("장소")));
+        var result = scheduleService.updateSchedule(userId, planId,
+                updateRequest("{\"clearPlace\":true,\"clearEndAt\":true}"), created.getScheduleId());
+        assertThat(result.getPlace()).isNull();
+        assertThat(result.getEndAt()).isNull();
+        var saved = scheduleRepository.findById(created.getScheduleId()).orElseThrow();
+        assertThat(saved.getPlaceId()).isNull();
+        assertThat(saved.getEndAt()).isNull();
+    }
+
+    @ParameterizedTest(name = "VIEWER 변경 권한 거절: {0}")
+    @ValueSource(strings = {"update", "delete", "order"})
+    void viewerCannotMutate(String operation) throws Exception {
+        Long viewer = fixture.createUser("뷰어");
+        fixture.join(planId, viewer, MemberRole.VIEWER);
+        Long id = fixture.createSchedule(planId, "기존", 1);
+        var update = updateRequest("{\"title\":\"변경\"}");
+        var order = orderRequest(List.of(id));
+        assertBusinessError(() -> {
+            switch (operation) {
+                case "update" -> scheduleService.updateSchedule(viewer, planId, update, id);
+                case "delete" -> scheduleService.deleteSchedule(viewer, planId, id);
+                default -> scheduleService.orderSchedule(viewer, planId, order);
+            }
+        }, ErrorCode.PLAN_UPDATE_FORBIDDEN);
+        assertThat(activeOrders()).containsExactly(1);
+        assertThat(activeSchedules().getFirst().getTitle()).isEqualTo("기존");
+    }
+
+    @ParameterizedTest(name = "비회원 일정 API 접근 거절: {0}")
+    @ValueSource(strings = {"create", "list", "detail", "update", "delete", "order"})
+    void rejectsNonMembers(String operation) throws Exception {
+        Long id = fixture.createSchedule(planId, "기존", 1);
+        Long outsider = fixture.createUser("외부인");
+        var create = createRequest(null);
+        var update = updateRequest("{}");
+        var order = orderRequest(List.of(id));
+        java.util.function.Consumer<Long> call = actor -> {
+            switch (operation) {
+                case "create" -> scheduleService.createSchedule(actor, planId, create);
+                case "list" -> scheduleService.getSchedules(actor, planId);
+                case "detail" -> scheduleService.getSchedule(actor, planId, id);
+                case "update" -> scheduleService.updateSchedule(actor, planId, update, id);
+                case "delete" -> scheduleService.deleteSchedule(actor, planId, id);
+                default -> scheduleService.orderSchedule(actor, planId, order);
+            }
+        };
+        assertBusinessError(() -> call.accept(outsider), ErrorCode.PLAN_ACCESS_DENIED);
+    }
+
     private ScheduleCreateRequest createRequest(Long placeId) throws Exception {
         String placeField = placeId == null ? "" : "\"placeId\":" + placeId + ",";
         return objectMapper.readValue("""

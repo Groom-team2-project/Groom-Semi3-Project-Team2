@@ -1,140 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { RoutePosition } from "@/lib/routeDistance";
 import type { Schedule } from "@/lib/api";
 
-type KakaoLatLng = object;
-type KakaoMarkerImage = object;
-
-interface KakaoMapInstance {
-  getLevel(): number;
-  setLevel(level: number, options?: { animate?: boolean }): void;
-  setBounds(bounds: KakaoBounds): void;
-}
-
-interface KakaoBounds {
-  extend(position: KakaoLatLng): void;
-}
-
-interface KakaoMarker {
-  setImage(image: KakaoMarkerImage): void;
-  setZIndex(zIndex: number): void;
-}
-
-interface KakaoMapsApi {
-  load(callback: () => void): void;
-  LatLng: new (latitude: number, longitude: number) => KakaoLatLng;
-  LatLngBounds: new () => KakaoBounds;
-  Size: new (width: number, height: number) => object;
-  MarkerImage: new (src: string, size: object) => KakaoMarkerImage;
-  Map: new (
-    container: HTMLElement,
-    options: {
-      center: KakaoLatLng;
-      level: number;
-      draggable: boolean;
-      scrollwheel: boolean;
-    },
-  ) => KakaoMapInstance;
-  Marker: new (options: {
-    map: KakaoMapInstance;
-    position: KakaoLatLng;
-    title: string;
-    image?: KakaoMarkerImage;
-  }) => KakaoMarker;
-  Polyline: new (options: {
-    map: KakaoMapInstance;
-    path: KakaoLatLng[];
-    strokeWeight: number;
-    strokeColor: string;
-    strokeOpacity: number;
-    strokeStyle: "solid" | "shortdash" | "shortdot" | "shortdashdot" | "longdash" | "longdot" | "longdashdot" | "dash" | "dot" | "dashdot";
-    zIndex: number;
-  }) => object;
-  event: {
-    addListener(target: KakaoMarker, eventName: "click", handler: () => void): void;
-  };
-  services: {
-    Status: { OK: string };
-    Geocoder: new () => {
-      addressSearch(
-        address: string,
-        callback: (results: Array<{ x: string; y: string }>, status: string) => void,
-      ): void;
-    };
-    Places: new () => {
-      keywordSearch(
-        keyword: string,
-        callback: (results: Array<{ x: string; y: string }>, status: string) => void,
-      ): void;
-    };
-  };
-}
-
-declare global {
-  interface Window {
-    kakao?: {
-      maps?: KakaoMapsApi;
-    };
-  }
-}
-
-function getKakaoMaps(): KakaoMapsApi | undefined {
-  return window.kakao?.maps;
-}
-
-function loadKakaoMaps(): Promise<KakaoMapsApi> {
-  return new Promise((resolve, reject) => {
-    const appKey = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
-    if (!appKey) {
-      reject(new Error("NEXT_PUBLIC_KAKAO_JS_KEY가 설정되지 않았습니다."));
-      return;
-    }
-
-    const ready = () => {
-      const maps = getKakaoMaps();
-      if (!maps) {
-        reject(new Error("카카오 지도 SDK를 불러오지 못했습니다."));
-        return;
-      }
-      maps.load(() => resolve(maps));
-    };
-
-    if (getKakaoMaps()) {
-      ready();
-      return;
-    }
-
-    const existing = document.querySelector<HTMLScriptElement>("script[data-kakao-maps-sdk]");
-    if (existing) {
-      existing.addEventListener("load", ready, { once: true });
-      existing.addEventListener(
-        "error",
-        () => {
-          existing.remove();
-          reject(new Error("카카오 지도 SDK를 불러오지 못했습니다."));
-        },
-        { once: true },
-      );
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.dataset.kakaoMapsSdk = "true";
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false&libraries=services`;
-    script.async = true;
-    script.addEventListener("load", ready, { once: true });
-    script.addEventListener(
-      "error",
-      () => {
-        script.remove();
-        reject(new Error("카카오 지도 SDK를 불러오지 못했습니다."));
-      },
-      { once: true },
-    );
-    document.head.appendChild(script);
-  });
-}
+import { loadKakaoMaps, type KakaoLatLng, type KakaoMapsApi, type KakaoMapInstance, type KakaoMarker, type KakaoMarkerImage } from "@/lib/kakaoMaps";
 
 function findPosition(
   maps: KakaoMapsApi,
@@ -192,10 +62,12 @@ export function KakaoRouteMap({
   schedules,
   selectedScheduleId,
   onSelectSchedule,
+  onPositionsResolved,
 }: {
   schedules: Schedule[];
   selectedScheduleId: string | null;
   onSelectSchedule: (scheduleId: string) => void;
+  onPositionsResolved?: (positions: Record<string, RoutePosition | null>) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<KakaoMapInstance | null>(null);
@@ -232,6 +104,10 @@ export function KakaoRouteMap({
         );
         if (cancelled) return;
 
+        onPositionsResolved?.(Object.fromEntries(positions.map(({ schedule, position }) => [
+          schedule.id,
+          position ? { latitude: position.getLat(), longitude: position.getLng() } : null,
+        ])));
         const bounds = new maps.LatLngBounds();
         const routePath: KakaoLatLng[] = [];
         let markerCount = 0;
@@ -264,6 +140,7 @@ export function KakaoRouteMap({
         if (markerCount > 0) map.setBounds(bounds);
       } catch (cause) {
         if (!cancelled) {
+          onPositionsResolved?.(Object.fromEntries(schedules.map((schedule) => [schedule.id, null])));
           setError(cause instanceof Error ? cause.message : "지도를 불러오지 못했습니다.");
         }
       }
@@ -276,7 +153,7 @@ export function KakaoRouteMap({
       mapsRef.current = null;
       markersRef.current = [];
     };
-  }, [schedules, onSelectSchedule]);
+  }, [schedules, onSelectSchedule, onPositionsResolved]);
 
   useEffect(() => {
     selectedScheduleIdRef.current = selectedScheduleId;
@@ -298,7 +175,7 @@ export function KakaoRouteMap({
   }
 
   return (
-    <div className="relative h-full min-h-[300px] overflow-hidden bg-gray-100">
+    <div className="relative h-full min-h-0 overflow-hidden bg-gray-100">
       <div ref={containerRef} className="absolute inset-0" aria-label="일정 장소 지도" />
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100 px-8 text-center text-[13px] text-gray-700">

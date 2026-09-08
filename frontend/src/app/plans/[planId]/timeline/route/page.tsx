@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { KakaoRouteMap } from "@/components/plan/KakaoRouteMap";
 import { getSchedules } from "@/lib/api";
+import { formatRouteDistance, straightLineDistance, type RoutePosition } from "@/lib/routeDistance";
 import type { Schedule } from "@/lib/api";
 
 export default function RouteMapPage({
@@ -20,6 +21,7 @@ export default function RouteMapPage({
   const { day: dayParam } = use(searchParams);
   const day = Number(dayParam) || 1;
 
+  const [positions, setPositions] = useState<Record<string, RoutePosition | null>>({});
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [selectedScheduleId, setSelectedScheduleId] =
     useState<string | null>(null);
@@ -52,7 +54,7 @@ export default function RouteMapPage({
   }, []);
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex h-dvh min-h-0 flex-col overflow-hidden">
       <AppBar
         title={`Day ${day} 장소 지도`}
         subtitle={locatedSchedules.length > 0 ? `일정 장소 ${locatedSchedules.length}곳` : "표시할 장소 없음"}
@@ -69,25 +71,26 @@ export default function RouteMapPage({
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col bg-gray-100">
-          <div className="relative h-[46dvh] min-h-[300px] shrink-0 border-b border-gray-200">
+          <div className="relative isolate h-[40dvh] min-h-0 shrink-0 overflow-hidden border-b border-gray-200">
             <KakaoRouteMap
               schedules={locatedSchedules}
               selectedScheduleId={selectedScheduleId}
               onSelectSchedule={toggleSchedule}
+              onPositionsResolved={setPositions}
             />
             <div className="absolute left-2.5 top-2.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[10.5px] font-bold text-gray-700">
               숫자 순서대로 연결된 동선 · 마커를 누르면 상세 보기
             </div>
           </div>
 
-          <section className="flex min-h-0 flex-1 flex-col bg-white" aria-label="일정 목록 및 상세">
-            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+          <section className="relative min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain bg-white" aria-label="일정 목록 및 상세" tabIndex={0}>
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3">
               <div>
                 <h2 className="text-[15px] font-bold text-ink">
                   {selectedSchedule ? "선택한 일정" : `Day ${day} 일정`}
                 </h2>
                 <p className="mt-0.5 text-[11.5px] text-gray-500">
-                  {selectedSchedule ? "마커를 다시 누르거나 아래 버튼으로 목록에 돌아갈 수 있어요" : "시간 순서대로 둘러보세요"}
+                  {selectedSchedule ? "마커를 다시 누르거나 아래 버튼으로 목록에 돌아갈 수 있어요" : "장소가 있는 일정끼리 연결 · 직선거리 기준"}
                 </p>
               </div>
               <span className="rounded-full bg-primary-soft px-2.5 py-1 text-[11px] font-bold text-primary-dark">
@@ -95,7 +98,7 @@ export default function RouteMapPage({
               </span>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
+            <div className="px-4 py-3">
               {selectedSchedule ? (
                 <Card className="gap-3 border-primary bg-primary-soft">
                   <div className="flex items-start gap-3">
@@ -150,12 +153,30 @@ export default function RouteMapPage({
                   </button>
                 </Card>
               ) : (
-                <div className="flex flex-col gap-2">
-                  {locatedSchedules.map((schedule, index) => (
-                    <Card key={schedule.id} onClick={() => toggleSchedule(schedule.id)} className="flex-row items-center gap-3 py-3">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-[13px] font-bold text-primary-dark">
-                        {index + 1}
-                      </span>
+                <div className="flex flex-col">
+                  {locatedSchedules.map((schedule, index) => {
+                    const previous = locatedSchedules[index - 1];
+                    const from = previous ? positions[previous.id] : undefined;
+                    const to = positions[schedule.id];
+                    const distance = from && to ? formatRouteDistance(straightLineDistance(from, to))
+                      : from === null || to === null ? "거리 확인 불가" : "계산 중…";
+                    return (
+                    <div key={schedule.id}>
+                      {index > 0 && (
+                        <div className="grid grid-cols-[64px_minmax(0,1fr)] gap-2 py-0.5">
+                          <div className="flex flex-col items-center gap-0 text-center text-[10px] leading-3 text-gray-500"
+                            aria-label={`${previous.placeName}에서 ${schedule.placeName}까지 직선거리 ${distance}`}>
+                            <span aria-hidden="true" className="h-1 border-l border-dashed border-gray-300" />
+                            <span className="font-mono font-semibold text-primary-dark">{distance}</span>
+                            <span aria-hidden="true" className="h-1 border-l border-dashed border-gray-300" />
+                          </div>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-[64px_minmax(0,1fr)] items-center gap-2">
+                        <span className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-primary-soft text-[13px] font-bold text-primary-dark">
+                          {index + 1}
+                        </span>
+                    <Card onClick={() => toggleSchedule(schedule.id)} className="flex-row items-center gap-3 py-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
                           <h3 className="truncate font-bold text-ink">
@@ -167,7 +188,10 @@ export default function RouteMapPage({
                       </div>
                       <span aria-hidden="true" className="text-gray-300">›</span>
                     </Card>
-                  ))}
+                      </div>
+                    </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -147,6 +147,43 @@ class ScheduleControllerTest {
                 .andExpect(jsonPath("$.errorCode").value("INVALID_TIME_RANGE"));
     }
 
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "생성·수정 길이 경계: {0}")
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"title:200", "title:201", "memo:1000", "memo:1001"})
+    void textLengthBoundaries(String scenario) throws Exception {
+        String[] parts = scenario.split(":");
+        int length = Integer.parseInt(parts[1]);
+        boolean valid = length == 200 || length == 1000;
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        var body = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(validCreatePayload());
+        body.put(parts[0], "가".repeat(length));
+        Long id = fixture.createSchedule(planId, "기존", 1);
+        var create = asUser(post("/api/v1/plans/{planId}/schedules", planId)).content(body.toString());
+        var update = asUser(patch("/api/v1/plans/{planId}/schedules/{id}", planId, id)).content(body.toString());
+        mvcResult(create, valid ? 201 : 400);
+        mvcResult(update, valid ? 200 : 400);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "미인증 일정 API 거절: {0}")
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"create", "detail", "update", "order", "delete"})
+    void unauthenticatedEndpoints(String operation) throws Exception {
+        String base = "/api/v1/plans/" + planId + "/schedules";
+        var request = switch (operation) {
+            case "create" -> post(base).content(validCreatePayload());
+            case "detail" -> get(base + "/1");
+            case "update" -> patch(base + "/1").content("{}");
+            case "order" -> patch(base + "/order").content("{\"scheduleIds\":[1]}");
+            default -> org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(base + "/1");
+        };
+        mockMvc.perform(request.contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+    }
+
+    private void mvcResult(MockHttpServletRequestBuilder request, int expectedStatus) throws Exception {
+        mockMvc.perform(request).andExpect(status().is(expectedStatus));
+    }
+
     private void assertInvalidRequest(MockHttpServletRequestBuilder builder, String payload) throws Exception {
         mockMvc.perform(asUser(builder).content(payload))
                 .andExpect(status().isBadRequest())
