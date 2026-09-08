@@ -34,6 +34,8 @@ class ScheduleTransactionTest {
 
     @AfterEach
     void cleanup() {
+        // 일정 작업에서 별도 트랜잭션으로 저장한 활동 기록도 부모 계획보다 먼저 정리한다.
+        jdbc.update("delete from activity_logs where plan_id = ?", planId);
         jdbc.update("delete from schedules where plan_id = ?", planId);
         jdbc.update("delete from members where plan_id = ?", planId);
         jdbc.update("delete from plans where plan_id = ?", planId);
