@@ -54,7 +54,7 @@ class PlaceControllerTest {
         var empty = mapper.readValue("""
                 {"documents":[],"meta":{"total_count":0,"pageable_count":0,"is_end":true}}
                 """, KakaoSearchResponse.class);
-        when(kakao.searchByKeyword(anyString(), anyInt(), anyInt(), anyString(), isNull(), isNull(), isNull()))
+        when(kakao.searchByKeyword(anyString(), anyInt(), anyInt(), anyString(), isNull(), isNull(), isNull(), isNull(), anyString()))
                 .thenReturn(empty);
         when(kakao.searchByCategory(anyString(), anyString(), anyInt(), anyInt())).thenReturn(empty);
         int size = page == 1 ? 1 : 15;
@@ -63,7 +63,7 @@ class PlaceControllerTest {
                             .param("page", "" + page).param("size", "" + size)))
                     .andExpect(status().isOk()).andExpect(jsonPath("$.data.places").isEmpty());
         }
-        verify(kakao).searchByKeyword("카페", page, size, "accuracy", null, null, null);
+        verify(kakao).searchByKeyword("카페", page, size, "accuracy", null, null, null, null, "126,33,127,34");
         verify(kakao).searchByCategory("CE7", "126,33,127,34", page, size);
     }
 
@@ -96,6 +96,85 @@ class PlaceControllerTest {
         mvc.perform(auth(post("/api/v1/place/register")).contentType("application/json").content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT_VALUE"));
+    }
+
+
+    @ParameterizedTest(name = "키워드 검색 조건 조합: {0}")
+    @ValueSource(strings = {"none", "category", "bounds", "both"})
+    void keywordFilters(String combination) throws Exception {
+        String category = combination.equals("category") || combination.equals("both") ? "CE7" : null;
+        boolean bounded = combination.equals("bounds") || combination.equals("both");
+        String rect = bounded ? "126,33,127,34" : null;
+        var empty = mapper.readValue("""
+                {"documents":[],"meta":{"total_count":0,"pageable_count":0,"is_end":true}}
+                """, KakaoSearchResponse.class);
+        when(kakao.searchByKeyword("스타벅스", 1, 15, "accuracy", null, null, null, category, rect)).thenReturn(empty);
+        var request = get("/api/v1/place/search").param("keyword", "스타벅스");
+        if (category != null) request.param("categoryGroupCode", category);
+        if (bounded) coordinates(request);
+        mvc.perform(auth(request)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.places").isEmpty());
+        verify(kakao).searchByKeyword("스타벅스", 1, 15, "accuracy", null, null, null, category, rect);
+    }
+
+    @ParameterizedTest(name = "잘못된 단일 카테고리 거절: {0}")
+    @ValueSource(strings = {"INVALID", "", "CE7,FD6"})
+    void invalidKeywordCategory(String category) throws Exception {
+        mvc.perform(auth(get("/api/v1/place/search").param("keyword", "카페")
+                        .param("categoryGroupCode", category)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT_VALUE"));
+        verifyNoInteractions(kakao);
+    }
+
+    @ParameterizedTest(name = "좌표 범위와 순서 검증: {0}")
+    @ValueSource(strings = {
+            "-180.0001,33,127,34", "180.0001,33,127,34",
+            "126,33,-180.0001,34", "126,33,180.0001,34",
+            "126,-90.0001,127,34", "126,90.0001,127,34",
+            "126,33,127,-90.0001", "126,33,127,90.0001",
+            "127,33,126,34", "126,34,127,33",
+            "126,33,126,34", "126,33,127,33"})
+    void invalidBounds(String value) throws Exception {
+        String[] values = value.split(",");
+        String[] names = {"southWestLongitude", "southWestLatitude", "northEastLongitude", "northEastLatitude"};
+        for (String path : List.of("/api/v1/place/search", "/api/v1/place/category/CE7")) {
+            var request = get(path).param("keyword", "카페");
+            for (int i = 0; i < 4; i++) request.param(names[i], values[i]);
+            mvc.perform(auth(request)).andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT_VALUE"));
+        }
+        verifyNoInteractions(kakao);
+    }
+
+    @ParameterizedTest(name = "선택 좌표 일부 누락 거절: {0}")
+    @ValueSource(strings = {"southWestLongitude", "southWestLatitude", "northEastLongitude", "northEastLatitude"})
+    void partialKeywordBounds(String missing) throws Exception {
+        var request = get("/api/v1/place/search").param("keyword", "카페");
+        String[] names = {"southWestLongitude", "southWestLatitude", "northEastLongitude", "northEastLatitude"};
+        String[] values = {"126", "33", "127", "34"};
+        for (int i = 0; i < 4; i++) if (!names[i].equals(missing)) request.param(names[i], values[i]);
+        mvc.perform(auth(request)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_INPUT_VALUE"));
+        verifyNoInteractions(kakao);
+    }
+
+    @Test
+    void coordinateLimitsAreInclusive() throws Exception {
+        var empty = mapper.readValue("""
+                {"documents":[],"meta":{"total_count":0,"pageable_count":0,"is_end":true}}
+                """, KakaoSearchResponse.class);
+        when(kakao.searchByCategory("CE7", "-180,-90,180,90", 1, 15)).thenReturn(empty);
+        when(kakao.searchByKeyword("카페", 1, 15, "accuracy", null, null, null, null, "-180,-90,180,90"))
+                .thenReturn(empty);
+        for (String path : List.of("/api/v1/place/search", "/api/v1/place/category/CE7")) {
+            mvc.perform(auth(get(path).param("keyword", "카페")
+                            .param("southWestLongitude", "-180").param("southWestLatitude", "-90")
+                            .param("northEastLongitude", "180").param("northEastLatitude", "90")))
+                    .andExpect(status().isOk());
+        }
+        verify(kakao).searchByCategory("CE7", "-180,-90,180,90", 1, 15);
+        verify(kakao).searchByKeyword("카페", 1, 15, "accuracy", null, null, null, null, "-180,-90,180,90");
     }
 
     private MockHttpServletRequestBuilder coordinates(MockHttpServletRequestBuilder request) {

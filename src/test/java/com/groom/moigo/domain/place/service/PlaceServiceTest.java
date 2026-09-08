@@ -23,8 +23,8 @@ class PlaceServiceTest {
     @Test
     void searchReturnsPlaceMetadataAndVerifiableToken() throws Exception {
         var upstream = response();
-        when(kakao.searchByKeyword("카페", 2, 5, "accuracy", null, null, null)).thenReturn(upstream);
-        var result = service.searchPlaces("카페", 2, 5);
+        when(kakao.searchByKeyword("카페", 2, 5, "accuracy", null, null, null, null, null)).thenReturn(upstream);
+        var result = service.searchPlaces("카페", null, null, null, null, null, 2, 5);
         assertResult(result);
     }
 
@@ -38,11 +38,11 @@ class PlaceServiceTest {
 
     @Test
     void emptySearchReturnsEmptyListAndMetadata() throws Exception {
-        when(kakao.searchByKeyword("없음", 1, 15, "accuracy", null, null, null))
+        when(kakao.searchByKeyword("없음", 1, 15, "accuracy", null, null, null, null, null))
                 .thenReturn(mapper.readValue("""
                         {"documents":[],"meta":{"total_count":0,"pageable_count":0,"is_end":true}}
                         """, KakaoSearchResponse.class));
-        var result = service.searchPlaces("없음", 1, 15);
+        var result = service.searchPlaces("없음", null, null, null, null, null, 1, 15);
         assertThat(result.getPlaces()).isEmpty();
         assertThat(result.getTotalCount()).isZero();
         assertThat(result.getPageableCount()).isZero();
@@ -56,6 +56,60 @@ class PlaceServiceTest {
                 .containsExactlyElementsOf(Arrays.stream(PlaceCategory.values()).map(Enum::name).toList());
         assertThat(categories).extracting(CategoryResponse::getCategoryGroupName)
                 .containsExactlyElementsOf(Arrays.stream(PlaceCategory.values()).map(PlaceCategory::getDisplayName).toList());
+    }
+
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "키워드 선택 조건 전달: {0}")
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"none", "category", "bounds", "both"})
+    void keywordFilters(String combination) throws Exception {
+        String category = combination.equals("category") || combination.equals("both") ? "CE7" : null;
+        boolean bounded = combination.equals("bounds") || combination.equals("both");
+        BigDecimal west = bounded ? new BigDecimal("126.10") : null;
+        BigDecimal south = bounded ? new BigDecimal("33.20") : null;
+        BigDecimal east = bounded ? new BigDecimal("127.30") : null;
+        BigDecimal north = bounded ? new BigDecimal("34.40") : null;
+        String rect = bounded ? "126.10,33.20,127.30,34.40" : null;
+        when(kakao.searchByKeyword("카페", 2, 5, "accuracy", null, null, null, category, rect))
+                .thenReturn(response());
+        assertResult(service.searchPlaces("카페", category, west, south, east, north, 2, 5));
+        verify(kakao).searchByKeyword("카페", 2, 5, "accuracy", null, null, null, category, rect);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "좌표 일부 누락 조합 거절: {0}")
+    @org.junit.jupiter.params.provider.ValueSource(ints = {1,2,3,4,5,6,7,8,9,10,11,12,13,14})
+    void rejectsPartialBounds(int mask) {
+        BigDecimal[] bounds = {new BigDecimal("126"), new BigDecimal("33"),
+                new BigDecimal("127"), new BigDecimal("34")};
+        for (int i = 0; i < 4; i++) if ((mask & (1 << i)) == 0) bounds[i] = null;
+        assertInvalidBounds(bounds);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "역전 또는 면적 없는 영역 거절: {0}")
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "127,33,126,34", "126,34,127,33", "126,33,126.0,34", "126,33,127,33.0"})
+    void rejectsInvalidOrder(String value) {
+        assertInvalidBounds(Arrays.stream(value.split(",")).map(BigDecimal::new).toArray(BigDecimal[]::new));
+    }
+
+    @Test
+    void categoryRequiresBounds() {
+        assertThatThrownBy(() -> service.getCategoryPlaces("CE7", null, null, null, null, 1, 15))
+                .isInstanceOf(com.groom.moigo.global.error.BusinessException.class)
+                .extracting(e -> ((com.groom.moigo.global.error.BusinessException) e).getErrorCode())
+                .isEqualTo(com.groom.moigo.global.error.ErrorCode.INVALID_INPUT_VALUE);
+        verifyNoInteractions(kakao);
+    }
+
+    private void assertInvalidBounds(BigDecimal[] b) {
+        for (boolean keyword : new boolean[]{true, false}) {
+            assertThatThrownBy(() -> {
+                if (keyword) service.searchPlaces("카페", "CE7", b[0], b[1], b[2], b[3], 1, 15);
+                else service.getCategoryPlaces("CE7", b[0], b[1], b[2], b[3], 1, 15);
+            }).isInstanceOf(com.groom.moigo.global.error.BusinessException.class)
+                    .extracting(e -> ((com.groom.moigo.global.error.BusinessException) e).getErrorCode())
+                    .isEqualTo(com.groom.moigo.global.error.ErrorCode.INVALID_INPUT_VALUE);
+        }
+        verifyNoInteractions(kakao);
     }
 
     private KakaoSearchResponse response() throws Exception {

@@ -26,7 +26,7 @@ public class PlaceController {
     @GetMapping("/search")
     public ResponseEntity<CommonResponse<PlaceDocumentListResponse>> searchPlaces(
             @NotBlank @RequestParam String keyword,
-            @ValidEnum(target = PlaceCategory.class) @PathVariable@RequestParam(required = false) String categoryGroupCode,
+            @ValidEnum(target = PlaceCategory.class) @RequestParam(required = false) String categoryGroupCode,
             @DecimalMin("-180") @DecimalMax("180") @RequestParam(required = false) BigDecimal southWestLongitude,
             @DecimalMin("-90") @DecimalMax("90") @RequestParam(required = false) BigDecimal southWestLatitude,
             @DecimalMin("-180") @DecimalMax("180") @RequestParam(required = false) BigDecimal northEastLongitude,
