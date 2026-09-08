@@ -1,5 +1,9 @@
 package com.groom.moigo.domain.plan.service;
 
+import com.groom.moigo.domain.activity.dto.ActivityRecordCommand;
+import com.groom.moigo.domain.activity.entity.ActivityActionType;
+import com.groom.moigo.domain.activity.entity.ActivityTargetType;
+import com.groom.moigo.domain.activity.service.ActivityLogService;
 import com.groom.moigo.domain.plan.dto.MemberResponse;
 import com.groom.moigo.domain.plan.entity.MemberEntity;
 import com.groom.moigo.domain.plan.entity.MemberRole;
@@ -21,6 +25,7 @@ public class MemberService {
     private final MemberRepository memberRepository;
     private final PlanRepository planRepository;
     private final PlanAccessService planAccessService;
+    private final ActivityLogService activityLogService;
 
     // 멤버 조회 (참여자만 가능함)
     @Transactional(readOnly = true)
@@ -50,6 +55,12 @@ public class MemberService {
         }
 
         target.changeRole(newRole);
+
+        recordActivity(
+                planId, userId, ActivityActionType.MEMBER_ROLE_CHANGED, target.getMemberId(),
+                "멤버 권한을 " + newRole.name() + "(으)로 변경했어요."
+        );
+
         return MemberResponse.from(target);
     }
 
@@ -65,6 +76,14 @@ public class MemberService {
             throw new BusinessException(ErrorCode.OWNER_CANNOT_BE_REMOVED);
         }
         target.remove();
+
+        // 내보내기와 스스로 나가기는 다른 행위로 해석.
+        // 액션 타입은 MEMBER_LEFT로 같지만 요약 문구에서 '누가 누구를'이 드러나도록 구분함
+        // 화면은 '{수행자}님이 {요약}' 형태로 그리므로 "A님이 B님을 내보냈어요."로 나옴.
+        recordActivity(
+                planId, userId, ActivityActionType.MEMBER_LEFT, target.getMemberId(),
+                target.getUser().getNickname() + "님을 내보냈어요."
+        );
     }
 
     // 멤버 스스로 나가기
@@ -77,6 +96,21 @@ public class MemberService {
             throw new BusinessException(ErrorCode.OWNER_CANNOT_LEAVE);
         }
         currentMember.leave();
+
+        recordActivity(
+                planId, userId, ActivityActionType.MEMBER_LEFT, currentMember.getMemberId(),
+                "계획에서 나갔어요."
+        );
+    }
+
+    /**
+     * 활동 기록을 남긴다. 기록 저장이 실패해도 멤버 작업 자체는 그대로 성공해야 하므로
+     * {@code record()} 안에서 별도 트랜잭션으로 처리되고 예외도 삼켜진다(활동 기록 정책서 5절 2항).
+     */
+    private void recordActivity(
+            Long planId, Long userId, ActivityActionType actionType, Long memberId, String summary) {
+        activityLogService.record(new ActivityRecordCommand(
+                planId, userId, actionType, ActivityTargetType.MEMBER, memberId, summary));
     }
 
     // memberId로 조회

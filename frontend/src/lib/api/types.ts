@@ -151,6 +151,7 @@ export interface Vote {
 export type ActivityType =
   | "schedule_added"
   | "schedule_updated"
+  | "schedule_detail_updated"
   | "schedule_deleted"
   | "vote_created"
   | "vote_updated"

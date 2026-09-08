@@ -45,6 +45,7 @@ function mapActivity(response: ActivityApiResponse): ActivityLog {
   const actionTypeMap: Record<string, ActivityLog["type"]> = {
     SCHEDULE_CREATED: "schedule_added",
     SCHEDULE_UPDATED: "schedule_updated",
+    SCHEDULE_DETAIL_UPDATED: "schedule_detail_updated",
     SCHEDULE_DELETED: "schedule_deleted",
     VOTE_CREATED: "vote_created",
     VOTE_UPDATED: "vote_updated",
