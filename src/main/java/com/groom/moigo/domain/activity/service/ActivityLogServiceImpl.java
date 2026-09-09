@@ -19,6 +19,9 @@ import com.groom.moigo.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -44,6 +47,7 @@ public class ActivityLogServiceImpl implements ActivityLogService {
     private final PlanAccessService planAccessService;
     private final PlanRepository planRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final PlatformTransactionManager transactionManager;
 
     private static final Set<ActivityActionType> SHARED_ACTIONS = Set.of(
             ActivityActionType.SCHEDULE_CREATED,
@@ -65,22 +69,24 @@ public class ActivityLogServiceImpl implements ActivityLogService {
         eventPublisher.publishEvent(command);
     }
 
-    // REQUIRES_NEW: AFTER_COMMIT 시점엔 기존 트랜잭션이 커밋 완료 상태라 새 트랜잭션 필수
-    // fallbackExecution: 트랜잭션 밖 발행 이벤트도 즉시 실행. 저장 실패는 로그만(정책서 5절 2항)
+    // fallbackExecution: 트랜잭션 밖 발행 이벤트도 즉시 실행
+    // 저장 트랜잭션은 TransactionTemplate(REQUIRES_NEW)로 직접 열어 커밋 예외까지 catch로 격리(정책서 7절)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void onActivityRecorded(ActivityRecordCommand command) {
-        try {
-            ActivityLogEntity activityLog = ActivityLogEntity.create(
-                    command.planId(),
-                    command.userId(),
-                    command.actionType(),
-                    command.targetType(),
-                    command.targetId(),
-                    command.summary()
-            );
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
 
-            activityLogRepository.save(activityLog);
+        try {
+            transactionTemplate.executeWithoutResult(status ->
+                    activityLogRepository.save(ActivityLogEntity.create(
+                            command.planId(),
+                            command.userId(),
+                            command.actionType(),
+                            command.targetType(),
+                            command.targetId(),
+                            command.summary()
+                    )));
         } catch (RuntimeException e) {
             log.error(
                     "활동 기록 저장 실패: planId={}, userId={}, actionType={}",
