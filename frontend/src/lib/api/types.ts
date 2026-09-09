@@ -156,17 +156,15 @@ export type ActivityType =
   | "vote_created"
   | "vote_updated"
   | "vote_deleted"
-  | "vote_participated"
   | "vote_closed"
   | "member_joined"
   | "member_left"
   | "member_role_changed"
-  | "invitation_created"
-  | "invitation_revoked"
-  | "invitation_reissued"
   | "comment_added"
   | "comment_deleted"
-  | "comment_liked";
+  | "comment_liked"
+  // 미매핑 액션 타입의 안전값
+  | "unknown";
 
 export interface CommentCursor {
   createdAt: string;
