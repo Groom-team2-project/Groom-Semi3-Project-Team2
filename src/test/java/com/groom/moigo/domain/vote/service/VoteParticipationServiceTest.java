@@ -3,9 +3,8 @@ package com.groom.moigo.domain.vote.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.groom.moigo.domain.activity.dto.ActivityRecordCommand;
 import com.groom.moigo.domain.activity.entity.ActivityActionType;
-import com.groom.moigo.domain.activity.entity.ActivityTargetType;
-import com.groom.moigo.domain.activity.repository.ActivityLogRepository;
 import com.groom.moigo.domain.plan.entity.MemberRole;
 import com.groom.moigo.domain.vote.dto.request.VoteCreateRequest;
 import com.groom.moigo.domain.vote.dto.request.VoteOptionCreateRequest;
@@ -26,18 +25,19 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.annotation.Isolation;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Transactional;
 
-// activityLogService.record()가 REQUIRES_NEW로 커밋되므로, 그 결과를 바로 조회하는 이 테스트는
-// READ_COMMITTED로 지정한다 (docs/activity-log-spec.md 7절 참고).
+// 활동 기록 검증은 발행 이벤트 기준(롤백 테스트에서는 커밋 후 저장이 미실행, 정책서 7.5절)
 @SpringBootTest
-@Transactional(isolation = Isolation.READ_COMMITTED)
+@RecordApplicationEvents
+@Transactional
 class VoteParticipationServiceTest {
 
 	@Autowired private VoteService voteService;
 	@Autowired private VoteParticipationService voteParticipationService;
-	@Autowired private ActivityLogRepository activityLogRepository;
+	@Autowired private ApplicationEvents events;
 	@Autowired private VoteTestFixture fixture;
 
 	private Long planId;
@@ -111,13 +111,10 @@ class VoteParticipationServiceTest {
 		voteParticipationService.participate(
 				planId, id(vote.id()), firstId, single(vote.options().get(0).id()));
 
-		// 누가 무엇을 골랐는지 드러나지 않아야 하므로 참여 관련 이력은 만들지 않는다. 투표 생성 이력만 남는다.
-		// 활동 기록이 REQUIRES_NEW로 즉시 커밋되어 다른 테스트가 남긴 행이 섞인다. targetId는 대상 종류별로
-		// 따로 매겨지므로(댓글 5번과 투표 5번이 공존) targetType까지 함께 걸러야 이번 투표의 이력만 남는다.
-		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getTargetType() == ActivityTargetType.VOTE
-						&& log.getTargetId().equals(Long.valueOf(vote.id())))
-				.extracting(log -> log.getActionType())
+		// 익명성 보호: 참여 이력 미발행, 투표 생성 이벤트만
+		assertThat(events.stream(ActivityRecordCommand.class))
+				.filteredOn(command -> command.targetId().equals(Long.valueOf(vote.id())))
+				.extracting(command -> command.actionType())
 				.containsExactly(ActivityActionType.VOTE_CREATED);
 	}
 	@Test

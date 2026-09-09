@@ -263,10 +263,7 @@ public class ScheduleService {
         return ScheduleDeleteResponse.from(scheduleToDelete);
     }
 
-    /**
-     * 활동 기록을 남긴다. 기록 저장이 실패해도 일정 작업 자체는 그대로 성공해야 하므로
-     * {@code record()} 안에서 별도 트랜잭션으로 처리되고 예외도 삼켜진다(활동 기록 정책서 5절 2항).
-     */
+    /** 활동 기록 이벤트 발행. 실제 저장은 커밋 후 리스너가 수행(정책서 7절) */
     private void recordActivity(
             Long planId, Long userId, ActivityActionType actionType, Long scheduleId, String summary) {
         activityLogService.record(new ActivityRecordCommand(
