@@ -2,8 +2,8 @@ package com.groom.moigo.domain.vote.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.groom.moigo.domain.activity.dto.ActivityRecordCommand;
 import com.groom.moigo.domain.activity.entity.ActivityActionType;
-import com.groom.moigo.domain.activity.repository.ActivityLogRepository;
 import com.groom.moigo.domain.vote.dto.request.VoteCreateRequest;
 import com.groom.moigo.domain.vote.dto.request.VoteOptionCreateRequest;
 import com.groom.moigo.domain.vote.dto.response.VoteResponse;
@@ -18,19 +18,20 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.annotation.Isolation;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Transactional;
 
-// 활동 기록이 REQUIRES_NEW로 커밋되므로 그 결과를 바로 조회하려면 READ_COMMITTED가 필요하다
-// (docs/activity-log-spec.md 7절 참고).
+// 활동 기록 검증은 발행 이벤트 기준(롤백 테스트에서는 커밋 후 저장이 미실행, 정책서 7.5절)
 @SpringBootTest
-@Transactional(isolation = Isolation.READ_COMMITTED)
+@RecordApplicationEvents
+@Transactional
 class VoteDeadlineCloserTest {
 
 	@Autowired private VoteService voteService;
 	@Autowired private VoteDeadlineCloser voteDeadlineCloser;
 	@Autowired private VoteRepository voteRepository;
-	@Autowired private ActivityLogRepository activityLogRepository;
+	@Autowired private ApplicationEvents events;
 	@Autowired private VoteTestFixture fixture;
 
 	private Long planId;
@@ -53,16 +54,16 @@ class VoteDeadlineCloserTest {
 
 		assertThat(voteRepository.findById(voteId).orElseThrow().getStatus())
 				.isEqualTo(VoteStatus.CLOSED);
-		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getTargetId().equals(voteId))
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_CLOSED)
+		assertThat(events.stream(ActivityRecordCommand.class))
+				.filteredOn(command -> command.targetId().equals(voteId))
+				.filteredOn(command -> command.actionType() == ActivityActionType.VOTE_CLOSED)
 				.singleElement()
 				.satisfies(
-						log -> {
-							assertThat(log.getPlanId()).isEqualTo(planId);
+						command -> {
+							assertThat(command.planId()).isEqualTo(planId);
 							// 시간이 되어 저절로 닫힌 것이라 수행한 사람이 없다.
-							assertThat(log.getUserId()).isNull();
-							assertThat(log.getSummary()).isEqualTo("'첫날 어디 갈까요' 투표가 마감됐어요");
+							assertThat(command.userId()).isNull();
+							assertThat(command.summary()).isEqualTo("'첫날 어디 갈까요' 투표가 마감됐어요");
 						});
 	}
 
@@ -76,9 +77,9 @@ class VoteDeadlineCloserTest {
 		voteDeadlineCloser.closeExpiredVotes();
 		voteDeadlineCloser.closeExpiredVotes();
 
-		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getTargetId().equals(voteId))
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_CLOSED)
+		assertThat(events.stream(ActivityRecordCommand.class))
+				.filteredOn(command -> command.targetId().equals(voteId))
+				.filteredOn(command -> command.actionType() == ActivityActionType.VOTE_CLOSED)
 				.hasSize(1);
 	}
 
@@ -92,9 +93,9 @@ class VoteDeadlineCloserTest {
 
 		assertThat(voteRepository.findById(voteId).orElseThrow().getStatus())
 				.isEqualTo(VoteStatus.OPEN);
-		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getTargetId().equals(voteId))
-				.noneMatch(log -> log.getActionType() == ActivityActionType.VOTE_CLOSED);
+		assertThat(events.stream(ActivityRecordCommand.class))
+				.filteredOn(command -> command.targetId().equals(voteId))
+				.noneMatch(command -> command.actionType() == ActivityActionType.VOTE_CLOSED);
 	}
 
 	/** 마감 일시를 과거로 돌려 스케줄러가 집어갈 상태로 만든다. */

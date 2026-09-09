@@ -172,8 +172,7 @@ public class InvitationService {
             throw new BusinessException(ErrorCode.MEMBER_ALREADY_JOINED, e);
         }
 
-        // 초대 링크 참여가 계획에 합류하는 유일한 경로라, 멤버 참여 기록은 여기서 남긴다.
-        // 기록 저장이 실패해도 참여 자체는 성공해야 하므로 record() 안에서 별도 트랜잭션으로 처리된다.
+        // 계획 합류는 초대 참여가 유일한 경로라 MEMBER_JOINED 기록은 여기서만 남긴다
         activityLogService.record(new ActivityRecordCommand(
                 planId, userId, ActivityActionType.MEMBER_JOINED,
                 ActivityTargetType.MEMBER, member.getMemberId(),

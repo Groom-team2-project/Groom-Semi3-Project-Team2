@@ -139,9 +139,9 @@ export const INITIAL_COMMENTS: Comment[] = [
 
 export const INITIAL_ACTIVITIES: ActivityLog[] = [
   { id: "act_1", planId: "plan_jeju", actorName: "김민수", actorColor: "#00C896", actorInitial: "김", type: "schedule_added", summary: "'협재해변' 일정을 추가했어요", targetType: "schedule", targetId: "sch_4", createdAt: minutesAgo(3) },
-  { id: "act_2", planId: "plan_jeju", actorName: "박서연", actorColor: "#FF9F1C", actorInitial: "박", type: "vote_participated", summary: "투표에 참여했어요", targetType: "vote", targetId: "vote_1", createdAt: minutesAgo(10) },
+  { id: "act_2", planId: "plan_jeju", actorName: "박서연", actorColor: "#FF9F1C", actorInitial: "박", type: "vote_closed", summary: "'둘째날 저녁 뭐 먹지?' 투표를 마감했어요", targetType: "vote", targetId: "vote_1", createdAt: minutesAgo(10) },
   { id: "act_3", planId: "plan_jeju", actorName: "최도윤", actorColor: "#8B7FF2", actorInitial: "최", type: "member_joined", summary: "계획에 참여했어요", targetType: "member", targetId: "mem_4", createdAt: minutesAgo(60) },
-  { id: "act_4", planId: "plan_jeju", actorName: "이지은", actorColor: "#3182F6", actorInitial: "이", type: "invitation_reissued", summary: "초대 링크를 재발급했어요", targetType: "member", createdAt: minutesAgo(60 * 26) },
+  { id: "act_4", planId: "plan_jeju", actorName: "이지은", actorColor: "#3182F6", actorInitial: "이", type: "member_role_changed", summary: "멤버 역할을 변경했어요", targetType: "member", createdAt: minutesAgo(60 * 26) },
   { id: "act_5", planId: "plan_jeju", actorName: "박서연", actorColor: "#FF9F1C", actorInitial: "박", type: "vote_created", summary: "'둘째날 저녁 뭐 먹지?' 투표를 시작했어요", targetType: "vote", targetId: "vote_1", createdAt: minutesAgo(60 * 48) },
   { id: "act_6", planId: "plan_jeju", actorName: "김민수", actorColor: "#00C896", actorInitial: "김", type: "schedule_added", summary: "'카페 델문도' 일정을 추가했어요", targetType: "schedule", targetId: "sch_5", createdAt: minutesAgo(60 * 49) },
   { id: "act_7", planId: "plan_busan", actorName: "이지은", actorColor: "#3182F6", actorInitial: "이", type: "schedule_added", summary: "'해운대' 일정을 추가했어요", targetType: "schedule", targetId: "sch_12", createdAt: minutesAgo(60 * 20) },

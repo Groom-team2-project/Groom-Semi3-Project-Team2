@@ -3,9 +3,8 @@ package com.groom.moigo.domain.vote.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.groom.moigo.domain.activity.dto.ActivityRecordCommand;
 import com.groom.moigo.domain.activity.entity.ActivityActionType;
-import com.groom.moigo.domain.activity.entity.ActivityTargetType;
-import com.groom.moigo.domain.activity.repository.ActivityLogRepository;
 import com.groom.moigo.domain.plan.entity.MemberRole;
 import com.groom.moigo.domain.vote.dto.request.VoteCreateRequest;
 import com.groom.moigo.domain.vote.dto.request.VoteOptionCreateRequest;
@@ -28,20 +27,20 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.annotation.Isolation;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Transactional;
 
-// REQUIRES_NEW로 커밋되는 activityLogService.record()의 결과를 이 테스트의 트랜잭션에서 바로 조회하므로,
-// MySQL 기본 격리 수준(REPEATABLE READ)의 스냅샷 때문에 안 보이지 않도록 READ_COMMITTED로 지정함
-// (docs/activity-log-spec.md 7절 참고).
+// 활동 기록 검증은 발행 이벤트 기준(롤백 테스트에서는 커밋 후 저장이 미실행, 정책서 7.5절)
 @SpringBootTest
-@Transactional(isolation = Isolation.READ_COMMITTED)
+@RecordApplicationEvents
+@Transactional
 class VoteServiceTest {
 
 	@Autowired private VoteService voteService;
 	@Autowired private VoteParticipationService voteParticipationService;
 	@Autowired private VoteRepository voteRepository;
-	@Autowired private ActivityLogRepository activityLogRepository;
+	@Autowired private ApplicationEvents events;
 	@Autowired private VoteTestFixture fixture;
 
 	private Long planId;
@@ -115,20 +114,15 @@ class VoteServiceTest {
 	void createVoteRecordsActivity() {
 		VoteResponse response = voteService.create(planId, creatorId, createRequest());
 
-		// activityLogRepository.save()가 REQUIRES_NEW로 즉시 커밋되어 테스트가 끝나도 롤백되지 않으므로, 반복 실행하면
-		// 이 테이블에는 이전 실행이 남긴 행이 쌓여있다. findAll()로 통째로 보지 않고 이번에 만든 투표의 로그만 걸러본다.
-		// targetId는 대상 종류별로 따로 매겨지므로(댓글 5번과 투표 5번이 공존) targetType까지 함께 걸러야 한다.
-		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getTargetType() == ActivityTargetType.VOTE
-						&& log.getTargetId().equals(Long.valueOf(response.id())))
+		assertThat(events.stream(ActivityRecordCommand.class))
+				.filteredOn(command -> command.targetId().equals(Long.valueOf(response.id())))
 				.singleElement()
 				.satisfies(
-						log -> {
-							assertThat(log.getPlanId()).isEqualTo(planId);
-							assertThat(log.getUserId()).isEqualTo(creatorId);
-							assertThat(log.getActionType()).isEqualTo(ActivityActionType.VOTE_CREATED);
-							assertThat(log.getTargetId()).isEqualTo(Long.valueOf(response.id()));
-							assertThat(log.getSummary()).isEqualTo("'첫날 어디 갈까요' 투표를 시작했어요");
+						command -> {
+							assertThat(command.planId()).isEqualTo(planId);
+							assertThat(command.userId()).isEqualTo(creatorId);
+							assertThat(command.actionType()).isEqualTo(ActivityActionType.VOTE_CREATED);
+							assertThat(command.summary()).isEqualTo("'첫날 어디 갈까요' 투표를 시작했어요");
 						});
 	}
 
@@ -300,8 +294,8 @@ class VoteServiceTest {
 
 		assertThat(closed.status()).isEqualTo(VoteStatus.CLOSED);
 		assertThat(closed.resultSummary()).isEqualTo("성산일출봉 1표 · 확정");
-		assertThat(activityLogRepository.findAll())
-				.extracting(log -> log.getActionType())
+		assertThat(events.stream(ActivityRecordCommand.class))
+				.extracting(command -> command.actionType())
 				.contains(ActivityActionType.VOTE_CLOSED);
 
 		VoteUpdateRequest request = new VoteUpdateRequest("변경", null, null, null);
@@ -536,11 +530,11 @@ class VoteServiceTest {
 		voteService.update(
 				planId, id(vote.id()), creatorId, new VoteUpdateRequest("바뀐 제목", null, null, null));
 
-		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_UPDATED
-						&& log.getTargetId().equals(Long.valueOf(vote.id())))
+		assertThat(events.stream(ActivityRecordCommand.class))
+				.filteredOn(command -> command.actionType() == ActivityActionType.VOTE_UPDATED
+						&& command.targetId().equals(Long.valueOf(vote.id())))
 				.singleElement()
-				.satisfies(log -> assertThat(log.getSummary()).isEqualTo("'바뀐 제목' 투표를 수정했어요"));
+				.satisfies(command -> assertThat(command.summary()).isEqualTo("'바뀐 제목' 투표를 수정했어요"));
 	}
 
 	@Test
@@ -550,15 +544,14 @@ class VoteServiceTest {
 
 		voteService.delete(planId, id(vote.id()), creatorId);
 
-		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_DELETED
-						&& log.getTargetId().equals(Long.valueOf(vote.id())))
+		assertThat(events.stream(ActivityRecordCommand.class))
+				.filteredOn(command -> command.actionType() == ActivityActionType.VOTE_DELETED
+						&& command.targetId().equals(Long.valueOf(vote.id())))
 				.singleElement()
 				.satisfies(
-						log -> {
-							assertThat(log.getPlanId()).isEqualTo(planId);
-							assertThat(log.getTargetId()).isEqualTo(Long.valueOf(vote.id()));
-							assertThat(log.getSummary()).isEqualTo("'첫날 어디 갈까요' 투표를 삭제했어요");
+						command -> {
+							assertThat(command.planId()).isEqualTo(planId);
+							assertThat(command.summary()).isEqualTo("'첫날 어디 갈까요' 투표를 삭제했어요");
 						});
 	}
 
@@ -578,10 +571,10 @@ class VoteServiceTest {
 				new VoteOptionUpdateRequest("성산", null, null, null, false));
 		voteService.deleteOption(planId, voteId, id(vote.options().get(1).id()), creatorId);
 
-		assertThat(activityLogRepository.findAll())
-				.filteredOn(log -> log.getActionType() == ActivityActionType.VOTE_UPDATED
-						&& log.getTargetId().equals(Long.valueOf(vote.id())))
-				.extracting(log -> log.getSummary())
+		assertThat(events.stream(ActivityRecordCommand.class))
+				.filteredOn(command -> command.actionType() == ActivityActionType.VOTE_UPDATED
+						&& command.targetId().equals(Long.valueOf(vote.id())))
+				.extracting(command -> command.summary())
 				.containsExactly(
 						"'첫날 어디 갈까요' 투표에 후보를 추가했어요",
 						"'첫날 어디 갈까요' 투표의 후보를 수정했어요",

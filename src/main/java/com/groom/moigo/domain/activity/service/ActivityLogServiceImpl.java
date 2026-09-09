@@ -18,12 +18,16 @@ import com.groom.moigo.global.error.BusinessException;
 import com.groom.moigo.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -42,6 +46,7 @@ public class ActivityLogServiceImpl implements ActivityLogService {
     private final CommentRepository commentRepository;
     private final PlanAccessService planAccessService;
     private final PlanRepository planRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final PlatformTransactionManager transactionManager;
 
     private static final Set<ActivityActionType> SHARED_ACTIONS = Set.of(
@@ -58,26 +63,30 @@ public class ActivityLogServiceImpl implements ActivityLogService {
             ActivityActionType.COMMENT_CREATED
     );
 
-    // 활동 기록 실패가 원래 도메인 작업에 영향을 주면 안 됨(정책서 5절 2항). @Transactional만으로는 커밋 시점
-    // 예외를 못 잡으므로 TransactionTemplate으로 트랜잭션 제어를 직접 함.
+    // 이벤트만 발행한다. 실제 저장은 커밋 후 리스너가 하므로, 롤백되면 기록도 남지 않는다(정책서 7절)
     @Override
     public void record(ActivityRecordCommand command) {
+        eventPublisher.publishEvent(command);
+    }
+
+    // fallbackExecution: 트랜잭션 밖 발행 이벤트도 즉시 실행
+    // 저장 트랜잭션은 TransactionTemplate(REQUIRES_NEW)로 직접 열어 커밋 예외까지 catch로 격리(정책서 7절)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void onActivityRecorded(ActivityRecordCommand command) {
         TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
         transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
 
         try {
-            transactionTemplate.executeWithoutResult(status -> {
-                ActivityLogEntity activityLog = ActivityLogEntity.create(
-                        command.planId(),
-                        command.userId(),
-                        command.actionType(),
-                        command.targetType(),
-                        command.targetId(),
-                        command.summary()
-                );
-
-                activityLogRepository.save(activityLog);
-            });
+            transactionTemplate.executeWithoutResult(status ->
+                    activityLogRepository.save(ActivityLogEntity.create(
+                            command.planId(),
+                            command.userId(),
+                            command.actionType(),
+                            command.targetType(),
+                            command.targetId(),
+                            command.summary()
+                    )));
         } catch (RuntimeException e) {
             log.error(
                     "활동 기록 저장 실패: planId={}, userId={}, actionType={}",
