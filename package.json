@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "react-daum-postcode": "^4.0.0"
+  }
+}

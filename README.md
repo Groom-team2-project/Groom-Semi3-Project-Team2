@@ -50,6 +50,17 @@
 - [ ] 여행 계획 공유
 - [ ] 모바일 화면 최적화
 
+## 도메인 문서
+
+- [계획 도메인 명세](docs/plan-spec.md)
+- [장소 도메인 명세](docs/places-spec.md)
+- [일정 도메인 명세](docs/schedules-spec.md)
+- [활동 기록 정책](docs/activity-log-spec.md)
+
+## 성능 검증
+
+- [활동 기록 조회 성능 설계 및 검증](docs/performance/activity-log-benchmark.md)
+
 ## 개발 로드맵
 
 ### 1. 기반 구성
@@ -76,9 +87,161 @@
 - 테스트, 오류 추적, 성능 최적화
 - 배포 자동화와 운영 환경 구성
 
+## 실행하기
+
+Java 21이 필요합니다. 별도의 Gradle 설치 없이 저장소에 포함된 Gradle Wrapper를 사용합니다.
+
+### 애플리케이션 실행
+
+```bash
+./gradlew bootRun
+```
+
+Windows PowerShell에서는 다음 명령을 사용합니다.
+
+```powershell
+.\gradlew.bat bootRun
+```
+
+실행 후 `http://localhost:8080`에서 목업 화면을 확인할 수 있습니다. 서버 상태는 `http://localhost:8080/actuator/health`에서 확인합니다.
+
+### 테스트
+
+```bash
+./gradlew test
+```
+
+로컬에서는 별도의 데이터베이스 설정 없이 H2 인메모리 데이터베이스를 사용합니다. MySQL을 사용할 때는 `.env.example`을 참고해 `.env` 파일을 만듭니다. `.env`는 앱 실행 시 자동으로 읽힙니다(별도로 `export` 안 해도 됩니다). 실제 비밀번호가 포함된 `.env` 파일은 Git에 올리지 않습니다.
+
+### 데이터베이스 마이그레이션
+
+스키마 변경은 Hibernate 자동 생성이 아니라 Flyway 마이그레이션으로 관리합니다. 새 SQL 파일은
+`src/main/resources/db/migration`에 추가합니다. 이미 적용된 마이그레이션 파일은 수정하지 않고,
+다음 버전의 새 파일을 추가합니다.
+
+버전 번호는 도메인별로 구간을 미리 나눠두지 않고, `V2`, `V3`, `V4` ... 순서대로 그냥 다음 번호를
+씁니다.
+
+```text
+V{번호}__{설명}.sql
+예) V2__add_places_table.sql
+```
+
+`develop`을 최신으로 받아서 가장 큰 번호 다음 번호를 쓰세요. PR 두 개가 같은 번호를 써서 겹치면,
+**아직 merge 안 된 쪽만** 번호를 바꾸세요. 이미 merge된 마이그레이션의 번호나 내용을 바꾸면 다른 사람
+환경에서 에러가 나니 절대 건드리지 마세요.
+
+`V1__init_schema.sql`은 공통 초기 스키마이므로 수정하지 않습니다.
+
+## Docker Compose 배포
+
+현재 배포 구성은 한 대의 EC2에서 백엔드와 MySQL을 함께 실행합니다. MySQL 데이터는
+`moigo_mysql_data` Docker 볼륨에 보존되고, DB 포트는 EC2 외부에 공개하지 않습니다.
+
+### 배포 전 확인
+
+이 구성은 `depends_on.required`를 사용하므로 **Docker Compose v2.20.0 이상**이 필요합니다. EC2에서
+다음 명령을 실행하고 출력된 버전이 `2.20.0` 이상인지 확인합니다.
+
+```bash
+docker compose version
+docker compose version --short
+```
+
+### 첫 EC2 통합 배포
+
+1. `.env.example`을 `.env`로 복사하고 비밀번호, JWT, 카카오 OAuth 값을 실제 값으로 변경합니다.
+2. `.env`의 `COMPOSE_PROFILES=local-db` 설정을 유지합니다.
+3. EC2 보안 그룹에서 `.env`의 `APP_PORT`만 필요한 대상에 허용합니다. `APP_PORT`가 없으면 기본값은
+   `8080`입니다.
+4. 다음 명령으로 빌드하고 실행합니다.
+
+```bash
+docker compose up -d --build
+docker compose ps
+docker compose logs -f backend
+```
+
+`COMPOSE_PROFILES=local-db`가 설정되어 있어 MySQL도 함께 실행됩니다. 배포 후
+`.env`에 지정한 `APP_PORT`로 Actuator 상태가 `UP`인지 확인합니다.
+
+```text
+APP_PORT 미설정 또는 APP_PORT=8080: http://EC2주소:8080/actuator/health
+APP_PORT=9090:                    http://EC2주소:9090/actuator/health
+```
+
+컨테이너 내부 애플리케이션 포트와 Docker 헬스체크는 항상 `8080`을 사용하고, `APP_PORT`는 EC2 외부에
+공개하는 포트만 변경합니다.
+
+### GitHub Actions 자동 배포
+
+`develop` 브랜치에 push하면 GitHub Actions가 백엔드 이미지를 ECR에 올린 뒤 다음 배포 파일을 SSM으로
+EC2의 `/opt/moigo`에 자동 동기화합니다.
+
+```text
+deploy/compose.yml  → /opt/moigo/compose.yml
+deploy/deploy.sh    → /opt/moigo/deploy.sh
+```
+
+EC2의 `/opt/moigo/.env`는 비밀번호와 환경별 실제 값을 포함하므로 Git에서 관리하거나 자동으로 덮어쓰지
+않습니다. 새로운 필수 환경변수를 추가할 때는 `deploy/compose.yml`과 `.env.example`을 수정하고,
+EC2의 `/opt/moigo/.env`에도 실제 값을 한 번 등록해야 합니다.
+
+배포 과정은 임시 Compose 파일의 문법과 환경변수를 먼저 검증한 후 실제 파일을 교체합니다. 새 백엔드가
+헬스체크를 통과한 경우에만 `unless-stopped` 재시작 정책을 활성화하며, 시작 실패나 시간 초과가 발생하면
+재시작 정책을 끄고 실패한 백엔드 컨테이너를 중지합니다.
+
+### 향후 RDS 전환
+
+RDS 전환은 현재 첫 배포 범위에 포함하지 않습니다. 실제 전환 시에는 환경변수 두 개만 바꾸는 것으로 끝내지
+않고 다음 작업을 함께 진행해야 합니다.
+
+- JDBC URL에 `sslMode=VERIFY_IDENTITY`를 적용해 인증서와 RDS 호스트 이름을 모두 검증합니다.
+- Amazon RDS 루트 CA를 Java trust store에 등록하고 백엔드 컨테이너에 읽기 전용으로 마운트합니다.
+- RDS 보안 그룹의 3306 인바운드는 인터넷 전체가 아니라 백엔드 EC2 보안 그룹에서만 허용합니다.
+- EC2 MySQL 데이터를 RDS로 마이그레이션하고 데이터 정합성을 확인합니다.
+- `.env`의 `COMPOSE_PROFILES`를 비우고 `COMPOSE_DB_URL`을 RDS 주소로 변경합니다.
+- 전환 검증이 끝날 때까지 기존 `moigo_mysql_data` 볼륨을 롤백 용도로 보존합니다.
+
+RDS JDBC URL은 다음 형식을 사용합니다.
+
+```dotenv
+COMPOSE_DB_URL=jdbc:mysql://RDS엔드포인트:3306/moigo?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&sslMode=VERIFY_IDENTITY
+```
+
+인증서 다운로드, trust store 생성, 데이터 이전과 실제 전환 명령은 RDS 인스턴스와 사용하는 CA가 확정된
+뒤 작성합니다.
+
 ## 프로젝트 구조
 
-실제 개발이 시작되면 애플리케이션, 공통 컴포넌트, 서버, 테스트 영역을 목적에 맞게 분리할 예정입니다.
+```text
+.
+├── gradle/                         # Gradle Wrapper
+├── src/
+│   ├── main/
+│   │   ├── java/com/groom/moigo/
+│   │   │   ├── domain/
+│   │   │   │   ├── auth/          # 인증·인가 (카카오 로그인, JWT)
+│   │   │   │   ├── user/          # 유저 엔티티
+│   │   │   │   ├── plan/          # 여행 계획·멤버·초대·계획 장소
+│   │   │   │   ├── place/         # 장소 검색·저장
+│   │   │   │   ├── schedule/      # 일정·댓글
+│   │   │   │   └── vote/          # 투표
+│   │   │   └── global/            # 공통 설정, 에러, 응답 포맷
+│   │   └── resources/
+│   │       ├── db/migration/     # Flyway SQL 마이그레이션
+│   │       ├── static/index.html  # UI 목업
+│   │       └── application.yml
+│   └── test/                       # 테스트
+├── .env.example                    # 환경 변수 예시
+├── deploy/
+│   ├── compose.yml                 # EC2 자동 배포용 Compose 원본
+│   └── deploy.sh                   # ECR pull, 실행, 헬스체크 및 실패 정리
+├── Dockerfile                      # 백엔드 멀티 스테이지 이미지 빌드
+├── docker-compose.yml              # 백엔드 + 선택형 MySQL 배포 구성
+├── build.gradle
+└── settings.gradle
+```
 
 ## 기여하기
 
